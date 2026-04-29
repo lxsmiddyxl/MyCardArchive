@@ -1,0 +1,25 @@
+<!-- MyCardArchive Phase 27 — start trading -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 280" fill="none" role="img" aria-labelledby="ob-trade-t">
+  <title id="ob-trade-t">Start trading</title>
+  <defs>
+    <linearGradient id="ob-t-bg" x1="0" y1="0" x2="520" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#09090b"/>
+      <stop offset="0.6" stop-color="#18181b"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="520" height="280" rx="36" fill="url(#ob-t-bg)"/>
+  <ellipse cx="260" cy="236" rx="180" ry="22" fill="#78350f" fill-opacity="0.12"/>
+  <!-- Left card -->
+  <rect x="96" y="72" width="148" height="200" rx="26" fill="#3f3f46" stroke="#a1a1aa" stroke-width="2" transform="rotate(-11 170 172)"/>
+  <rect x="118" y="108" width="88" height="12" rx="6" fill="#52525b"/>
+  <!-- Right card -->
+  <rect x="276" y="72" width="148" height="200" rx="26" fill="#52525b" stroke="#d4d4d8" stroke-width="2" transform="rotate(11 350 172)"/>
+  <rect x="314" y="108" width="88" height="12" rx="6" fill="#71717a"/>
+  <!-- Swap arrow -->
+  <circle cx="260" cy="140" r="36" fill="#18181b" fill-opacity="0.75" stroke="#fbbf24" stroke-width="2"/>
+  <path d="M244 140h32M252 132l8 8-8 8" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Spark -->
+  <circle cx="420" cy="68" r="6" fill="#34d399" fill-opacity="0.45"/>
+  <path d="M420 58v20M410 68h20" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+</svg>

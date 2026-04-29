@@ -1,0 +1,19 @@
+<!-- MyCardArchive Phase 28 — empty state -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220" fill="none" role="img" color="#71717a" aria-labelledby="es-trades-t">
+  <title id="es-trades-t">No trades yet</title>
+  <defs>
+    <linearGradient id="es-t-bg" x1="0" y1="0" x2="400" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#0c0c0e"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="220" rx="28" fill="url(#es-t-bg)"/>
+  <rect x="92" y="64" width="92" height="124" rx="18" fill="#27272a" stroke="currentColor" stroke-width="1.75" opacity="0.7" transform="rotate(-9 138 126)"/>
+  <rect x="216" y="64" width="92" height="124" rx="18" fill="#27272a" stroke="currentColor" stroke-width="1.75" opacity="0.7" transform="rotate(9 262 126)"/>
+  <path d="M142 100h56M142 116h40" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" opacity="0.4" transform="rotate(-9 170 108)"/>
+  <path d="M266 100h56M266 116h40" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" opacity="0.4" transform="rotate(9 294 108)"/>
+  <!-- Disabled swap: muted circle + dashed arrow -->
+  <circle cx="200" cy="124" r="28" fill="#18181b" stroke="currentColor" stroke-width="1.75" stroke-dasharray="6 5" opacity="0.85"/>
+  <path d="M188 124h24" stroke="#78350f" stroke-width="1.75" stroke-linecap="round" opacity="0.55"/>
+  <path d="M206 118l-8 6 8 6" stroke="#78350f" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+</svg>

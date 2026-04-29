@@ -1,0 +1,22 @@
+<!-- MyCardArchive Phase 28 — empty state -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220" fill="none" role="img" color="#71717a" aria-labelledby="es-decks-t">
+  <title id="es-decks-t">No decks yet</title>
+  <defs>
+    <linearGradient id="es-d-bg" x1="0" y1="20" x2="400" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+    <filter id="es-deck-shadow" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="5" stdDeviation="10" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect width="400" height="220" rx="28" fill="url(#es-d-bg)"/>
+  <g filter="url(#es-deck-shadow)">
+    <rect x="118" y="52" width="164" height="110" rx="18" fill="#3f3f46" stroke="currentColor" stroke-width="1.75" transform="rotate(-4 200 107)" opacity="0.9"/>
+    <rect x="132" y="44" width="164" height="110" rx="18" fill="#27272a" stroke="currentColor" stroke-width="1.75" opacity="0.95"/>
+    <rect x="146" y="36" width="164" height="110" rx="18" fill="#18181b" stroke="currentColor" stroke-width="1.75"/>
+    <path d="M166 76h120M166 94h88" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" opacity="0.55"/>
+  </g>
+  <circle cx="204" cy="158" r="6" fill="#f59e0b" fill-opacity="0.55"/>
+  <path d="M200 154v8M196 158h8" stroke="#fbbf24" stroke-width="1.75" stroke-linecap="round" opacity="0.85"/>
+</svg>

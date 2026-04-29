@@ -1,0 +1,23 @@
+<!-- MyCardArchive Phase 30  feature slide 1024�500 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500" fill="none" role="img" aria-labelledby="br-asf-t">
+  <title id="br-asf-t">MyCardArchive app feature art</title>
+  <defs>
+    <linearGradient id="brasf-bg" x1="0" y1="0" x2="1024" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="500" rx="40" fill="url(#brasf-bg)"/>
+  <ellipse cx="780" cy="380" rx="320" ry="120" fill="#047857" fill-opacity="0.15"/>
+  <g transform="translate(72 70)">
+    <rect width="280" height="360" rx="56" fill="#27272a" stroke="#52525b" stroke-width="5" transform="rotate(-6 140 180)"/>
+    <rect x="40" y="20" width="300" height="380" rx="60" fill="#18181b" stroke="#3f3f46" stroke-width="5"/>
+    <rect x="88" y="140" width="204" height="28" rx="14" fill="#10b981" fill-opacity="0.55"/>
+    <rect x="88" y="188" width="120" height="14" rx="7" fill="#52525b"/>
+    <circle cx="288" cy="88" r="24" fill="#f59e0b" fill-opacity="0.5"/>
+  </g>
+  <rect x="460" y="120" width="480" height="36" rx="18" fill="#3f3f46" fill-opacity="0.45"/>
+  <rect x="460" y="180" width="400" height="28" rx="14" fill="#52525b" fill-opacity="0.28"/>
+  <rect x="460" y="228" width="360" height="28" rx="14" fill="#52525b" fill-opacity="0.18"/>
+  <circle cx="940" cy="80" r="12" fill="#34d399" fill-opacity="0.4"/>
+</svg>

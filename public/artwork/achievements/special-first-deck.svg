@@ -1,0 +1,18 @@
+<!-- MyCardArchive Phase 24 — special badge -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none" role="img" aria-hidden="true">
+  <defs>
+    <linearGradient id="dk-bg" x1="16" y1="20" x2="112" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#27272a"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="108" height="108" rx="36" fill="url(#dk-bg)" stroke="#10b981" stroke-width="2.5"/>
+  <rect x="30" y="38" width="56" height="40" rx="10" fill="#3f3f46" stroke="#52525b" stroke-width="1.75" transform="rotate(-12 58 58)"/>
+  <rect x="36" y="42" width="56" height="40" rx="10" fill="#52525b" stroke="#71717a" stroke-width="1.75"/>
+  <rect x="42" y="46" width="56" height="40" rx="10" fill="#27272a" stroke="#a1a1aa" stroke-width="2"/>
+  <path d="M54 62c6-4 14-4 20 0" stroke="#34d399" stroke-width="2.5" stroke-linecap="round"/>
+  <g stroke="#fbbf24" stroke-width="2" stroke-linecap="round">
+    <circle cx="64" cy="30" r="4" fill="#f59e0b" fill-opacity="0.5"/>
+    <path d="M64 22v16M56 30h16"/>
+  </g>
+</svg>

@@ -1,0 +1,22 @@
+# Manual rollback coordination — does not revert cloud revisions automatically.
+# Use when deploy-verify fails or production is unhealthy. See docs/deployments/rollback.md
+
+name: Rollback (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "Reason / ticket (optional)"
+        required: false
+        type: string
+
+jobs:
+  mark:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rollback marker
+        run: |
+          echo "Rollback workflow invoked (manual)."
+          echo "Reason: ${{ inputs.note || 'n/a' }}"
+          echo "Follow docs/deployments/rollback.md and your host's rollback procedure."

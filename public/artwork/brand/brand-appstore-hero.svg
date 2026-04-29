@@ -1,0 +1,37 @@
+<!-- MyCardArchive Phase 30  wide hero for storefront / carousels 4320�1080 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4320 1080" fill="none" role="img" aria-labelledby="br-ash-t">
+  <title id="br-ash-t">MyCardArchive app storefront hero</title>
+  <defs>
+    <linearGradient id="bras-bg" x1="0" y1="0" x2="4320" y2="1080" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#09090b"/>
+      <stop offset="0.33" stop-color="#18181b"/>
+      <stop offset="0.66" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+  </defs>
+  <rect width="4320" height="1080" fill="url(#bras-bg)"/>
+  <ellipse cx="720" cy="880" rx="560" ry="180" fill="#047857" fill-opacity="0.08"/>
+  <ellipse cx="2160" cy="200" rx="720" ry="240" fill="#78350f" fill-opacity="0.06"/>
+  <ellipse cx="3600" cy="900" rx="600" ry="200" fill="#047857" fill-opacity="0.07"/>
+  <!-- Panel A -->
+  <g opacity="0.95">
+    <rect x="280" y="220" width="400" height="640" rx="88" fill="#27272a" stroke="#52525b" stroke-width="8" transform="rotate(-5 480 540)"/>
+    <rect x="420" y="160" width="440" height="700" rx="96" fill="#18181b" stroke="#3f3f46" stroke-width="8"/>
+    <rect x="520" y="360" width="240" height="40" rx="20" fill="#10b981" fill-opacity="0.5"/>
+    <circle cx="820" cy="280" r="48" fill="#f59e0b" fill-opacity="0.4"/>
+  </g>
+  <!-- Panel B -->
+  <g opacity="0.9">
+    <rect x="1940" y="200" width="440" height="680" rx="92" fill="#18181b" stroke="#3f3f46" stroke-width="8"/>
+    <rect x="2020" y="320" width="280" height="32" rx="16" fill="#34d399" fill-opacity="0.35"/>
+    <rect x="2020" y="400" width="200" height="22" rx="11" fill="#52525b"/>
+    <path d="M2080 520h280" stroke="#fbbf24" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+  </g>
+  <!-- Panel C -->
+  <g opacity="0.88">
+    <rect x="3280" y="240" width="360" height="600" rx="80" fill="#3f3f46" stroke="#71717a" stroke-width="7" transform="rotate(4 3460 540)"/>
+    <rect x="3480" y="180" width="400" height="640" rx="88" fill="#18181b" stroke="#a1a1aa" stroke-width="7"/>
+    <rect x="3560" y="340" width="240" height="36" rx="18" fill="#10b981" fill-opacity="0.45"/>
+    <rect x="3560" y="420" width="160" height="20" rx="10" fill="#52525b"/>
+  </g>
+</svg>

@@ -1,0 +1,18 @@
+<!-- MyCardArchive Phase 24 — tier badge -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none" role="img" aria-hidden="true">
+  <defs>
+    <linearGradient id="br-m" x1="22" y1="18" x2="106" y2="110" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9a3412"/>
+      <stop offset="0.5" stop-color="#b45309"/>
+      <stop offset="1" stop-color="#713f12"/>
+    </linearGradient>
+    <linearGradient id="br-h" x1="64" y1="28" x2="64" y2="72" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fde68a" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#fde68a" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="12" width="104" height="104" rx="36" fill="url(#br-m)" stroke="#451a03" stroke-width="2.25"/>
+  <path d="M28 44c0-8.8 7.2-16 16-16h40c8.8 0 16 7.2 16 16v28c0 8.8-7.2 16-16 16H44c-8.8 0-16-7.2-16-16V44Z" fill="#78350f" stroke="#a16207" stroke-width="1.75"/>
+  <ellipse cx="64" cy="48" rx="36" ry="14" fill="url(#br-h)"/>
+  <circle cx="64" cy="78" r="10" fill="#451a03" fill-opacity="0.35" stroke="#fbbf24" stroke-opacity="0.4" stroke-width="1.5"/>
+</svg>

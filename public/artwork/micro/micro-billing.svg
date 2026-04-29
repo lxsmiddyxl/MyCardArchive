@@ -1,0 +1,11 @@
+<!-- MyCardArchive Phase 29 — account -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" color="#71717a" aria-labelledby="ma-bill-t">
+  <title id="ma-bill-t">Billing</title>
+  <rect x="10" y="8" width="44" height="48" rx="10" fill="#18181b" stroke="currentColor" stroke-width="1.75"/>
+  <rect x="10" y="8" width="44" height="14" rx="10" fill="#27272a"/>
+  <rect x="16" y="30" width="28" height="3" rx="1.5" fill="currentColor" fill-opacity="0.4"/>
+  <rect x="16" y="38" width="20" height="3" rx="1.5" fill="currentColor" fill-opacity="0.3"/>
+  <rect x="16" y="46" width="24" height="3" rx="1.5" fill="#34d399" fill-opacity="0.45"/>
+  <circle cx="46" cy="48" r="10" fill="#064e3b" fill-opacity="0.4" stroke="#34d399" stroke-width="1.5"/>
+  <path d="M42 48h8M46 44v8" stroke="#6ee7b7" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

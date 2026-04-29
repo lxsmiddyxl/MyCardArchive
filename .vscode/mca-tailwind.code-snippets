@@ -1,0 +1,32 @@
+{
+  "MCA semantic text color": {
+    "prefix": "mca-text",
+    "body": ["text-mca-${1|ink,ink-strong,ink-muted,ink-body,ink-subtle,hint,success,error-text,warning-text,info-text|}"],
+    "description": "MCA semantic text-mca-* color"
+  },
+  "MCA semantic background": {
+    "prefix": "mca-bg",
+    "body": ["bg-mca-${1|surface,surface-elevated,chrome,chrome/40,success-surface,warning-surface,error-surface,info-surface|}"],
+    "description": "MCA semantic bg-mca-*"
+  },
+  "MCA border": {
+    "prefix": "mca-bordercls",
+    "body": ["border border-mca-${1|border,border-subtle,field-border,accent-border|}"],
+    "description": "MCA border utility"
+  },
+  "MCA spacing padding": {
+    "prefix": "mca-p",
+    "body": ["p-mca-${1|micro,xs,sm,tight,compact,base,md,lg,xl,2xl|}"],
+    "description": "MCA padding token"
+  },
+  "MCA rounded": {
+    "prefix": "mca-rounded",
+    "body": ["rounded-mca-${1|card,panel,block,sheet,control,pill|}"],
+    "description": "MCA radius token"
+  },
+  "MCA shadow": {
+    "prefix": "mca-shadow",
+    "body": ["shadow-mca-${1|card,panel|}"],
+    "description": "MCA shadow token"
+  }
+}

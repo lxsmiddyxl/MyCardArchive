@@ -1,0 +1,14 @@
+<!-- MyCardArchive Phase 29 — premium -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" color="#71717a" aria-labelledby="mp-tier-t">
+  <title id="mp-tier-t">Premium tier</title>
+  <defs>
+    <linearGradient id="mpt-f" x1="32" y1="6" x2="32" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fbbf24"/>
+      <stop offset="0.5" stop-color="#f59e0b"/>
+      <stop offset="1" stop-color="#b45309"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="52" height="52" rx="18" fill="#18181b" stroke="currentColor" stroke-width="1.75"/>
+  <path d="M32 8 52 24v20L32 58 12 44V24z" fill="url(#mpt-f)" fill-opacity="0.85" stroke="#b45309" stroke-width="1.75" stroke-linejoin="round"/>
+  <path d="M32 20v24M22 32h20" stroke="#fef3c7" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+</svg>

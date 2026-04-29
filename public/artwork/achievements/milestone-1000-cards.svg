@@ -1,0 +1,23 @@
+<!-- MyCardArchive Phase 24 — milestone badge -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none" role="img" aria-hidden="true">
+  <defs>
+    <linearGradient id="ms1k-bg" x1="12" y1="16" x2="116" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+    <linearGradient id="ms1k-sh" x1="64" y1="24" x2="64" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#047857" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#047857" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="108" height="108" rx="40" fill="url(#ms1k-bg)" stroke="#10b981" stroke-width="2.75"/>
+  <rect x="18" y="18" width="92" height="92" rx="34" fill="url(#ms1k-sh)"/>
+  <path d="M40 36h48a5 5 0 015 5v5a5 5 0 01-5 5H40a5 5 0 01-5-5v-5a5 5 0 015-5Z" fill="#27272a" stroke="#fbbf24" stroke-width="1.75"/>
+  <circle cx="51" cy="43.5" r="2.8" fill="#f59e0b"/>
+  <circle cx="64" cy="43.5" r="2.8" fill="#f59e0b"/>
+  <circle cx="77" cy="43.5" r="2.8" fill="#f59e0b"/>
+  <rect x="28" y="54" width="7" height="30" rx="3.5" fill="#34d399"/>
+  <ellipse cx="48" cy="68" rx="9" ry="11" stroke="#34d399" stroke-width="4.5"/>
+  <ellipse cx="64" cy="68" rx="9" ry="11" stroke="#34d399" stroke-width="4.5"/>
+  <ellipse cx="80" cy="68" rx="9" ry="11" stroke="#34d399" stroke-width="4.5"/>
+</svg>

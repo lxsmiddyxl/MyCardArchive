@@ -1,0 +1,23 @@
+<!-- MyCardArchive Phase 28 — empty state -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220" fill="none" role="img" color="#71717a" aria-labelledby="es-cards-t">
+  <title id="es-cards-t">No cards yet</title>
+  <defs>
+    <linearGradient id="es-c-bg" x1="40" y1="0" x2="360" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#0f0f12"/>
+    </linearGradient>
+    <linearGradient id="es-c-scan" x1="148" y1="124" x2="252" y2="124" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34d399" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#34d399" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#34d399" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="220" rx="28" fill="url(#es-c-bg)"/>
+  <rect x="156" y="58" width="88" height="116" rx="14" fill="#27272a" stroke="currentColor" stroke-width="1.75" transform="rotate(-6 200 116)"/>
+  <rect x="164" y="74" width="72" height="10" rx="5" fill="#34d399" fill-opacity="0.25"/>
+  <rect x="164" y="92" width="48" height="7" rx="3.5" fill="currentColor" fill-opacity="0.35"/>
+  <rect x="140" y="118" width="120" height="5" rx="2.5" fill="url(#es-c-scan)"/>
+  <!-- Sparkle -->
+  <circle cx="268" cy="72" r="5" fill="#fbbf24" fill-opacity="0.45"/>
+  <path d="M268 64v16M260 72h16" stroke="#fbbf24" stroke-width="1.75" stroke-linecap="round" opacity="0.9"/>
+</svg>

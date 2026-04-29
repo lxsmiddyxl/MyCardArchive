@@ -1,0 +1,30 @@
+<!-- MyCardArchive Phase 25  collection feature. Minimal icon-forward layout. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" fill="none" role="img" aria-labelledby="mcf-t"><title id="mcf-t">Collection feature artwork</title>
+  <defs>
+    <linearGradient id="mcf-bg" x1="0" y1="0" x2="640" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" rx="32" fill="url(#mcf-bg)"/>
+  <rect x="40" y="40" width="560" height="320" rx="28" fill="none" stroke="#3f3f46" stroke-width="1.5" stroke-opacity="0.55"/>
+  <!-- Binder + grid -->
+  <rect x="72" y="88" width="56" height="224" rx="16" fill="#27272a" stroke="#52525b" stroke-width="2"/>
+  <circle cx="100" cy="132" r="7" fill="#047857" stroke="#34d399" stroke-width="1.5"/>
+  <circle cx="100" cy="176" r="7" fill="#047857" stroke="#34d399" stroke-width="1.5"/>
+  <circle cx="100" cy="220" r="7" fill="#047857" stroke="#34d399" stroke-width="1.5"/>
+  <rect x="152" y="96" width="416" height="208" rx="22" fill="#09090b" stroke="#10b981" stroke-width="2" stroke-opacity="0.45"/>
+  <g>
+    <rect x="176" y="120" width="56" height="76" rx="12" fill="#3f3f46" stroke="#52525b"/>
+    <rect x="244" y="120" width="56" height="76" rx="12" fill="#3f3f46" stroke="#52525b"/>
+    <rect x="312" y="120" width="56" height="76" rx="12" fill="#3f3f46" stroke="#52525b"/>
+    <rect x="380" y="120" width="56" height="76" rx="12" fill="#3f3f46" stroke="#52525b"/>
+    <rect x="448" y="120" width="56" height="76" rx="12" fill="#047857" stroke="#34d399"/>
+    <rect x="516" y="120" width="56" height="76" rx="12" fill="#3f3f46" stroke="#52525b"/>
+    <rect x="176" y="212" width="56" height="76" rx="12" fill="#3f3f46" stroke="#52525b"/>
+    <rect x="244" y="212" width="56" height="76" rx="12" fill="#3f3f46" stroke="#52525b"/>
+    <rect x="312" y="212" width="56" height="76" rx="12" fill="#3f3f46" stroke="#52525b"/>
+    <rect x="380" y="212" width="56" height="76" rx="12" fill="#3f3f46" stroke="#52525b"/>
+  </g>
+  <circle cx="320" cy="340" r="6" fill="#fbbf24" fill-opacity="0.5"/>
+</svg>

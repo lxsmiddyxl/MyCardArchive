@@ -1,0 +1,28 @@
+<!-- MyCardArchive Phase 25  OG template (light). 1200�630. Dynamic copy added in OG route. No text in asset. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none" role="img" aria-labelledby="ogl-t"><title id="ogl-t">Open Graph template (light)</title>
+  <defs>
+    <linearGradient id="ogl-bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fafafa"/>
+      <stop offset="0.5" stop-color="#f4f4f5"/>
+      <stop offset="1" stop-color="#e4e4e7"/>
+    </linearGradient>
+    <linearGradient id="ogl-card" x1="860" y1="140" x2="1040" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e4e4e7"/>
+      <stop offset="1" stop-color="#d4d4d8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#ogl-bg)"/>
+  <rect x="80" y="80" width="680" height="280" rx="28" fill="none" stroke="#a1a1aa" stroke-width="2" stroke-dasharray="12 10" opacity="0.85"/>
+  <rect x="112" y="120" width="420" height="22" rx="11" fill="#ffffff" stroke="#d4d4d8"/>
+  <rect x="112" y="156" width="520" height="16" rx="8" fill="#e4e4e7"/>
+  <rect x="112" y="188" width="380" height="16" rx="8" fill="#e4e4e7" fill-opacity="0.75"/>
+  <rect x="820" y="120" width="260" height="390" rx="32" fill="url(#ogl-card)" stroke="#a1a1aa" stroke-width="2.5"/>
+  <rect x="872" y="200" width="156" height="200" rx="18" fill="#f4f4f5" fill-opacity="0.9"/>
+  <rect x="902" y="232" width="96" height="10" rx="5" fill="#10b981" fill-opacity="0.45"/>
+  <circle cx="950" cy="430" r="40" fill="none" stroke="#059669" stroke-width="2.5" opacity="0.4"/>
+  <circle cx="950" cy="430" r="22" fill="#a7f3d0" fill-opacity="0.55"/>
+  <rect x="80" y="520" width="280" height="44" rx="14" fill="#ffffff" stroke="#d4d4d8" stroke-width="1.5"/>
+  <rect x="104" y="532" width="36" height="20" rx="6" fill="#34d399" fill-opacity="0.75"/>
+  <rect x="152" y="536" width="120" height="12" rx="6" fill="#d4d4d8"/>
+  <rect x="280" y="536" width="56" height="12" rx="6" fill="#e4e4e7"/>
+</svg>

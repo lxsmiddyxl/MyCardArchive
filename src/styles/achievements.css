@@ -1,0 +1,132 @@
+/**
+ * Achievement cards & toast animations (classes used by AchievementCard
+ * and AchievementToastItem). Loaded from app/layout.tsx per Next.js global CSS rules.
+ */
+
+@keyframes ach-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.75rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes ach-toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(0.5rem) scale(0.98);
+  }
+}
+
+@keyframes ach-pulse-soft {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 20px 2px rgba(59, 130, 246, 0.25);
+  }
+}
+
+@keyframes ach-glow-gold {
+  0%,
+  100% {
+    box-shadow: 0 0 12px rgba(234, 179, 8, 0.25), 0 0 28px rgba(234, 179, 8, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.45), 0 0 40px rgba(234, 179, 8, 0.2);
+  }
+}
+
+@keyframes ach-shine {
+  0% {
+    transform: translateX(-120%) skewX(-12deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-12deg);
+  }
+}
+
+.ach-toast {
+  animation: ach-toast-in 0.35s ease-out forwards;
+}
+
+.ach-toast--leaving {
+  animation: ach-toast-out 0.3s ease-in forwards;
+}
+
+.ach-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.ach-card--locked {
+  opacity: 0.5;
+  filter: grayscale(0.35);
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+/* Locked: no interactive hover affordances beyond default */
+.ach-card--locked:hover {
+  filter: grayscale(0.35);
+  transform: none;
+}
+
+.ach-card--unlocked-rare {
+  animation: ach-pulse-soft 3.2s ease-in-out infinite;
+}
+
+.ach-card--unlocked-legendary {
+  animation: ach-glow-gold 3.5s ease-in-out infinite;
+}
+
+.ach-card__shine {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.ach-card__shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.07) 45%,
+    transparent 90%
+  );
+  transform: translateX(-120%) skewX(-12deg);
+  opacity: 0;
+}
+
+.ach-card--unlocked:hover .ach-card__shine::after {
+  opacity: 1;
+  animation: ach-shine 0.85s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ach-toast,
+  .ach-toast--leaving,
+  .ach-card--unlocked-rare,
+  .ach-card--unlocked-legendary {
+    animation: none !important;
+  }
+
+  .ach-card--unlocked:hover .ach-card__shine::after {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+}

@@ -1,0 +1,18 @@
+<!-- MyCardArchive Phase 24 — special badge -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none" role="img" aria-hidden="true">
+  <defs>
+    <linearGradient id="bn-bg" x1="18" y1="14" x2="110" y2="114" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#09090b"/>
+      <stop offset="0.55" stop-color="#27272a"/>
+      <stop offset="1" stop-color="#18181b"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="108" height="108" rx="36" fill="url(#bn-bg)" stroke="#34d399" stroke-width="2.5"/>
+  <path d="M36 28h42a8 8 0 018 8v76a8 8 0 01-8 8H36a8 8 0 01-8-8V36a8 8 0 018-8Z" fill="#18181b" stroke="#52525b" stroke-width="2"/>
+  <path d="M44 40h24M44 52h24M44 64h20" stroke="#3f3f46" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="86" cy="44" r="6" fill="#047857" stroke="#34d399" stroke-width="1.5"/>
+  <circle cx="86" cy="64" r="6" fill="#047857" stroke="#34d399" stroke-width="1.5"/>
+  <circle cx="86" cy="84" r="6" fill="#047857" stroke="#34d399" stroke-width="1.5"/>
+  <rect x="30" y="32" width="14" height="64" rx="4" fill="#27272a" stroke="#3f3f46" stroke-width="1.25"/>
+  <path d="M70 100c10 2 20 2 30 0" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+</svg>

@@ -1,0 +1,25 @@
+<!-- MyCardArchive Phase 28 — empty state -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220" fill="none" role="img" color="#71717a" aria-labelledby="es-notify-t">
+  <title id="es-notify-t">No notifications</title>
+  <defs>
+    <linearGradient id="es-n-bg" x1="0" y1="0" x2="400" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="220" rx="28" fill="url(#es-n-bg)"/>
+  <!-- Muted ring -->
+  <path d="M168 88c0-18 16-32 36-32s36 14 36 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" opacity="0.28"/>
+  <!-- Bell -->
+  <path
+    d="M168 92c0-17.7 14.3-32 32-32s32 14.3 32 32c0 12-8 22-18 28v8h-28v-8c-10-6-18-16-18-28Z"
+    fill="#27272a"
+    stroke="currentColor"
+    stroke-width="1.75"
+    stroke-linejoin="round"
+    opacity="0.92"
+  />
+  <path d="M184 156h48" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" opacity="0.5"/>
+  <path d="M194 156c4 10 12 16 22 16s18-6 22-16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" opacity="0.35"/>
+  <circle cx="320" cy="68" r="5" fill="#f59e0b" fill-opacity="0.4"/>
+</svg>

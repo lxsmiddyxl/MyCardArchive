@@ -1,0 +1,48 @@
+---
+description: Universal Optimization Watchdog — global standards for all MyCardArchive work
+alwaysApply: true
+---
+
+# Universal Optimization Watchdog
+
+For **every** task in this repo, treat these as **non-optional** unless the user explicitly overrides.
+
+## Global Optimization Directive
+
+- Prefer **small, correct improvements** that raise baseline quality: structure, safety, performance, and UX consistency—not one-off hacks.
+- **Never patch around** smell; **fix the cause** when scope allows, and **refactor adjacent code** if it blocks a clean solution.
+- Match existing architecture (App Router, Supabase RLS, route handlers), **do not** change migrations/schema unless asked.
+
+## 1. Code structure
+
+- Remove **dead code**, **unused imports**, and **duplicate logic** (consolidate helpers).
+- **Normalize patterns**: same error handling, same data-fetch shape, same component API patterns as nearby files.
+- API route handlers: prefer **`defineRoute` / `defineRouteSimple` / `defineRouteNoArgs`** from `@/lib/server/api-route` where appropriate; **never** break multi-line imports when inserting imports (append after first complete import).
+
+## 2. Performance
+
+- Hot paths: consider **`React.memo`**, **`useMemo`**, **`useCallback`**, **`Suspense`**, and **batching** requests where it clearly reduces work without harming readability.
+- Avoid unnecessary re-renders and waterfall fetches; prefer **parallel** `Promise.all` where safe.
+
+## 3. UI & design tokens
+
+- Prefer **`Button`**, **`Field`**, **`Panel`** primitives and **shared layout** over ad-hoc duplicated class strings.
+- Motion: **`duration-200`** + **`ease-mca-standard`** (see `tailwind.config.ts` / globals); avoid stray **`duration-150`** / generic **`ease-out`** for interactive UI.
+- **Pokémon-first** terminology in user-facing copy (cards, sets, decks, binders—TCG context).
+- Consistent **spacing, typography, and borders** with existing screens.
+
+## 4. SSR & RLS safety
+
+- Server loaders: **try/catch** around auth and data loading; **redirect** or **graceful fallback** instead of throwing uncaught errors to the client.
+- Use the **correct Supabase client** for the context (`@/lib/supabase/route`, server client, etc.); **no service-role keys** in client or user-facing code paths.
+- Preserve **ownership checks** and visibility rules; never bypass RLS with service role except in existing server-only secure routes (e.g. webhooks).
+
+## 5. Routing & architecture
+
+- **Dynamic route params**: consistent typing and validation; align with existing **`defineRoute`** wrappers.
+- Add or reuse **error boundaries** (`error.tsx`) where missing for route segments that need them.
+- **No new dynamic slug schemes** unless the user asks; **no legacy binder v1** patterns—use current binder architecture.
+
+## 6. Deliverable mindset
+
+- When touching a file, **leave it better than found** within task scope: structure, tokens, and safety—not a minimal diff that hides debt.

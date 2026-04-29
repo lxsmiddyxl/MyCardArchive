@@ -1,0 +1,7 @@
+<!-- MyCardArchive Phase 29 — decorative -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" color="#71717a" aria-labelledby="md-card-t">
+  <title id="md-card-t">Card silhouette</title>
+  <rect x="8" y="6" width="32" height="36" rx="8" fill="#27272a" stroke="currentColor" stroke-width="1.75"/>
+  <rect x="14" y="12" width="20" height="6" rx="3" fill="#34d399" fill-opacity="0.35"/>
+  <rect x="14" y="22" width="14" height="4" rx="2" fill="currentColor" fill-opacity="0.35"/>
+</svg>

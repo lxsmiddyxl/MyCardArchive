@@ -1,0 +1,74 @@
+import {
+  checkRateLimit,
+  getRateLimitBucketStats,
+  rateLimitHeaders,
+  type RateLimitOptions,
+} from "@/lib/server/rate-limit";
+import { NextResponse } from "next/server";
+
+function clientKey(request: Request): string {
+  const h = request.headers;
+  const fwd = h.get("x-forwarded-for");
+  const ip =
+    (fwd?.split(",")[0]?.trim() ?? "") ||
+    h.get("x-real-ip")?.trim() ||
+    "unknown";
+  return ip;
+}
+
+export function rateLimitedResponse(
+  request: Request,
+  bucketSuffix: string,
+  opts: RateLimitOptions
+): Response | null {
+  const key = `${bucketSuffix}:${clientKey(request)}`;
+  if (checkRateLimit(key, opts)) return null;
+  const now = Date.now();
+  const resetAt = now + opts.windowMs;
+  return NextResponse.json(
+    { error: "Too many requests" },
+    {
+      status: 429,
+      headers: rateLimitHeaders(resetAt),
+    }
+  );
+}
+
+/** Presets for Phase 7C */
+export const RATE_LIMITS = {
+  cardsSearch: { max: 120, windowMs: 60_000 },
+  /** POST/PATCH/DELETE on `/api/cards` (excluding search facet traffic). */
+  cardsMutation: { max: 90, windowMs: 60_000 },
+  deckMutation: { max: 90, windowMs: 60_000 },
+  binderMutation: { max: 90, windowMs: 60_000 },
+  /** Trade actions, messages, line items. */
+  tradesMutation: { max: 120, windowMs: 60_000 },
+  /** POST `/api/scan` — vision + auto-match (expensive). */
+  scanMutation: { max: 40, windowMs: 60_000 },
+  /** GET `/api/matching/*` — index reads (abuse protection). */
+  matchingReads: { max: 180, windowMs: 60_000 },
+  /** POST `/api/log` — client telemetry envelopes. */
+  logIngest: { max: 400, windowMs: 60_000 },
+  /** POST `/api/billing/*` — checkout sessions, portal (fraud / abuse). */
+  billingMutation: { max: 30, windowMs: 60_000 },
+  publicDeckView: { max: 240, windowMs: 60_000 },
+} as const;
+
+/** In-memory snapshot for `/api/health/rate-limits` (suffixes match middleware buckets). */
+export function getRateLimitHealthBuckets(): Record<
+  string,
+  { used: number; limit: number }
+> {
+  return getRateLimitBucketStats([
+    { suffix: "cards-search", max: RATE_LIMITS.cardsSearch.max },
+    { suffix: "cards-mut", max: RATE_LIMITS.cardsMutation.max },
+    { suffix: "deck-mut", max: RATE_LIMITS.deckMutation.max },
+    { suffix: "binder-mut", max: RATE_LIMITS.binderMutation.max },
+    { suffix: "trades-mut", max: RATE_LIMITS.tradesMutation.max },
+    { suffix: "scan-mut", max: RATE_LIMITS.scanMutation.max },
+    { suffix: "matching-read", max: RATE_LIMITS.matchingReads.max },
+    { suffix: "log-ingest", max: RATE_LIMITS.logIngest.max },
+    { suffix: "billing-mut", max: RATE_LIMITS.billingMutation.max },
+    { suffix: "pub-deck-view", max: RATE_LIMITS.publicDeckView.max },
+  ]);
+}

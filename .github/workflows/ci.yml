@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Clear Next cache
+        run: rm -rf .next
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-placeholder"
+          NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-placeholder"
+          NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
+
+      - name: Health check + stability suite (local server)
+        run: |
+          npm run start -- -p 3000 &
+          echo $! > /tmp/mca-next.pid
+          cleanup() { kill $(cat /tmp/mca-next.pid) 2>/dev/null || true; }
+          trap cleanup EXIT
+          sleep 12
+          HEALTH_CHECK_URL=http://127.0.0.1:3000 node scripts/health-check.mjs
+          LOAD_CHECK_URL=http://127.0.0.1:3000 LOAD_CHECK_LAG_FAIL_MS=2000 LOAD_CHECK_JITTER_FAIL_MS=80 node scripts/load-check.mjs --out load-report.json
+          PREDICT_BASE_URL=http://127.0.0.1:3000 PREDICTIVE_MODE=1 node scripts/predictive-check.mjs --out predictive-report.json
+          STABILITY_BASE_URL=http://127.0.0.1:3000 \
+          STABILITY_SKIP_REALTIME_SYNTHETIC=1 \
+          STABILITY_MODE=1 \
+          PREDICTIVE_MODE=1 \
+            node scripts/stability-runner.mjs --out stability-report.json
+          PERF_SNAPSHOT_BASE_URL=http://127.0.0.1:3000 PERF_ALLOW_ZERO_SAMPLES=1 node scripts/perf-snapshot.mjs --out perf-report.json
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-placeholder"
+          NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000"
+          PORT: "3000"
+          STABILITY_MODE: "1"
+          PREDICTIVE_MODE: "1"
+
+      - name: Upload stability report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stability-report
+          path: stability-report.json
+          if-no-files-found: warn
+
+      - name: Upload predictive report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: predictive-report
+          path: predictive-report.json
+          if-no-files-found: warn
+
+      - name: Upload load report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-report
+          path: load-report.json
+          if-no-files-found: warn
+
+      - name: Upload perf report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report
+          path: perf-report.json
+          if-no-files-found: warn

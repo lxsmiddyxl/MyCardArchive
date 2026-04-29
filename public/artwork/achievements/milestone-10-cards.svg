@@ -1,0 +1,20 @@
+<!-- MyCardArchive Phase 24 — milestone badge -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none" role="img" aria-hidden="true">
+  <defs>
+    <linearGradient id="ms10-bg" x1="16" y1="20" x2="112" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#27272a"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="108" height="108" rx="40" fill="url(#ms10-bg)" stroke="#10b981" stroke-width="2.75"/>
+  <polygon
+    points="64,28 85.1,31.5 96.7,51.1 96.7,76.9 85.1,96.5 64,100 42.9,96.5 31.3,76.9 31.3,51.1 42.9,31.5"
+    fill="none"
+    stroke="#a1a1aa"
+    stroke-opacity="0.35"
+    stroke-width="1.5"
+  />
+  <rect x="38" y="38" width="14" height="52" rx="7" fill="#34d399"/>
+  <ellipse cx="82" cy="64" rx="26" ry="32" stroke="#34d399" stroke-width="9"/>
+  <circle cx="64" cy="64" r="4" fill="#fbbf24" fill-opacity="0.85"/>
+</svg>

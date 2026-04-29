@@ -1,0 +1,16 @@
+<!-- MyCardArchive Phase 30  1024 master; rounded square H iOS mask (export with corner mask in Xcode if required). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none" role="img" aria-labelledby="br-asi-t">
+  <title id="br-asi-t">MyCardArchive app icon</title>
+  <defs>
+    <linearGradient id="brasi-bg" x1="128" y1="128" x2="896" y2="896" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="226" fill="url(#brasi-bg)" stroke="#3f3f46" stroke-width="8"/>
+  <rect x="192" y="224" width="640" height="720" rx="160" fill="#27272a" stroke="#52525b" stroke-width="8"/>
+  <rect x="288" y="416" width="448" height="64" rx="32" fill="#10b981" fill-opacity="0.62"/>
+  <rect x="288" y="520" width="304" height="40" rx="20" fill="#71717a"/>
+  <rect x="288" y="584" width="384" height="36" rx="18" fill="#52525b" fill-opacity="0.8"/>
+  <circle cx="736" cy="320" r="72" fill="#f59e0b" fill-opacity="0.58" stroke="#fbbf24" stroke-width="6"/>
+</svg>

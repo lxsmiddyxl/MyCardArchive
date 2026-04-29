@@ -1,0 +1,886 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * MyCardArchive design tokens (Phase 6).
+ * Numeric palette / spacing source of truth: `src/styles/tokens/` (Phase 33).
+ * App shell uses class="dark" on html; prefers-color-scheme is not relied on for layout.
+ */
+:root {
+  --foreground: #0a0a0a;
+  --background: #fafafa;
+  --muted: #737373;
+  --card: #ffffff;
+  --border: #e5e5e5;
+  --accent: #171717;
+  --mca-space-micro: 0.375rem;
+  --mca-space-tight: 0.625rem;
+}
+
+html.dark {
+  --foreground: #fafafa;
+  --background: #09090b;
+  --muted: #a1a1aa;
+  --card: #18181b;
+  --border: #27272a;
+  --accent: #f4f4f5;
+  /* Spacing scale (maps to Tailwind mca-* spacing) */
+  --mca-space-micro: 0.375rem;
+  --mca-space-tight: 0.625rem;
+  --mca-space-trace: 0.125rem;
+  --mca-space-xs: 0.25rem;
+  --mca-space-sm: 0.5rem;
+  --mca-space-compact: 0.75rem;
+  --mca-space-comfortable: 1.25rem;
+  --mca-space-base: 1rem;
+  --mca-space-md: 1rem;
+  --mca-space-lg: 1.5rem;
+  --mca-space-xl: 2rem;
+  --mca-space-loft: 1.75rem;
+  --mca-space-section: 2.5rem;
+  --mca-space-2xl: 3rem;
+  --mca-space-jumbo: 3.5rem;
+  --mca-space-stage: 4rem;
+  /* Motion — keep in sync with use-modal-mount and binder page-turn */
+  --mca-ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --mca-ease-binder: cubic-bezier(0.33, 1, 0.68, 1);
+  --mca-duration-fast: 150ms;
+  --mca-duration-ui: 200ms;
+  --mca-duration-micro: 120ms;
+  --mca-duration-binder-page: 380ms;
+  --mca-ease-binder: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+/* High-contrast / forced-colors: strengthen chrome borders (Phase 41 a11y). */
+@media (prefers-contrast: more) {
+  html.dark {
+    --border: #3f3f46;
+    --mca-hc-outline: rgba(250, 250, 250, 0.35);
+  }
+}
+
+@media (forced-colors: active) {
+  html.dark {
+    --mca-hc-outline: CanvasText;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+}
+
+@layer components {
+  .mca-typo-display {
+    @apply text-mca-display tracking-tight;
+    color: theme("colors.mca.ink");
+  }
+  .mca-typo-h1 {
+    @apply text-mca-h1 tracking-tight;
+    color: theme("colors.mca.ink");
+  }
+  .mca-typo-h2 {
+    @apply text-mca-h2 tracking-tight;
+    color: theme("colors.mca.inkStrong");
+  }
+  .mca-typo-h3 {
+    @apply text-mca-h3;
+    color: theme("colors.mca.inkStrong");
+  }
+  .mca-typo-body {
+    @apply text-mca-body;
+    color: theme("colors.mca.inkBody");
+  }
+  .mca-typo-label {
+    @apply text-mca-label uppercase tracking-wide;
+    color: theme("colors.mca.inkSubtle");
+  }
+  .mca-typo-caption {
+    @apply text-mca-caption;
+    color: theme("colors.mca.inkSubtle");
+  }
+  .mca-panel {
+    @apply rounded-mca-panel border shadow-mca-panel;
+    border-color: theme("colors.mca.border");
+    background-color: color-mix(in srgb, theme("colors.mca.surfaceElevated") 50%, transparent);
+  }
+  .mca-input {
+    @apply w-full rounded-mca-control px-mca-compact py-mca-sm text-sm shadow-mca-panel transition-shadow duration-200 ease-mca-standard focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50;
+    border-width: 1px;
+    border-style: solid;
+    border-color: theme("colors.mca.fieldBorder");
+    background-color: theme("colors.mca.fieldSurface");
+    color: theme("colors.mca.inkStrong");
+    --tw-ring-color: color-mix(in srgb, theme("colors.mca.focus") 35%, transparent);
+  }
+  .mca-input::placeholder {
+    color: theme("colors.mca.inkSubtle");
+  }
+  .mca-input:focus {
+    border-color: color-mix(in srgb, theme("colors.mca.focusSoft") 40%, transparent);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .mca-section-reveal {
+    animation: mca-fade-slide-up 0.22s var(--mca-ease-standard, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  }
+
+  .mca-section-reveal-delay-1 {
+    animation-delay: 40ms;
+  }
+
+  .mca-section-reveal-delay-2 {
+    animation-delay: 80ms;
+  }
+
+  .mca-section-reveal-delay-3 {
+    animation-delay: 120ms;
+  }
+
+  .mca-chart-reveal {
+    animation: mca-fade-slide-up 0.22s var(--mca-ease-standard, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  }
+
+  .mca-row-reveal {
+    animation: mca-fade-slide-up-row 0.22s var(--mca-ease-standard, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  }
+
+  .mca-tile-mount {
+    animation: mca-tile-mount 0.18s var(--mca-ease-standard, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  }
+
+  .mca-filter-crossfade {
+    animation: mca-filter-crossfade 0.18s var(--mca-ease-standard, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  }
+
+  .mca-nav-focus-ring {
+    transition:
+      box-shadow var(--mca-duration-ui) var(--mca-ease-standard),
+      background-color var(--mca-duration-ui) var(--mca-ease-standard),
+      color var(--mca-duration-ui) var(--mca-ease-standard),
+      transform var(--mca-duration-ui) var(--mca-ease-standard);
+  }
+
+  /**
+   * List / panel loading placeholders — shimmer uses design chrome/surface mix.
+   * Respects prefers-reduced-motion (static, slightly dimmed).
+   */
+  .mca-skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, theme("colors.mca.chrome") 55%, transparent) 0%,
+      color-mix(in srgb, theme("colors.mca.surfaceElevated") 72%, transparent) 48%,
+      color-mix(in srgb, theme("colors.mca.chrome") 55%, transparent) 100%
+    );
+    background-size: 220% 100%;
+    animation: mca-skeleton-shimmer 1.35s var(--mca-ease-standard) infinite;
+  }
+
+  .mca-skeleton-shimmer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: url("/artwork/core/scanlines/scanline-horizontal.png");
+    background-size: auto 100%;
+    background-position: center;
+    opacity: 0.14;
+    mix-blend-mode: soft-light;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mca-skeleton-shimmer {
+      animation: none;
+      opacity: 0.88;
+    }
+
+    .mca-skeleton-shimmer::before {
+      opacity: 0.08;
+    }
+  }
+
+  /** App header: primary bar control (links, dropdown triggers, icon buttons) — matches min-h-[3.5rem] shell */
+  .mca-header-toolbar-control {
+    @apply mca-nav-focus-ring inline-flex h-10 min-h-[2.5rem] shrink-0 items-center justify-center gap-mca-micro rounded-mca-control px-mca-compact text-sm font-medium tracking-wide transition-all duration-200 ease-mca-standard active:scale-[0.98];
+    color: theme("colors.mca.inkMuted");
+  }
+
+  .mca-header-toolbar-control:hover {
+    color: theme("colors.mca.inkStrong");
+    background-color: color-mix(in srgb, theme("colors.mca.chrome") 70%, transparent);
+  }
+
+  .mca-header-toolbar-control[data-active="true"] {
+    color: theme("colors.mca.ink");
+    background-color: color-mix(in srgb, theme("colors.mca.chrome") 90%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, theme("colors.mca.accentStrong") 25%, transparent);
+  }
+
+  .mca-header-toolbar-control[data-active="true"]:hover {
+    color: theme("colors.mca.ink");
+    background-color: theme("colors.mca.chrome");
+  }
+
+  .mca-nav-focus-ring:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px rgb(16 185 129 / 0.45),
+      0 0 0 4px rgb(24 24 27 / 0.9);
+    animation: mca-emerald-ring-pulse 2.2s ease-in-out infinite;
+  }
+
+  .mca-spinner-fade {
+    transition: opacity var(--mca-duration-fast) var(--mca-ease-standard);
+  }
+
+  /** Binder 2.0 page turn — timing matches `--mca-ease-binder` / Tailwind `ease-mca-binder` */
+  .mca-binder-page-turn-next {
+    animation: mca-binder-page-next var(--mca-duration-binder-page, 380ms)
+      var(--mca-ease-binder, cubic-bezier(0.33, 1, 0.68, 1)) both;
+  }
+
+  .mca-binder-page-turn-prev {
+    animation: mca-binder-page-prev var(--mca-duration-binder-page, 380ms)
+      var(--mca-ease-binder, cubic-bezier(0.33, 1, 0.68, 1)) both;
+  }
+}
+
+@keyframes mca-skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes mca-fade-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mca-fade-slide-up-row {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mca-tile-mount {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mca-filter-crossfade {
+  from {
+    opacity: 0.65;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mca-emerald-ring-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgb(16 185 129 / 0.45),
+      0 0 0 4px rgb(24 24 27 / 0.9);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgb(16 185 129 / 0.65),
+      0 0 0 5px rgb(16 185 129 / 0.18);
+  }
+}
+
+@keyframes mca-binder-page-next {
+  from {
+    opacity: 0.88;
+    transform: perspective(1200px) rotateY(-6deg) translateX(8px);
+    filter: brightness(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(1200px) rotateY(0) translateX(0);
+    filter: brightness(1);
+  }
+}
+
+@keyframes mca-binder-page-prev {
+  from {
+    opacity: 0.88;
+    transform: perspective(1200px) rotateY(6deg) translateX(-8px);
+    filter: brightness(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(1200px) rotateY(0) translateX(0);
+    filter: brightness(1);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tier emblem auras (CSS-only; disabled under prefers-reduced-motion)       */
+/* -------------------------------------------------------------------------- */
+
+@keyframes mca-tier-ember-flicker {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(1);
+  }
+  38% {
+    opacity: 0.58;
+    transform: scale(1.03);
+  }
+  52% {
+    opacity: 0.32;
+    transform: scale(0.98);
+  }
+  71% {
+    opacity: 0.5;
+    transform: scale(1.01);
+  }
+}
+
+@keyframes mca-tier-spark-pulse {
+  0%,
+  100% {
+    opacity: 0.32;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.52;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes mca-tier-nova-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes mca-tier-apex-halo {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 0.48;
+    transform: scale(1.06);
+  }
+}
+
+.mca-tier-aura {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  inset: -10%;
+  will-change: opacity, transform;
+}
+
+.mca-tier-aura--ember {
+  background: radial-gradient(ellipse 85% 75% at 50% 58%, rgb(251 146 60 / 0.38), transparent 72%);
+  animation: mca-tier-ember-flicker 2.85s ease-in-out infinite;
+}
+
+.mca-tier-aura--spark {
+  background:
+    radial-gradient(ellipse 70% 60% at 40% 45%, rgb(56 189 248 / 0.32), transparent 65%),
+    radial-gradient(ellipse 55% 50% at 72% 55%, rgb(129 140 248 / 0.28), transparent 60%);
+  animation: mca-tier-spark-pulse 2.2s ease-in-out infinite;
+}
+
+.mca-tier-aura--nova {
+  background: radial-gradient(circle at 50% 50%, rgb(196 181 253 / 0.22), transparent 62%);
+  overflow: visible;
+}
+
+.mca-tier-aura--nova::before {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgb(147 197 253 / 0.22) 72deg,
+    transparent 140deg,
+    rgb(192 132 252 / 0.2) 220deg,
+    transparent 300deg
+  );
+  opacity: 0.45;
+  animation: mca-tier-nova-spin 16s linear infinite;
+}
+
+.mca-tier-aura--apex {
+  background:
+    radial-gradient(circle at 50% 48%, rgb(250 204 21 / 0.26), transparent 58%),
+    radial-gradient(circle at 50% 52%, rgb(167 139 250 / 0.12), transparent 70%);
+  animation: mca-tier-apex-halo 5.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mca-tier-aura,
+  .mca-tier-aura::before {
+    animation: none !important;
+    opacity: 0.38 !important;
+    transform: none !important;
+  }
+
+  .mca-tier-aura--nova::before {
+    transform: none !important;
+  }
+}
+
+/* Profile header: tier-tinted rim + soft outer glow (paired with trainer accent). */
+.mca-profile-tier-glow {
+  transition: box-shadow 0.35s var(--mca-ease-standard, ease-out);
+}
+
+.mca-profile-tier-glow--ember {
+  box-shadow:
+    0 0 0 1px rgb(251 146 60 / 0.18),
+    0 0 28px rgb(234 88 12 / 0.07);
+}
+
+.mca-profile-tier-glow--spark {
+  box-shadow:
+    0 0 0 1px rgb(56 189 248 / 0.2),
+    0 0 30px rgb(14 165 233 / 0.08);
+}
+
+.mca-profile-tier-glow--nova {
+  box-shadow:
+    0 0 0 1px rgb(167 139 250 / 0.2),
+    0 0 32px rgb(139 92 246 / 0.09);
+}
+
+.mca-profile-tier-glow--apex {
+  box-shadow:
+    0 0 0 1px rgb(250 204 21 / 0.22),
+    0 0 34px rgb(234 179 8 / 0.08);
+}
+
+html.dark .mca-profile-tier-glow--ember {
+  box-shadow:
+    0 0 0 1px rgb(253 186 116 / 0.16),
+    0 0 32px rgb(251 146 60 / 0.1);
+}
+
+html.dark .mca-profile-tier-glow--spark {
+  box-shadow:
+    0 0 0 1px rgb(125 211 252 / 0.18),
+    0 0 34px rgb(56 189 248 / 0.1);
+}
+
+html.dark .mca-profile-tier-glow--nova {
+  box-shadow:
+    0 0 0 1px rgb(196 181 253 / 0.18),
+    0 0 36px rgb(167 139 250 / 0.11);
+}
+
+html.dark .mca-profile-tier-glow--apex {
+  box-shadow:
+    0 0 0 1px rgb(253 224 71 / 0.16),
+    0 0 36px rgb(250 204 21 / 0.1);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Public profile card — tier shell (border, fill, glow, hover shimmer)        */
+/* Pairs with .mca-profile-tier-glow* on the same node; does not replace it.   */
+/* -------------------------------------------------------------------------- */
+
+@keyframes mca-profile-card-shimmer {
+  0% {
+    background-position: 130% 50%;
+  }
+  100% {
+    background-position: -30% 50%;
+  }
+}
+
+.mca-profile-card {
+  isolation: isolate;
+  transition:
+    border-color 0.35s var(--mca-ease-standard, ease-out),
+    box-shadow 0.35s var(--mca-ease-standard, ease-out);
+}
+
+.mca-profile-card::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  opacity: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.07) 45%,
+    transparent 90%
+  );
+  background-size: 220% 100%;
+  background-position: 130% 50%;
+}
+
+.mca-profile-card:hover::before,
+.mca-profile-card:focus-within::before {
+  opacity: 1;
+  animation: mca-profile-card-shimmer 2.4s ease-in-out infinite;
+}
+
+.mca-profile-card--free,
+.mca-profile-card--pro,
+.mca-profile-card--elite,
+.mca-profile-card--business {
+  background-repeat: no-repeat, no-repeat;
+  background-size: cover, cover;
+}
+
+.mca-profile-card--free {
+  border-color: rgb(251 146 60 / 0.22);
+  background-image:
+    linear-gradient(
+      to bottom right,
+      color-mix(in srgb, rgb(254 243 199) 35%, transparent),
+      transparent 42%,
+      color-mix(in srgb, rgb(253 230 138) 22%, transparent)
+    ),
+    linear-gradient(to bottom right, rgb(var(--mca-surface-elevated-rgb, 30 32 40) / 0.92), rgb(var(--mca-surface-rgb, 22 24 30) / 0.88));
+  box-shadow:
+    0 1px 0 rgb(251 146 60 / 0.08),
+    0 0 0 1px rgb(251 146 60 / 0.06),
+    0 12px 40px rgb(234 88 12 / 0.06);
+}
+
+.mca-profile-card--free:hover,
+.mca-profile-card--free:focus-within {
+  border-color: rgb(251 146 60 / 0.32);
+  box-shadow:
+    0 1px 0 rgb(251 146 60 / 0.12),
+    0 0 0 1px rgb(251 146 60 / 0.1),
+    0 16px 48px rgb(234 88 12 / 0.1);
+}
+
+.mca-profile-card--pro {
+  border-color: rgb(56 189 248 / 0.22);
+  background-image:
+    linear-gradient(
+      to bottom right,
+      color-mix(in srgb, rgb(224 242 254) 28%, transparent),
+      transparent 40%,
+      color-mix(in srgb, rgb(191 219 254) 18%, transparent)
+    ),
+    linear-gradient(to bottom right, rgb(var(--mca-surface-elevated-rgb, 30 32 40) / 0.92), rgb(var(--mca-surface-rgb, 22 24 30) / 0.88));
+  box-shadow:
+    0 1px 0 rgb(14 165 233 / 0.08),
+    0 0 0 1px rgb(56 189 248 / 0.07),
+    0 12px 40px rgb(2 132 199 / 0.07);
+}
+
+.mca-profile-card--pro:hover,
+.mca-profile-card--pro:focus-within {
+  border-color: rgb(56 189 248 / 0.32);
+  box-shadow:
+    0 1px 0 rgb(14 165 233 / 0.12),
+    0 0 0 1px rgb(56 189 248 / 0.11),
+    0 16px 48px rgb(2 132 199 / 0.11);
+}
+
+.mca-profile-card--elite {
+  border-color: rgb(167 139 250 / 0.24);
+  background-image:
+    linear-gradient(
+      to bottom right,
+      color-mix(in srgb, rgb(237 233 254) 32%, transparent),
+      transparent 44%,
+      color-mix(in srgb, rgb(221 214 254) 20%, transparent)
+    ),
+    linear-gradient(to bottom right, rgb(var(--mca-surface-elevated-rgb, 30 32 40) / 0.92), rgb(var(--mca-surface-rgb, 22 24 30) / 0.88));
+  box-shadow:
+    0 1px 0 rgb(139 92 246 / 0.09),
+    0 0 0 1px rgb(167 139 250 / 0.08),
+    0 12px 44px rgb(109 40 217 / 0.08);
+}
+
+.mca-profile-card--elite:hover,
+.mca-profile-card--elite:focus-within {
+  border-color: rgb(167 139 250 / 0.34);
+  box-shadow:
+    0 1px 0 rgb(139 92 246 / 0.14),
+    0 0 0 1px rgb(167 139 250 / 0.12),
+    0 18px 52px rgb(109 40 217 / 0.12);
+}
+
+/* Business: premium gold + violet (distinct from elite-only violet). */
+.mca-profile-card--business {
+  border-color: rgb(250 204 21 / 0.26);
+  background-image:
+    linear-gradient(
+      to bottom right,
+      color-mix(in srgb, rgb(254 249 195) 26%, transparent),
+      transparent 38%,
+      color-mix(in srgb, rgb(196 181 253) 18%, transparent)
+    ),
+    linear-gradient(to bottom right, rgb(var(--mca-surface-elevated-rgb, 30 32 40) / 0.92), rgb(var(--mca-surface-rgb, 22 24 30) / 0.88));
+  box-shadow:
+    0 1px 0 rgb(250 204 21 / 0.1),
+    0 0 0 1px rgb(167 139 250 / 0.08),
+    0 12px 44px rgb(234 179 8 / 0.07),
+    0 0 36px rgb(139 92 246 / 0.06);
+}
+
+.mca-profile-card--business:hover,
+.mca-profile-card--business:focus-within {
+  border-color: rgb(253 224 71 / 0.32);
+  box-shadow:
+    0 1px 0 rgb(250 204 21 / 0.14),
+    0 0 0 1px rgb(196 181 253 / 0.12),
+    0 18px 52px rgb(234 179 8 / 0.1),
+    0 0 42px rgb(139 92 246 / 0.09);
+}
+
+html.dark .mca-profile-card--free {
+  border-color: rgb(253 186 116 / 0.2);
+  background-image:
+    linear-gradient(
+      to bottom right,
+      color-mix(in srgb, rgb(180 83 9) 14%, transparent),
+      transparent 50%,
+      color-mix(in srgb, rgb(146 64 14) 10%, transparent)
+    ),
+    linear-gradient(to bottom right, rgb(var(--mca-surface-elevated-rgb, 30 32 40) / 0.94), rgb(var(--mca-surface-rgb, 22 24 30) / 0.9));
+  box-shadow:
+    0 1px 0 rgb(251 146 60 / 0.1),
+    0 0 0 1px rgb(253 186 116 / 0.08),
+    0 12px 40px rgb(251 146 60 / 0.08);
+}
+
+html.dark .mca-profile-card--pro {
+  border-color: rgb(125 211 252 / 0.2);
+  background-image:
+    linear-gradient(
+      to bottom right,
+      color-mix(in srgb, rgb(3 105 161) 18%, transparent),
+      transparent 48%,
+      color-mix(in srgb, rgb(30 64 175) 12%, transparent)
+    ),
+    linear-gradient(to bottom right, rgb(var(--mca-surface-elevated-rgb, 30 32 40) / 0.94), rgb(var(--mca-surface-rgb, 22 24 30) / 0.9));
+  box-shadow:
+    0 1px 0 rgb(56 189 248 / 0.1),
+    0 0 0 1px rgb(125 211 252 / 0.08),
+    0 12px 40px rgb(14 165 233 / 0.09);
+}
+
+html.dark .mca-profile-card--elite {
+  border-color: rgb(196 181 253 / 0.22);
+  background-image:
+    linear-gradient(
+      to bottom right,
+      color-mix(in srgb, rgb(91 33 182) 16%, transparent),
+      transparent 50%,
+      color-mix(in srgb, rgb(76 29 149) 12%, transparent)
+    ),
+    linear-gradient(to bottom right, rgb(var(--mca-surface-elevated-rgb, 30 32 40) / 0.94), rgb(var(--mca-surface-rgb, 22 24 30) / 0.9));
+  box-shadow:
+    0 1px 0 rgb(167 139 250 / 0.1),
+    0 0 0 1px rgb(196 181 253 / 0.09),
+    0 12px 44px rgb(139 92 246 / 0.1);
+}
+
+html.dark .mca-profile-card--business {
+  border-color: rgb(253 224 71 / 0.22);
+  background-image:
+    linear-gradient(
+      to bottom right,
+      color-mix(in srgb, rgb(161 98 7) 14%, transparent),
+      transparent 42%,
+      color-mix(in srgb, rgb(91 33 182) 14%, transparent)
+    ),
+    linear-gradient(to bottom right, rgb(var(--mca-surface-elevated-rgb, 30 32 40) / 0.94), rgb(var(--mca-surface-rgb, 22 24 30) / 0.9));
+  box-shadow:
+    0 1px 0 rgb(250 204 21 / 0.11),
+    0 0 0 1px rgb(196 181 253 / 0.09),
+    0 12px 44px rgb(250 204 21 / 0.08),
+    0 0 40px rgb(139 92 246 / 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mca-profile-card::before {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+
+  .mca-profile-card:hover,
+  .mca-profile-card:focus-within {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Profile activity stats row (Posts / Scans / …) — tier accents               */
+/* -------------------------------------------------------------------------- */
+
+.mca-profile-stats {
+  --mca-profile-stat-sep: rgb(148 163 184 / 0.35);
+  --mca-profile-stat-icon: rgb(148 163 184 / 0.85);
+  --mca-profile-stat-meter: linear-gradient(
+    90deg,
+    rgb(148 163 184 / 0.35),
+    rgb(148 163 184 / 0.12)
+  );
+}
+
+.mca-profile-stats--free {
+  --mca-profile-stat-sep: rgb(251 146 60 / 0.35);
+  --mca-profile-stat-icon: rgb(251 146 60 / 0.9);
+  --mca-profile-stat-meter: linear-gradient(90deg, rgb(251 146 60 / 0.55), rgb(253 186 116 / 0.15));
+}
+
+.mca-profile-stats--pro {
+  --mca-profile-stat-sep: rgb(56 189 248 / 0.38);
+  --mca-profile-stat-icon: rgb(56 189 248 / 0.92);
+  --mca-profile-stat-meter: linear-gradient(90deg, rgb(14 165 233 / 0.55), rgb(125 211 252 / 0.15));
+}
+
+.mca-profile-stats--elite {
+  --mca-profile-stat-sep: rgb(167 139 250 / 0.4);
+  --mca-profile-stat-icon: rgb(167 139 250 / 0.95);
+  --mca-profile-stat-meter: linear-gradient(90deg, rgb(139 92 246 / 0.55), rgb(196 181 253 / 0.18));
+}
+
+.mca-profile-stats--business {
+  --mca-profile-stat-sep: rgb(250 204 21 / 0.38);
+  --mca-profile-stat-icon: rgb(253 224 71 / 0.95);
+  --mca-profile-stat-meter: linear-gradient(
+    90deg,
+    rgb(250 204 21 / 0.6),
+    rgb(167 139 250 / 0.35)
+  );
+}
+
+html.dark .mca-profile-stats--free {
+  --mca-profile-stat-sep: rgb(253 186 116 / 0.32);
+  --mca-profile-stat-icon: rgb(253 186 116 / 0.95);
+  --mca-profile-stat-meter: linear-gradient(90deg, rgb(251 146 60 / 0.5), rgb(253 186 116 / 0.12));
+}
+
+html.dark .mca-profile-stats--pro {
+  --mca-profile-stat-sep: rgb(125 211 252 / 0.32);
+  --mca-profile-stat-icon: rgb(125 211 252 / 0.95);
+  --mca-profile-stat-meter: linear-gradient(90deg, rgb(56 189 248 / 0.5), rgb(14 165 233 / 0.12));
+}
+
+html.dark .mca-profile-stats--elite {
+  --mca-profile-stat-sep: rgb(196 181 253 / 0.34);
+  --mca-profile-stat-icon: rgb(196 181 253 / 0.95);
+  --mca-profile-stat-meter: linear-gradient(90deg, rgb(167 139 250 / 0.52), rgb(139 92 246 / 0.15));
+}
+
+html.dark .mca-profile-stats--business {
+  --mca-profile-stat-sep: rgb(253 224 71 / 0.3);
+  --mca-profile-stat-icon: rgb(253 224 71 / 0.98);
+  --mca-profile-stat-meter: linear-gradient(
+    90deg,
+    rgb(250 204 21 / 0.55),
+    rgb(196 181 253 / 0.28)
+  );
+}
+
+.mca-profile-stats {
+  border-top: 1px solid color-mix(in srgb, var(--mca-profile-stat-sep) 55%, transparent);
+}
+
+.mca-profile-stat-chip {
+  position: relative;
+  padding-bottom: 0.85rem;
+  border-color: color-mix(in srgb, var(--mca-profile-stat-sep) 55%, transparent);
+  transition:
+    border-color 0.25s var(--mca-ease-standard, ease-out),
+    box-shadow 0.25s var(--mca-ease-standard, ease-out);
+}
+
+@media (max-width: 639px) {
+  .mca-profile-stats .mca-profile-stat-chip:nth-child(even) {
+    border-left: 1px solid color-mix(in srgb, var(--mca-profile-stat-sep) 42%, transparent);
+  }
+
+  .mca-profile-stats .mca-profile-stat-chip:nth-child(n + 3) {
+    border-top: 1px solid color-mix(in srgb, var(--mca-profile-stat-sep) 32%, transparent);
+  }
+}
+
+@media (min-width: 640px) {
+  .mca-profile-stats .mca-profile-stat-chip {
+    border-top-width: 0;
+  }
+
+  .mca-profile-stats .mca-profile-stat-chip + .mca-profile-stat-chip {
+    border-left: 1px solid color-mix(in srgb, var(--mca-profile-stat-sep) 42%, transparent);
+  }
+}
+
+.mca-profile-stat-icon-dot {
+  display: block;
+  margin-inline: auto;
+  margin-bottom: 0.25rem;
+  height: 0.35rem;
+  width: 0.35rem;
+  border-radius: 9999px;
+  background: var(--mca-profile-stat-icon);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--mca-profile-stat-icon) 55%, transparent);
+}
+
+.mca-profile-stat-meter {
+  position: absolute;
+  left: 0.65rem;
+  right: 0.65rem;
+  bottom: 0.45rem;
+  height: 2px;
+  border-radius: 9999px;
+  background: var(--mca-profile-stat-meter);
+  opacity: 0.85;
+}
+
+.mca-profile-stats .mca-profile-stat-chip:hover,
+.mca-profile-stats .mca-profile-stat-chip:focus-within {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--mca-profile-stat-sep) 25%, transparent),
+    0 10px 28px color-mix(in srgb, var(--mca-profile-stat-icon) 12%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mca-profile-stats .mca-profile-stat-chip:hover,
+  .mca-profile-stats .mca-profile-stat-chip:focus-within {
+    box-shadow: none;
+  }
+}

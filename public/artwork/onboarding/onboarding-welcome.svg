@@ -1,0 +1,33 @@
+<!-- MyCardArchive Phase 27 — onboarding welcome -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 280" fill="none" role="img" aria-labelledby="ob-welcome-t">
+  <title id="ob-welcome-t">Welcome to MyCardArchive</title>
+  <defs>
+    <linearGradient id="ob-w-bg" x1="0" y1="0" x2="520" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#09090b"/>
+      <stop offset="0.55" stop-color="#18181b"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="ob-w-glow" x1="260" y1="40" x2="260" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#047857" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="#10b981" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#047857" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="520" height="280" rx="36" fill="url(#ob-w-bg)"/>
+  <ellipse cx="260" cy="248" rx="210" ry="28" fill="#052e16" fill-opacity="0.35"/>
+  <ellipse cx="260" cy="112" rx="180" ry="120" fill="url(#ob-w-glow)"/>
+  <!-- Fanned cards -->
+  <g>
+    <rect x="148" y="96" width="112" height="148" rx="22" fill="#27272a" stroke="#52525b" stroke-width="2" transform="rotate(-10 204 170)"/>
+    <rect x="196" y="72" width="128" height="164" rx="24" fill="#18181b" stroke="#3f3f46" stroke-width="2.25"/>
+    <rect x="220" y="100" width="80" height="100" rx="16" fill="#3f3f46" fill-opacity="0.45"/>
+    <path d="M236 124h48" stroke="#34d399" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+    <rect x="268" y="96" width="112" height="148" rx="22" fill="#3f3f46" stroke="#71717a" stroke-width="2" transform="rotate(10 324 170)"/>
+  </g>
+  <!-- Friendly sparkle -->
+  <circle cx="392" cy="56" r="7" fill="#f59e0b" fill-opacity="0.45"/>
+  <path d="M392 46v20M382 56h20" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="128" cy="64" r="5" fill="#34d399" fill-opacity="0.5"/>
+  <!-- Horizon accent -->
+  <path d="M48 214c120-28 304-28 424 0" stroke="#3f3f46" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+</svg>

@@ -1,0 +1,28 @@
+<!-- MyCardArchive Phase 25 � OG template (default = dark). 1200�630. See og-template-light.svg for light theme. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none" role="img" aria-labelledby="og-t"><title id="og-t">Open Graph share template</title>
+  <defs>
+    <linearGradient id="og-bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#09090b"/>
+      <stop offset="0.55" stop-color="#18181b"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="og-card" x1="860" y1="140" x2="1040" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#27272a"/>
+      <stop offset="1" stop-color="#3f3f46"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#og-bg)"/>
+  <rect x="80" y="80" width="680" height="280" rx="28" fill="none" stroke="#52525b" stroke-width="2" stroke-dasharray="12 10" opacity="0.55"/>
+  <rect x="112" y="120" width="420" height="22" rx="11" fill="#27272a" fill-opacity="0.9"/>
+  <rect x="112" y="156" width="520" height="16" rx="8" fill="#3f3f46" fill-opacity="0.75"/>
+  <rect x="112" y="188" width="380" height="16" rx="8" fill="#3f3f46" fill-opacity="0.5"/>
+  <rect x="820" y="120" width="260" height="390" rx="32" fill="url(#og-card)" stroke="#52525b" stroke-width="2.5"/>
+  <rect x="872" y="200" width="156" height="200" rx="18" fill="#18181b" fill-opacity="0.55"/>
+  <rect x="902" y="232" width="96" height="10" rx="5" fill="#10b981" fill-opacity="0.4"/>
+  <circle cx="950" cy="430" r="40" fill="none" stroke="#34d399" stroke-width="2.5" opacity="0.45"/>
+  <circle cx="950" cy="430" r="22" fill="#047857" fill-opacity="0.35"/>
+  <rect x="80" y="520" width="280" height="44" rx="14" fill="#18181b" stroke="#3f3f46" stroke-width="1.5"/>
+  <rect x="104" y="532" width="36" height="20" rx="6" fill="#10b981" fill-opacity="0.65"/>
+  <rect x="152" y="536" width="120" height="12" rx="6" fill="#52525b"/>
+  <rect x="280" y="536" width="56" height="12" rx="6" fill="#3f3f46"/>
+</svg>

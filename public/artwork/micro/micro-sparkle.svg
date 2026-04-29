@@ -1,0 +1,7 @@
+<!-- MyCardArchive Phase 29 — decorative -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" color="#fbbf24" aria-labelledby="md-sp-t">
+  <title id="md-sp-t">Sparkle</title>
+  <circle cx="24" cy="24" r="5" fill="currentColor" fill-opacity="0.35"/>
+  <path d="M24 8v32M8 24h32" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.9"/>
+  <path d="M11 11l6 6M31 11l-6 6M31 37l-6-6M11 37l6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.35"/>
+</svg>

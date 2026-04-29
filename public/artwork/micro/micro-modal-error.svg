@@ -1,0 +1,6 @@
+<!-- MyCardArchive Phase 29 — modal spot -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" color="#71717a" aria-labelledby="mm-err-t">
+  <title id="mm-err-t">Error</title>
+  <circle cx="32" cy="32" r="26" fill="#18181b" stroke="#fb7185" stroke-width="1.75"/>
+  <path d="M24 24l16 16M40 24L24 40" stroke="#fb7185" stroke-width="2.25" stroke-linecap="round"/>
+</svg>

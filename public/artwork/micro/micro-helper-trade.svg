@@ -1,0 +1,9 @@
+<!-- MyCardArchive Phase 29 — micro helper -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" color="#71717a" aria-labelledby="mh-trade-t">
+  <title id="mh-trade-t">Trade helper</title>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#18181b" stroke="currentColor" stroke-width="1.75"/>
+  <rect x="8" y="18" width="20" height="28" rx="6" fill="#3f3f46" stroke="currentColor" stroke-width="1.75" transform="rotate(-8 18 32)"/>
+  <rect x="36" y="18" width="20" height="28" rx="6" fill="#52525b" stroke="currentColor" stroke-width="1.75" transform="rotate(8 46 32)"/>
+  <path d="M28 32h8" stroke="#fbbf24" stroke-width="1.75" stroke-linecap="round"/>
+  <path d="M34 28l4 4-4 4" stroke="#34d399" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

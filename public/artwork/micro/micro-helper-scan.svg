@@ -1,0 +1,14 @@
+<!-- MyCardArchive Phase 29 — micro helper -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" color="#71717a" aria-labelledby="mh-scan-t">
+  <title id="mh-scan-t">Scan helper</title>
+  <defs>
+    <linearGradient id="mhs-bg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#mhs-bg)" stroke="currentColor" stroke-width="1.75" opacity="0.9"/>
+  <rect x="14" y="12" width="36" height="40" rx="10" fill="#27272a" stroke="currentColor" stroke-width="1.75"/>
+  <rect x="20" y="22" width="24" height="20" rx="6" fill="#3f3f46" stroke="currentColor" stroke-width="1.75" opacity="0.55"/>
+  <rect x="16" y="34" width="32" height="3" rx="1.5" fill="#34d399" fill-opacity="0.75"/>
+</svg>

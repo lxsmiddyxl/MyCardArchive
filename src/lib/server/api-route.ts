@@ -1,0 +1,55 @@
+import { logServerError } from "@/lib/server/observability";
+import { NextResponse } from "next/server";
+
+type RouteHandler = (
+  request: Request,
+  context: { params: Record<string, string> }
+) => Promise<Response>;
+
+/**
+ * Wraps a Route Handler with try/catch logging. Use for App Router `route.ts` exports.
+ * Dynamic segment names are normalized in `routeLabel` (e.g. `GET /api/decks/[deckId]/summary`).
+ */
+export function defineRoute(
+  routeLabel: string,
+  handler: RouteHandler
+): (request: Request, context: { params: Record<string, string> }) => Promise<Response> {
+  return async (request, context) => {
+    try {
+      return await handler(request, context);
+    } catch (err) {
+      logServerError({ scope: "api", route: routeLabel, err });
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
+  };
+}
+
+/** For routes with no `params` in signature (Next may still pass empty object). */
+export function defineRouteSimple(
+  routeLabel: string,
+  handler: (request: Request) => Promise<Response>
+): (request: Request, context?: { params: Record<string, string> }) => Promise<Response> {
+  return async (request, _context) => {
+    try {
+      return await handler(request);
+    } catch (err) {
+      logServerError({ scope: "api", route: routeLabel, err });
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
+  };
+}
+
+/** For GET/HEAD handlers with no Request usage. */
+export function defineRouteNoArgs(
+  routeLabel: string,
+  handler: () => Promise<Response>
+): () => Promise<Response> {
+  return async () => {
+    try {
+      return await handler();
+    } catch (err) {
+      logServerError({ scope: "api", route: routeLabel, err });
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
+  };
+}

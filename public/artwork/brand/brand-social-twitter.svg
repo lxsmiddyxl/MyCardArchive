@@ -1,0 +1,30 @@
+<!-- MyCardArchive Phase 30  Twitter / X header 1500�500 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 500" fill="none" role="img" aria-labelledby="br-tw-t">
+  <title id="br-tw-t">MyCardArchive social banner</title>
+  <defs>
+    <linearGradient id="brtw-bg" x1="0" y1="0" x2="1500" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#09090b"/>
+      <stop offset="0.5" stop-color="#18181b"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1500" height="500" fill="url(#brtw-bg)"/>
+  <ellipse cx="1200" cy="420" rx="380" ry="120" fill="#047857" fill-opacity="0.12"/>
+  <!-- Emblem cluster left -->
+  <g transform="translate(96 130)">
+    <rect width="200" height="240" rx="48" fill="#27272a" stroke="#52525b" stroke-width="4" transform="rotate(-6 100 120)"/>
+    <rect x="32" y="24" width="200" height="240" rx="48" fill="#18181b" stroke="#3f3f46" stroke-width="4"/>
+    <rect x="60" y="88" width="144" height="20" rx="10" fill="#10b981" fill-opacity="0.55"/>
+    <rect x="60" y="124" width="96" height="12" rx="6" fill="#52525b"/>
+    <circle cx="196" cy="56" r="18" fill="#f59e0b" fill-opacity="0.55"/>
+  </g>
+  <!-- Abstract lockup lines -->
+  <rect x="380" y="160" width="420" height="28" rx="14" fill="#3f3f46" fill-opacity="0.5"/>
+  <rect x="380" y="208" width="560" height="22" rx="11" fill="#52525b" fill-opacity="0.35"/>
+  <rect x="380" y="248" width="360" height="22" rx="11" fill="#52525b" fill-opacity="0.22"/>
+  <!-- Right motifs -->
+  <rect x="1120" y="100" width="120" height="168" rx="28" fill="#27272a" stroke="#71717a" stroke-width="3" transform="rotate(8 1180 184)" opacity="0.85"/>
+  <rect x="1280" y="120" width="100" height="140" rx="24" fill="#3f3f46" stroke="#a1a1aa" stroke-width="2.5" transform="rotate(4 1330 190)" opacity="0.65"/>
+  <circle cx="1420" cy="80" r="10" fill="#34d399" fill-opacity="0.35"/>
+  <path d="M1420 64v32M1404 80h32" stroke="#fbbf24" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+</svg>

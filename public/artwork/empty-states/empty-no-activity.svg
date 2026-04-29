@@ -1,0 +1,37 @@
+<!-- MyCardArchive Phase 28 — empty state -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220" fill="none" role="img" color="#71717a" aria-labelledby="es-activity-t">
+  <title id="es-activity-t">No activity yet</title>
+  <defs>
+    <linearGradient id="es-a-bg" x1="200" y1="0" x2="200" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#0a0a0c"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="220" rx="28" fill="url(#es-a-bg)"/>
+  <!-- Calm pulse -->
+  <path
+    d="M88 128c32-36 64-24 88 8s56 36 88 4 80-28 104 4"
+    fill="none"
+    stroke="#34d399"
+    stroke-width="1.75"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.22"
+  />
+  <path
+    d="M88 148c32-28 64-18 88 10s56 28 88 2 80-22 104 6"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.75"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.45"
+  />
+  <circle cx="100" cy="146" r="4" fill="currentColor" opacity="0.35"/>
+  <circle cx="176" cy="118" r="4" fill="#34d399" fill-opacity="0.35"/>
+  <circle cx="252" cy="142" r="4" fill="currentColor" opacity="0.35"/>
+  <circle cx="312" cy="126" r="4" fill="currentColor" opacity="0.25"/>
+  <!-- Small card -->
+  <rect x="278" y="72" width="52" height="72" rx="12" fill="#27272a" stroke="currentColor" stroke-width="1.75" opacity="0.65"/>
+  <rect x="288" y="86" width="32" height="6" rx="3" fill="#52525b" fill-opacity="0.65"/>
+</svg>

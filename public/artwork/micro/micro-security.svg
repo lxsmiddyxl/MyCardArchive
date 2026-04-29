@@ -1,0 +1,21 @@
+<!-- MyCardArchive Phase 29 — account -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" color="#71717a" aria-labelledby="ma-sec-t">
+  <title id="ma-sec-t">Security</title>
+  <path
+    d="M32 8 52 18v16c0 14-10 26-20 30C22 60 12 48 12 34V18L32 8Z"
+    fill="#18181b"
+    stroke="currentColor"
+    stroke-width="1.75"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M26 30V24a6 6 0 0112 0v6"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.75"
+    stroke-linecap="round"
+    opacity="0.75"
+  />
+  <rect x="24" y="30" width="16" height="14" rx="4" fill="#27272a" stroke="currentColor" stroke-width="1.75" stroke-opacity="0.45"/>
+  <circle cx="32" cy="36" r="2.5" fill="#34d399" fill-opacity="0.7"/>
+</svg>

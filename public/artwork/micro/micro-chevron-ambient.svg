@@ -1,0 +1,8 @@
+<!-- MyCardArchive Phase 29 — decorative -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 32" fill="none" role="img" color="#71717a" aria-labelledby="md-ch-t">
+  <title id="md-ch-t">Ambient chevrons</title>
+  <path d="M12 22 20 16 12 10" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="0.25"/>
+  <path d="M24 24 32 16 24 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+  <path d="M40 24 48 16 40 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"/>
+  <path d="M56 22 64 16 56 10" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="0.35"/>
+</svg>

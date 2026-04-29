@@ -1,0 +1,14 @@
+<!-- MyCardArchive Phase 30  horizontal lockup (geometric; add wordmark beside in layout tool). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 240" fill="none" role="img" aria-labelledby="br-lh-t">
+  <title id="br-lh-t">MyCardArchive horizontal brand lockup</title>
+  <rect width="960" height="240" rx="36" fill="#09090b"/>
+  <g transform="translate(48 36)">
+    <rect width="168" height="168" rx="40" fill="#18181b" stroke="#3f3f46" stroke-width="3"/>
+    <rect x="24" y="56" width="120" height="16" rx="8" fill="#10b981" fill-opacity="0.65"/>
+    <rect x="24" y="84" width="80" height="10" rx="5" fill="#52525b"/>
+    <circle cx="138" cy="44" r="14" fill="#f59e0b" fill-opacity="0.55"/>
+  </g>
+  <rect x="260" y="56" width="520" height="28" rx="14" fill="#3f3f46" fill-opacity="0.55"/>
+  <rect x="260" y="100" width="640" height="22" rx="11" fill="#52525b" fill-opacity="0.38"/>
+  <rect x="260" y="136" width="400" height="22" rx="11" fill="#52525b" fill-opacity="0.22"/>
+</svg>

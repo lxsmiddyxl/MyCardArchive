@@ -1,0 +1,19 @@
+<!-- MyCardArchive Phase 28 — empty state -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220" fill="none" role="img" color="#71717a" aria-labelledby="es-binders-t">
+  <title id="es-binders-t">No binders yet</title>
+  <defs>
+    <linearGradient id="es-bg" x1="0" y1="0" x2="400" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18181b"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="220" rx="28" fill="url(#es-bg)"/>
+  <!-- Binder cover + open rings -->
+  <path d="M118 54h148a16 16 0 0116 16v116a16 16 0 01-16 16H118a16 16 0 01-16-16V70a16 16 0 0116-16Z" fill="#27272a" stroke="currentColor" stroke-width="1.75" opacity="0.95"/>
+  <rect x="106" y="54" width="22" height="148" rx="10" fill="#18181b" stroke="currentColor" stroke-width="1.75" opacity="0.9"/>
+  <circle cx="117" cy="90" r="7" fill="#047857" stroke="#34d399" stroke-width="1.75"/>
+  <circle cx="117" cy="126" r="7" fill="#047857" stroke="#34d399" stroke-width="1.75"/>
+  <circle cx="117" cy="162" r="7" fill="#047857" stroke="#34d399" stroke-width="1.75"/>
+  <path d="M142 86h108M142 108h88" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" opacity="0.65"/>
+  <circle cx="284" cy="72" r="5" fill="#34d399" fill-opacity="0.45"/>
+</svg>

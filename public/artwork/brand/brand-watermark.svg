@@ -1,0 +1,11 @@
+<!-- MyCardArchive Phase 30  watermark (for light backgrounds use multiply in design tool). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" fill="none" role="img" aria-labelledby="br-wm-t">
+  <title id="br-wm-t">MyCardArchive watermark</title>
+  <rect width="800" height="800" fill="none"/>
+  <g opacity="0.1">
+    <rect x="240" y="176" width="320" height="448" rx="80" fill="#18181b" stroke="#52525b" stroke-width="6"/>
+    <rect x="296" y="320" width="208" height="36" rx="18" fill="#10b981"/>
+    <rect x="296" y="388" width="144" height="22" rx="11" fill="#71717a"/>
+    <circle cx="528" cy="264" r="36" fill="#f59e0b"/>
+  </g>
+</svg>

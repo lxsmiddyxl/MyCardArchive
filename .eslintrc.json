@@ -1,0 +1,54 @@
+{
+  "extends": ["next/core-web-vitals", "plugin:storybook/recommended"],
+  "plugins": ["mca-design-system"],
+  "overrides": [
+    {
+      "files": ["src/**/*.{ts,tsx}"],
+      "rules": {
+        "mca-design-system/no-palette-primitives": "error",
+        "mca-design-system/no-legacy-border-radius": "error",
+        "mca-design-system/no-legacy-shadow": "error",
+        "mca-design-system/no-default-scale-spacing": "error",
+        "mca-design-system/jsx-svg-accessibility": "warn",
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/styles/tokens/*", "@/styles/tokens/**/*"],
+                "message": "Import design tokens from `@/styles/tokens` (barrel) only, not deep paths like `@/styles/tokens/colors`."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/styles/tokens/**/*"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["storybook/**/*.{ts,tsx}"],
+      "rules": {
+        "mca-design-system/no-palette-primitives": "error",
+        "mca-design-system/no-legacy-border-radius": "error",
+        "mca-design-system/no-legacy-shadow": "error",
+        "mca-design-system/no-default-scale-spacing": "error",
+        "mca-design-system/jsx-svg-accessibility": "warn",
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/styles/tokens/*", "@/styles/tokens/**/*"],
+                "message": "Import design tokens from `@/styles/tokens` (barrel) only, not deep paths like `@/styles/tokens/colors`."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
