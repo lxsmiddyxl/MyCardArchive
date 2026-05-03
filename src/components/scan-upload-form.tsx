@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { useState } from "react";
 
 type ParsedCard = {
@@ -33,19 +34,21 @@ export function ScanUploadForm() {
       const body = new FormData();
       body.append("image", file);
 
-      const res = await fetch("/api/scan", {
-        method: "POST",
-        body,
-      });
-
-      const json = (await res.json()) as {
+      const r = await fetchJson<{
         ok?: boolean;
         error?: string;
         card?: ParsedCard;
-      };
-
-      if (!res.ok || !json.ok || !json.card) {
-        setError(json.error ?? "Scan failed.");
+      }>("/api/scan", {
+        method: "POST",
+        body,
+      });
+      if (r.kind !== "ok") {
+        setError(fetchJsonErrorMessage(r));
+        return;
+      }
+      const json = r.data;
+      if (!json.ok || !json.card) {
+        setError(typeof json.error === "string" ? json.error : "Scan failed.");
         return;
       }
       setResult(json.card);
@@ -57,7 +60,7 @@ export function ScanUploadForm() {
   }
 
   return (
-    <div className="space-y-mca-lg">
+    <section className="space-y-mca-lg" aria-live="polite" aria-busy={loading}>
       <form
         onSubmit={onSubmit}
         className="rounded-mca-sheet border border-dashed border-mca-border-light-strong bg-mca-surface-light/50 p-mca-xl dark:border-mca-field-border dark:bg-mca-surface-elevated/50"
@@ -69,12 +72,12 @@ export function ScanUploadForm() {
           name="image"
           type="file"
           accept="image/*"
-          className="mt-mca-sm block w-full text-sm text-mca-hint file:mr-mca-base file:rounded-mca-block file:border-0 file:bg-mca-surface-elevated file:px-mca-base file:py-mca-sm file:text-sm file:font-medium file:text-white dark:text-mca-ink-muted dark:file:bg-mca-surface-paper dark:file:text-mca-surface-elevated"
+          className="mt-mca-sm block w-full text-sm text-mca-ink-body file:mr-mca-base file:rounded-mca-block file:border file:border-mca-border-subtle file:bg-mca-chrome file:px-mca-base file:py-mca-sm file:text-sm file:font-medium file:text-mca-ink-strong"
         />
         <button
           type="submit"
           disabled={loading}
-          className="mt-mca-base rounded-mca-block bg-mca-surface-elevated px-mca-base py-mca-tight text-sm font-medium text-white transition hover:bg-mca-chrome disabled:opacity-50 dark:bg-mca-surface-paper dark:text-mca-surface-elevated dark:hover:bg-mca-border-light"
+          className="mt-mca-base rounded-mca-block bg-mca-accent-strong/90 px-mca-base py-mca-tight text-sm font-medium text-mca-on-accent shadow-mca-panel transition duration-200 ease-mca-standard hover:bg-mca-accent disabled:opacity-50"
         >
           {loading ? "Scanning…" : "Run mock scan"}
         </button>
@@ -123,6 +126,6 @@ export function ScanUploadForm() {
           </dl>
         </div>
       )}
-    </div>
+    </section>
   );
 }

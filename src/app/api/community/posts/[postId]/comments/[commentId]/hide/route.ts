@@ -1,3 +1,4 @@
+import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { mcaLog } from "@/lib/logging/mca-log-server";
 import { defineRoute } from "@/lib/server/api-route";
 import { isUuidString } from "@/lib/server/is-uuid";
@@ -9,19 +10,16 @@ const CTX = { componentName: "api/community/posts/comments/hide", surfaceName: "
 export const dynamic = "force-dynamic";
 
 async function POST_handler(request: Request, context: { params: Record<string, string> }) {
+  const ctx = withContextId();
   const postId = context.params.postId?.trim();
   const commentId = context.params.commentId?.trim();
   if (!postId || !isUuidString(postId) || !commentId || !isUuidString(commentId)) {
-    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    return errorJson(ctx, "Invalid id", 400);
   }
 
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   let hidden = true;
   try {
@@ -39,16 +37,16 @@ async function POST_handler(request: Request, context: { params: Record<string, 
   if (error) {
     const msg = error.message.toLowerCase();
     if (msg.includes("forbidden")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return errorJson(ctx, "Forbidden", 403);
     }
     if (msg.includes("not found")) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return errorJson(ctx, "Not found", 404);
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, error.message, 500);
   }
 
   mcaLog.event("community.moderation", { postId, commentId, hidden }, CTX);
-  return NextResponse.json({ ok: true, hidden });
+  return NextResponse.json({ success: true, context_id: ctx.contextId, ok: true, hidden });
 }
 
 export const POST = defineRoute("POST /api/community/posts/[postId]/comments/[commentId]/hide", POST_handler);

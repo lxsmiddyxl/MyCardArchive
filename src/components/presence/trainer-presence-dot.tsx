@@ -1,6 +1,6 @@
 "use client";
 
-import { presenceLampTitle } from "@/lib/presence/presence-labels";
+import { presenceLampTitle, qualitativePresenceWindow } from "@/lib/presence/presence-labels";
 import {
   deriveActivityState,
   derivePresenceState,
@@ -86,9 +86,13 @@ export function TrainerPresencePill(props: TrainerPresenceDotProps & { fallbackO
     ) {
       const ps: PresenceState = fallbackOnline ? "online" : "offline";
       const titleInner =
-        ps === "online" ? "Online now (live session)" : "Away (live session)";
+        ps === "online" ? "Active now (session)" : "Away (session)";
       const dotClassInner = fallbackOnline ? "bg-emerald-500" : "bg-mca-ink-muted/45";
-      return { label: ps === "online" ? "Online" : "Away", title: titleInner, dotClass: dotClassInner };
+      return {
+        label: ps === "online" ? "Active now" : "Away",
+        title: titleInner,
+        dotClass: dotClassInner,
+      };
     }
     const presenceState = derivePresenceState(nowMs, rest.lastSeenAt ?? null);
     const activityState = deriveActivityState(
@@ -109,7 +113,11 @@ export function TrainerPresencePill(props: TrainerPresenceDotProps & { fallbackO
           ? "bg-amber-400"
           : "bg-mca-ink-muted/45";
     const labelInner =
-      presenceState === "online" ? "Online" : presenceState === "recently_active" ? "Active" : "Away";
+      presenceState === "online"
+        ? qualitativePresenceWindow(nowMs, rest.lastSeenAt ?? null)
+        : presenceState === "recently_active"
+          ? qualitativePresenceWindow(nowMs, rest.lastSeenAt ?? null)
+          : "Away";
     return { label: labelInner, title: titleInner, dotClass: dotClassInner };
   }, [nowMs, rest, fallbackOnline]);
 

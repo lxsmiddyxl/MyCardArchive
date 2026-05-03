@@ -118,7 +118,7 @@ export default function CreateBinderPage() {
             onChange={(e) => setName(e.target.value)}
             autoComplete="off"
             disabled={submitting || atBinderLimit || statusLoading}
-            className="w-full rounded-mca-card border border-mca-border-subtle bg-mca-surface-elevated px-mca-base py-mca-tight text-sm text-white placeholder:text-mca-ink-subtle focus:border-mca-border-interactive focus:outline-none focus:ring-2 focus:ring-mca-accent-strong/30 disabled:opacity-60"
+            className="mca-input rounded-mca-card px-mca-base py-mca-tight text-sm placeholder:text-mca-ink-subtle disabled:opacity-60"
             placeholder="e.g. Vintage holos"
           />
         </div>

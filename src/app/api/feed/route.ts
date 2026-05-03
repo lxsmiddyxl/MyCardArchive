@@ -1,7 +1,11 @@
+import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { loadTopScanMilestonesByUserIds } from "@/lib/badges/load-top-scan-milestones";
+import type { FeedItemDTO } from "@/lib/dto/catalog";
 import { enrichUsersWithFlair } from "@/lib/flair/enrich-user-flair-batch";
 import { presenceSnapshotFromFlair } from "@/lib/presence/flair-presence-fields";
 import { rankFeedItemsV4 } from "@/lib/feed/engagement-v4";
+import { parseSocialGraphV4Narrative, socialGraphV4FeedEchoLine } from "@/lib/social/social-graph-v4";
+import { loadSocialGraphV4ByUserIds } from "@/lib/social/load-social-graph-v4-batch";
 import { resolveAuthorFromSocial } from "@/lib/profile/resolveAuthor";
 import { mcaLog } from "@/lib/logging/mca-log-server";
 import { defineRouteSimple } from "@/lib/server/api-route";
@@ -13,13 +17,21 @@ const CTX = { componentName: "api/feed", surfaceName: "feed" } as const;
 export const dynamic = "force-dynamic";
 
 async function GET_handler(request: Request) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
+
+  void supabase.rpc("refresh_user_presence", {
+    p_user_id: session.userId,
+    p_state: "online",
+    p_device: "web",
+  });
+  void supabase.rpc("refresh_collector_room", {
+    p_user_id: session.userId,
+    p_room_type: "live_feed_room",
+    p_topic_key: "",
+  });
 
   const url = new URL(request.url);
   const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") ?? "24", 10)));
@@ -27,19 +39,19 @@ async function GET_handler(request: Request) {
   const debug = url.searchParams.get("debug") === "1" || url.searchParams.get("debug") === "true";
   const useMl = url.searchParams.get("ml") !== "0";
 
-  const { data, error } = await supabase.rpc("get_global_feed_v2", {
+  const { data, error } = await supabase.rpc("get_global_feed_v3", {
     p_limit: limit,
     p_before: before && before.length > 0 ? before : null,
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, error.message, 500);
   }
 
   const raw = data as unknown;
   const baseItems = Array.isArray(raw) ? raw : [];
   const { items: ranked, debug: rankDebug } = rankFeedItemsV4(
-    user.id,
+    session.userId,
     baseItems as Parameters<typeof rankFeedItemsV4>[1],
     { useMl }
   );
@@ -76,17 +88,17 @@ async function GET_handler(request: Request) {
   mcaLog.event(
     "feed.rank.compute",
     {
-      viewerId: user.id,
+      viewerId: session.userId,
       limit,
       itemCount: Array.isArray(items) ? items.length : 0,
-      ranking: "v4_engagement",
+      ranking: "v4_engagement_v3sql",
     },
     CTX
   );
   mcaLog.event(
     "feed.rank.prediction",
     {
-      viewerId: user.id,
+      viewerId: session.userId,
       itemCount: items.length,
       avgPredicted: avgPred,
     },
@@ -95,7 +107,7 @@ async function GET_handler(request: Request) {
   mcaLog.event(
     "feed.rank.affinity",
     {
-      viewerId: user.id,
+      viewerId: session.userId,
       itemCount: items.length,
       avgAffinity: avgAff,
     },
@@ -104,24 +116,24 @@ async function GET_handler(request: Request) {
   mcaLog.event(
     "feed.rank.hybrid",
     {
-      viewerId: user.id,
+      viewerId: session.userId,
       itemCount: items.length,
       avgHybrid,
       useMl,
-      layer: "v4",
+      layer: "v4+v3sql",
     },
     CTX
   );
   mcaLog.event(
     "feed.rank.personalized",
     {
-      viewerId: user.id,
+      viewerId: session.userId,
       boostedCount: persBoosts,
       itemCount: items.length,
     },
     CTX
   );
-  mcaLog.event("feed.view", { viewerId: user.id, limit }, CTX);
+  mcaLog.event("feed.view", { viewerId: session.userId, limit }, CTX);
 
   const itemRows = items as { actor_id?: string }[];
   const actorIds = [
@@ -158,6 +170,23 @@ async function GET_handler(request: Request) {
   }
   const flairByActor =
     actorIds.length > 0 ? await enrichUsersWithFlair(supabase, actorIds, tierByActor) : {};
+  const graphV4ByActor =
+    actorIds.length > 0 ? await loadSocialGraphV4ByUserIds(supabase, actorIds) : {};
+
+  const feedEventIds = itemRows
+    .map((x) => (x as { id?: string }).id)
+    .filter((x): x is string => Boolean(x));
+  const savedIdSet = new Set<string>();
+  if (feedEventIds.length > 0) {
+    const { data: saveRows } = await supabase
+      .from("feed_event_saves")
+      .select("feed_event_id")
+      .eq("user_id", session.userId)
+      .in("feed_event_id", feedEventIds);
+    for (const s of saveRows ?? []) {
+      if (s.feed_event_id) savedIdSet.add(s.feed_event_id);
+    }
+  }
   const { data: weekActivityRows } =
     actorIds.length > 0
       ? await supabase.rpc("get_users_activity_week_count_batch", {
@@ -209,12 +238,20 @@ async function GET_handler(request: Request) {
       r.actor_top_fandom_badge_key = fx?.topFandomBadgeKey ?? null;
       r.actor_fandom_summary = fx?.fandomSummary ?? null;
       r.actor_persona_text = fx?.personaText ?? null;
+      r.actor_persona_v2_label = fx?.personaV2Label ?? null;
+      r.actor_persona_v2_summary = fx?.personaV2Summary ?? null;
+      r.actor_identity_headline = fx?.identityHeadline ?? null;
+      r.actor_identity_summary = fx?.identitySummary ?? null;
       r.actor_presence = presenceSnapshotFromFlair(fx);
+      r.actor_presence_label = fx?.presenceLabel ?? null;
       r.actor_week_activity_count = weekActivityBy.get(aid) ?? 0;
       r.actor_season_highlight = fx?.seasonHighlight ?? null;
       r.actor_clubs_summary = fx?.clubsSummary ?? null;
+      r.actor_social_graph_echo =
+        socialGraphV4FeedEchoLine(graphV4ByActor[aid] ?? parseSocialGraphV4Narrative(null)) ?? null;
       r.actor_reputation_summary = fx?.reputationSummary ?? null;
       r.actor_influence_summary = fx?.influenceSummary ?? null;
+      r.actor_badge_highlight = fx?.badgeHighlight ?? null;
     } else {
       r.actor_name = "Anonymous Trainer";
       r.actor_tier_slug = null;
@@ -222,6 +259,7 @@ async function GET_handler(request: Request) {
       r.actor_reputation_score = 0;
       r.actor_reputation_summary = null;
       r.actor_influence_summary = null;
+      r.actor_badge_highlight = null;
       r.actor_activity_streak = 0;
       r.actor_top_flair_key = null;
       r.actor_top_seasonal_flair_key = null;
@@ -250,6 +288,10 @@ async function GET_handler(request: Request) {
       r.actor_top_fandom_badge_key = null;
       r.actor_fandom_summary = null;
       r.actor_persona_text = null;
+      r.actor_persona_v2_label = null;
+      r.actor_persona_v2_summary = null;
+      r.actor_identity_headline = null;
+      r.actor_identity_summary = null;
       r.actor_season_highlight = null;
       r.actor_clubs_summary = null;
       r.actor_presence = {
@@ -258,8 +300,12 @@ async function GET_handler(request: Request) {
         lastActivityAt: null,
         lastActivityKey: null,
       };
+      r.actor_presence_label = null;
       r.actor_week_activity_count = 0;
+      r.actor_social_graph_echo = null;
     }
+    const fid = typeof r.id === "string" ? r.id : "";
+    r.viewer_has_saved = fid.length > 0 ? savedIdSet.has(fid) : false;
   }
 
   let mlAcc = 0;
@@ -279,7 +325,7 @@ async function GET_handler(request: Request) {
   mcaLog.event(
     "feed.rank.ml",
     {
-      viewerId: user.id,
+      viewerId: session.userId,
       itemCount: items.length,
       mlAssistAvg: mlN > 0 ? mlAcc / mlN : 0,
     },
@@ -288,14 +334,18 @@ async function GET_handler(request: Request) {
   mcaLog.event(
     "feed.rank.signal",
     {
-      viewerId: user.id,
+      viewerId: session.userId,
       mutualHits: mutualAcc,
       engagementScoreSum: engAcc,
     },
     CTX
   );
 
-  return NextResponse.json({ items });
+  return NextResponse.json({
+    success: true,
+    context_id: ctx.contextId,
+    items: items as FeedItemDTO[],
+  });
 }
 
 export const GET = defineRouteSimple("GET /api/feed", GET_handler);

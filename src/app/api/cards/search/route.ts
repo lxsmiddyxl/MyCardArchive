@@ -1,3 +1,4 @@
+import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import {
   cacheKeyCardSearch,
   effectiveTtl,
@@ -6,6 +7,7 @@ import {
   setCache,
   ttlSearchMs,
 } from "@/lib/cache";
+import type { CardSummaryDTO } from "@/lib/dto/catalog";
 import { markHotPathEnd, markHotPathStart } from "@/lib/perf/hot-paths";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
@@ -48,14 +50,10 @@ function escapeForIlike(s: string): string {
 }
 
 async function GET_handler(request: Request) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") ?? "").trim();
@@ -70,11 +68,11 @@ async function GET_handler(request: Request) {
 
   const hpToken = markHotPathStart("hp:search:cards");
   try {
-    const cacheKey = cacheKeyCardSearch(user.id, { q, setId, type, rarity, offset, limit });
+    const cacheKey = cacheKeyCardSearch(session.userId, { q, setId, type, rarity, offset, limit });
     if (isCacheEnabled()) {
       const cached = getCache(cacheKey);
       if (cached) {
-        return NextResponse.json(cached);
+        return NextResponse.json({ success: true, context_id: ctx.contextId, ...cached });
       }
     }
 
@@ -88,7 +86,7 @@ async function GET_handler(request: Request) {
     let qb = supabase
       .from("cards")
       .select(selectCols, { count: "exact" })
-      .eq("user_id", user.id)
+      .eq("user_id", session.userId)
       .order("created_at", { ascending: false })
       .range(offset, end);
 
@@ -131,10 +129,13 @@ async function GET_handler(request: Request) {
   }
 
   if (result.error) {
-    return NextResponse.json({ error: result.error.message }, { status: 500 });
+    return errorJson(ctx, result.error.message, 500);
   }
 
-  const rows = ((result.data ?? []) as unknown as SearchCardRow[]).map((row) => {
+  const rows: (Pick<CardSummaryDTO, "id" | "name" | "number" | "rarity" | "image_url" | "catalog_card_id"> & {
+    set: string | null;
+    type: string | null;
+  })[] = ((result.data ?? []) as unknown as SearchCardRow[]).map((row) => {
     const cc = firstRelation(row.catalog_cards);
     const cs = firstRelation(cc?.catalog_sets ?? null);
     return {
@@ -161,7 +162,7 @@ async function GET_handler(request: Request) {
   if (isCacheEnabled()) {
     setCache(cacheKey, body, effectiveTtl(ttlSearchMs()));
   }
-  return NextResponse.json(body);
+  return NextResponse.json({ success: true, context_id: ctx.contextId, ...body });
   } finally {
     markHotPathEnd(hpToken);
   }

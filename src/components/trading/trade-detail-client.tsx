@@ -35,6 +35,7 @@ import {
   isLikelyOfflineError,
   listOfflineActions,
 } from "@/lib/mobile/offline-action-queue";
+import { useAsyncState } from "@/lib/client";
 import { MUTATION_LIMITS } from "@/lib/validation/mutation-limits";
 import { cn } from "@/lib/ui/cn";
 import { useMicroFlash } from "@/lib/ui/use-micro-flash";
@@ -58,9 +59,14 @@ export function TradeDetailClient({ tradeId, currentUserId }: Props) {
 
 function TradeDetailInner({ tradeId, currentUserId }: Props) {
   const { isUserOnline } = useAppWidePresence();
-  const [trade, setTrade] = useState<TradeRecord | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: trade,
+    setData: setTrade,
+    loading: tradeLoadCycle,
+    setLoading: setTradeLoading,
+  } = useAsyncState<TradeRecord>();
   const [error, setError] = useState<string | null>(null);
+  const loading = tradeLoadCycle || (trade === null && !error);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const messageRef = useRef(message);
@@ -100,7 +106,7 @@ function TradeDetailInner({ tradeId, currentUserId }: Props) {
       devtoolsSilentRefetch(`trade-detail:${tradeId}`);
     }
     if (!opts?.silent) {
-      setLoading(true);
+      setTradeLoading(true);
       setError(null);
     }
     const lkgKey = `mca:lkg:trade:${tradeId}`;
@@ -140,9 +146,9 @@ function TradeDetailInner({ tradeId, currentUserId }: Props) {
         setTrade(null);
       }
     } finally {
-      if (!opts?.silent) setLoading(false);
+      if (!opts?.silent) setTradeLoading(false);
     }
-  }, [tradeId, triggerSilentFlash]);
+  }, [tradeId, triggerSilentFlash, setTradeLoading, setTrade]);
 
   const loadRef = useRef(load);
   loadRef.current = load;
@@ -224,7 +230,7 @@ function TradeDetailInner({ tradeId, currentUserId }: Props) {
       });
     });
     return unsub;
-  }, [tradeId, triggerNewMessage, rtInc]);
+  }, [tradeId, triggerNewMessage, rtInc, setTrade]);
 
   useEffect(() => {
     let cancelled = false;
@@ -251,7 +257,7 @@ function TradeDetailInner({ tradeId, currentUserId }: Props) {
       if (debounceTimer) clearTimeout(debounceTimer);
       unsub();
     };
-  }, [tradeId, rtInc]);
+  }, [tradeId, rtInc, setTrade]);
 
   const runAction = useCallback(
     async (action: string) => {
@@ -268,7 +274,7 @@ function TradeDetailInner({ tradeId, currentUserId }: Props) {
         setActionBusy(null);
       }
     },
-    [tradeId, telemetryCtx]
+    [tradeId, telemetryCtx, setTrade]
   );
 
   const sendMessage = useCallback(async () => {

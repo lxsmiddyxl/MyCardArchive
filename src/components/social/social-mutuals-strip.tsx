@@ -6,10 +6,14 @@ import { TrainerPresenceDot } from "@/components/presence/trainer-presence-dot";
 import { MiniActivityStrip } from "@/components/activity/mini-activity-strip";
 import { InlineSeasonalEvent } from "@/components/seasonal/inline-seasonal-event";
 import { buildInlineIdentityProgressTitle } from "@/lib/social/inline-identity-tooltip";
+import { fetchJson, fetchJsonErrorMessage, useDebouncedSurfaceReload } from "@/lib/client";
+import { SOCIAL_SURFACES_REFRESH_EVENT } from "@/lib/social/social-surfaces-refresh";
+import { Button } from "@/mca-ui/button";
+import { InlineError } from "@/mca-ui/inline-error";
 import { Panel } from "@/mca-ui/panel";
 import Image from "next/image";
 import Link from "next/link";
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 
 type Mutual = {
   userId: string;
@@ -41,6 +45,10 @@ type Mutual = {
   topFandomBadgeKey?: string | null;
   fandomSummary?: string | null;
   personaText?: string | null;
+  personaV2Label?: string | null;
+  personaV2Summary?: string | null;
+  identityHeadline?: string | null;
+  identitySummary?: string | null;
   activityHeatmapStrip?: number[];
   seasonHighlight?: string | null;
   clubs?: { clubId: string; displayName: string }[];
@@ -48,6 +56,8 @@ type Mutual = {
   sharedClubsSummary?: string | null;
   reputationSummary?: string | null;
   influenceSummary?: string | null;
+  badgeHighlight?: string | null;
+  presenceLabel?: string | null;
   presence?: {
     optedOut: boolean;
     lastSeenAt: string | null;
@@ -59,28 +69,61 @@ type Mutual = {
 export const SocialMutualsStrip = memo(function SocialMutualsStrip() {
   const [mutuals, setMutuals] = useState<Mutual[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadMutuals = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const r = await fetchJson<{ mutuals: Mutual[] }>("/api/social/mutuals", { cache: "no-store" });
+      if (r.kind !== "ok") {
+        setLoadError(fetchJsonErrorMessage(r));
+        setMutuals([]);
+        return;
+      }
+      setMutuals(Array.isArray(r.data.mutuals) ? r.data.mutuals : []);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Could not load mutual trainers.");
+      setMutuals([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/social/mutuals", { cache: "no-store" });
-        const body = (await res.json()) as { mutuals?: Mutual[] };
-        if (!cancelled && res.ok) setMutuals(body.mutuals ?? []);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void loadMutuals();
+  }, [loadMutuals]);
+
+  const scheduleSocialReload = useDebouncedSurfaceReload(loadMutuals, 180);
+
+  useEffect(() => {
+    const onRefresh = () => scheduleSocialReload();
+    window.addEventListener(SOCIAL_SURFACES_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(SOCIAL_SURFACES_REFRESH_EVENT, onRefresh);
+  }, [scheduleSocialReload]);
 
   if (loading) {
     return (
-      <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
-        <p className="text-mca-caption text-mca-ink-muted">Loading mutual trainers…</p>
-      </Panel>
+      <section aria-label="Mutual trainers" aria-live="polite" aria-busy="true">
+        <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
+          <p className="text-mca-caption text-mca-ink-muted" role="status">
+            Loading mutual trainers…
+          </p>
+        </Panel>
+      </section>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <section aria-label="Mutual trainers" aria-live="assertive">
+        <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
+          <InlineError>{loadError}</InlineError>
+          <Button type="button" variant="secondary" className="mt-mca-sm text-xs" onClick={() => void loadMutuals()}>
+            Try again
+          </Button>
+        </Panel>
+      </section>
     );
   }
 
@@ -98,7 +141,8 @@ export const SocialMutualsStrip = memo(function SocialMutualsStrip() {
   }
 
   return (
-    <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
+    <section aria-label="Mutual trainers" aria-live="polite">
+      <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
       <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
         Mutual follows
       </p>
@@ -145,6 +189,10 @@ export const SocialMutualsStrip = memo(function SocialMutualsStrip() {
                         : null,
                     reputationSummary: m.reputationSummary,
                     influenceSummary: m.influenceSummary,
+                    badgeHighlight: m.badgeHighlight,
+                    presenceLabel: m.presenceLabel,
+                    personaV2Summary: m.personaV2Summary,
+                    identityMapSummary: m.identitySummary,
                   }
                 )}
               >
@@ -175,7 +223,7 @@ export const SocialMutualsStrip = memo(function SocialMutualsStrip() {
                     lastActivityAt={m.presence.lastActivityAt}
                     lastActivityKey={m.presence.lastActivityKey}
                     presenceOptOut={m.presence.optedOut}
-                    className="mt-0.5"
+                    className="mt-mca-trace"
                   />
                 ) : null}
                 <span className="flex min-w-0 flex-col">
@@ -197,6 +245,12 @@ export const SocialMutualsStrip = memo(function SocialMutualsStrip() {
                       {m.influenceSummary.trim()}
                     </span>
                   ) : null}
+                  {m.badgeHighlight?.trim() ? (
+                    <span className="mt-mca-trace block text-[11px] leading-snug text-mca-warn/95">{m.badgeHighlight.trim()}</span>
+                  ) : null}
+                  {m.presenceLabel?.trim() ? (
+                    <span className="mt-mca-trace block text-[11px] leading-snug text-mca-ink-subtle">{m.presenceLabel.trim()}</span>
+                  ) : null}
                   {m.activityHeatmapStrip && m.activityHeatmapStrip.length > 0 ? (
                     <MiniActivityStrip counts={m.activityHeatmapStrip} className="mt-mca-xs" />
                   ) : null}
@@ -217,5 +271,6 @@ export const SocialMutualsStrip = memo(function SocialMutualsStrip() {
         ))}
       </ul>
     </Panel>
+    </section>
   );
 });

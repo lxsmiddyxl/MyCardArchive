@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import type { CardRow } from "@/lib/types/database";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -14,13 +15,10 @@ export function CardGrid({ initialCards }: Props) {
 
   async function removeCard(id: string) {
     setRemoving(id);
-    const res = await fetch(`/api/cards/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
+    const r = await fetchJson(`/api/cards/${encodeURIComponent(id)}`, { method: "DELETE" });
     setRemoving(null);
-    if (!res.ok) {
-      const j = (await res.json()) as { error?: string };
-      alert(j.error ?? "Could not remove card.");
+    if (r.kind !== "ok") {
+      alert(fetchJsonErrorMessage(r));
       return;
     }
     router.refresh();
@@ -35,7 +33,11 @@ export function CardGrid({ initialCards }: Props) {
   }
 
   return (
-    <ul className="grid gap-mca-base sm:grid-cols-2 lg:grid-cols-3">
+    <ul
+      className="grid gap-mca-base sm:grid-cols-2 lg:grid-cols-3"
+      aria-live="polite"
+      aria-busy={removing !== null}
+    >
       {initialCards.map((card) => (
         <li
           key={card.id}

@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson } from "@/lib/client";
 import { serializeFiltersForQuery } from "@/lib/search/search-filters";
 import type { CollectorSearchFilters } from "@/lib/search/search-filters";
 import { cn } from "@/lib/ui/cn";
@@ -61,6 +62,7 @@ export function CollectorQuickSearch({ className, defaultClubId }: CollectorQuic
   const [debounced, setDebounced] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
+  const [suggestBusy, setSuggestBusy] = useState(false);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(q.trim()), 220);
@@ -74,15 +76,19 @@ export function CollectorQuickSearch({ className, defaultClubId }: CollectorQuic
       return;
     }
     void (async () => {
+      setSuggestBusy(true);
       try {
-        const res = await fetch(
+        const r = await fetchJson<{ suggestions: Suggestion[] }>(
           `/api/search/suggest?q=${encodeURIComponent(debounced)}`,
           { cache: "no-store" }
         );
-        const body = (await res.json()) as { suggestions?: Suggestion[] };
-        if (!cancelled && res.ok) setSuggestions(body.suggestions ?? []);
+        if (!cancelled && r.kind === "ok") {
+          setSuggestions(Array.isArray(r.data.suggestions) ? r.data.suggestions : []);
+        }
       } catch {
         if (!cancelled) setSuggestions([]);
+      } finally {
+        if (!cancelled) setSuggestBusy(false);
       }
     })();
     return () => {
@@ -118,10 +124,14 @@ export function CollectorQuickSearch({ className, defaultClubId }: CollectorQuic
     <div className={cn("relative", className)}>
       <Field id="collector-quick-query" label="Find collectors" hint={hint}>
         <div className="flex flex-wrap gap-mca-sm">
-          <div className="relative min-w-[min(100%,18rem)] flex-1">
+          <div
+            className="relative min-w-[min(100%,18rem)] flex-1"
+            aria-busy={suggestBusy}
+          >
             <input
               id="collector-quick-query"
               type="search"
+              role="combobox"
               value={q}
               onChange={(e) => {
                 setQ(e.target.value);
@@ -135,19 +145,25 @@ export function CollectorQuickSearch({ className, defaultClubId }: CollectorQuic
                 }
               }}
               placeholder="Persona keywords, or pick a suggestion…"
-              className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-body text-mca-ink-strong outline-none ring-mca-accent-strong focus:ring-2"
+              className="mca-input rounded-mca-control px-mca-sm py-mca-xs text-mca-body ring-mca-accent-strong focus:ring-2"
               aria-autocomplete="list"
+              aria-haspopup="listbox"
+              aria-controls="collector-quick-suggestions"
               aria-expanded={open && suggestions.length > 0}
             />
             {open && suggestions.length > 0 ? (
               <ul
+                id="collector-quick-suggestions"
                 role="listbox"
+                aria-label="Search suggestions"
                 className="absolute z-50 mt-mca-xs max-h-56 w-full overflow-auto rounded-mca-control border border-mca-border bg-mca-surface-elevated py-mca-xs shadow-mca-panel"
               >
                 {suggestions.map((s) => (
-                  <li key={`${s.kind}-${s.id}`} role="option">
+                  <li key={`${s.kind}-${s.id}`} role="presentation">
                     <button
                       type="button"
+                      role="option"
+                      aria-selected={false}
                       className="w-full px-mca-sm py-mca-xs text-left text-mca-caption hover:bg-mca-chrome/40"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => applySuggestion(s)}

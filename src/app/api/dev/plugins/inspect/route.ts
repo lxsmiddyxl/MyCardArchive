@@ -1,11 +1,12 @@
 import { DEV_PLUGIN_REGISTRY } from "@/lib/plugins/registry.dev";
 import { loadPluginsFromRegistry } from "@/lib/plugins/plugin-loader";
 import { mcaLog } from "@/lib/logging/mca-log-server";
+import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+async function GET_handler(): Promise<Response> {
   if (process.env.NODE_ENV !== "development") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -37,3 +38,5 @@ export async function GET() {
     errors: result.errors,
   });
 }
+
+export const GET = defineRouteNoArgs("GET /api/dev/plugins/inspect", GET_handler);

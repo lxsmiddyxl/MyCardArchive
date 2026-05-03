@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson } from "@/lib/client";
 import { Panel } from "@/mca-ui/panel";
 import { useCallback, useEffect, useState } from "react";
 
@@ -51,8 +52,8 @@ export function McaLoadOverlay() {
   const fetchLoad = useCallback(async () => {
     if (!enabled) return;
     try {
-      const res = await fetch("/api/health/load", { cache: "no-store" });
-      setData((await res.json()) as LoadJson);
+      const r = await fetchJson<LoadJson>("/api/health/load", { cache: "no-store" });
+      setData(r.kind === "ok" ? (r.data as LoadJson) : null);
     } catch {
       setData({ ok: false });
     }

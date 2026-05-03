@@ -5,6 +5,7 @@ import {
   modalPanelClasses,
   useModalMount,
 } from "@/lib/ui/use-modal-mount";
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { useCallback, useId, useState } from "react";
 
 type Props = {
@@ -38,16 +39,13 @@ export function DeleteDeckModal({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/decks/delete", {
+      const r = await fetchJson("/api/decks/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deck_id: deckId }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!res.ok) {
-        setError(data.error ?? "Could not delete deck.");
+      if (r.kind !== "ok") {
+        setError(fetchJsonErrorMessage(r));
         setSubmitting(false);
         return;
       }
@@ -81,6 +79,8 @@ export function DeleteDeckModal({
           animIn,
           "w-full max-w-md rounded-mca-card border border-mca-border bg-mca-surface-elevated/95 p-mca-lg shadow-mca-card shadow-black/40 dark:border-mca-border-subtle"
         )}
+        aria-live="polite"
+        aria-busy={submitting}
       >
         <h2 id={titleId} className="mca-section-reveal text-lg font-semibold text-mca-ink-strong">
           Delete deck?

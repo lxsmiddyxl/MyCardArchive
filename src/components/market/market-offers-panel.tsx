@@ -1,29 +1,32 @@
 "use client";
 
+import {
+  fetchJson,
+  fetchJsonErrorMessage,
+  scheduleCoalescedRouterRefresh,
+  useAsyncState,
+} from "@/lib/client";
+import type {
+  MarketOfferMutationResponseDTO,
+  MarketOfferRowDTO,
+  MarketOfferRevisionRowDTO,
+  MarketOfferRevisionSnapshotDTO,
+  MarketOfferThreadPackDTO,
+  MarketOfferTimelineEventDTO,
+  MarketOffersListPayloadDTO,
+  MarketTradeRoomPayloadDTO,
+} from "@/lib/dto/market-offers";
 import { CatalogOfferPreviews } from "@/components/market/catalog-offer-previews";
 import { OfferExpiryCountdown } from "@/components/market/offer-expiry-countdown";
 import { Button } from "@/mca-ui/button";
 import { Field } from "@/mca-ui/field";
 import { Panel } from "@/mca-ui/panel";
+import { requestMarketSurfacesRefresh } from "@/lib/market/market-surfaces-refresh";
 import { isUuidString } from "@/lib/server/is-uuid";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-type OfferRow = {
-  id: string;
-  thread_id: string;
-  parent_offer_id: string | null;
-  from_user_id: string;
-  to_user_id: string;
-  catalog_card_id: string | null;
-  body: string;
-  status: string;
-  created_at: string;
-  updated_at?: string;
-  items_offered?: unknown;
-  items_requested?: unknown;
-  offer_notes?: string | null;
-  expires_at?: string | null;
-};
+type OfferRow = MarketOfferRowDTO;
 
 function linesToStructuredItems(text: string): { catalog_card_id: string; qty: number }[] {
   return text
@@ -34,42 +37,69 @@ function linesToStructuredItems(text: string): { catalog_card_id: string; qty: n
     .map((catalog_card_id) => ({ catalog_card_id, qty: 1 }));
 }
 
-type TimelineEvent = {
-  id: string;
-  thread_id: string;
-  offer_id: string;
-  event_type: string;
-  actor_id: string;
-  created_at: string;
-};
+type TimelineEvent = MarketOfferTimelineEventDTO;
+type RevisionRow = MarketOfferRevisionRowDTO;
+type ThreadPack = MarketOfferThreadPackDTO;
 
-type RevisionRow = {
-  id: string;
-  thread_id: string;
-  seq: number;
-  offer_id: string;
-  snapshot: Record<string, unknown>;
-  actor_id: string;
-  created_at: string;
-};
-
-type ThreadPack = {
-  thread_id: string;
+type ThreadDetailState = {
   offers: OfferRow[];
-  last_at: string;
-};
+  events: TimelineEvent[];
+  revisions: RevisionRow[];
+} | null;
+
+const OfferDetailCard = memo(function OfferDetailCard({
+  o,
+  currentUserId,
+}: {
+  o: OfferRow;
+  currentUserId: string;
+}) {
+  return (
+    <li className="rounded-mca-control border border-mca-border/70 bg-mca-surface/40 px-mca-sm py-mca-xs">
+      <p className="text-mca-caption text-mca-ink-muted">
+        {o.from_user_id === currentUserId ? "You" : "Them"} →{" "}
+        {o.to_user_id === currentUserId ? "you" : "them"} ·{" "}
+        <span className="font-medium text-mca-ink-strong">{o.status}</span>
+      </p>
+      <p className="mt-mca-trace whitespace-pre-wrap text-mca-body text-mca-ink-body">{o.body}</p>
+      {Array.isArray(o.items_offered) && o.items_offered.length > 0 ? (
+        <p className="mt-mca-trace font-mono text-mca-caption text-mca-ink-muted">
+          Offered: {JSON.stringify(o.items_offered)}
+        </p>
+      ) : null}
+      {Array.isArray(o.items_requested) && o.items_requested.length > 0 ? (
+        <p className="mt-mca-trace font-mono text-mca-caption text-mca-ink-muted">
+          Requested: {JSON.stringify(o.items_requested)}
+        </p>
+      ) : null}
+      {o.offer_notes ? (
+        <p className="mt-mca-trace text-mca-caption text-mca-ink-muted">Notes: {o.offer_notes}</p>
+      ) : null}
+      {o.expires_at ? (
+        <div className="mt-mca-trace">
+          <OfferExpiryCountdown expiresAt={o.expires_at} />
+        </div>
+      ) : null}
+      <CatalogOfferPreviews itemsOffered={o.items_offered} itemsRequested={o.items_requested} />
+    </li>
+  );
+});
 
 export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) {
-  const [threads, setThreads] = useState<ThreadPack[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const { run: runList, data: listData, loading: listLoading, error: listError } =
+    useAsyncState<ThreadPack[]>();
+  const { run: runThread, data: threadData, loading: threadLoading, error: threadError } =
+    useAsyncState<ThreadDetailState>();
+  const { run: runAction, loading: actionLoading, error: actionError } = useAsyncState<unknown>();
+
+  const threads = listData ?? [];
+  const loading = listLoading || (listData === null && !listError);
+  const error = listError ?? threadError ?? actionError;
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<{
-    offers: OfferRow[];
-    events: TimelineEvent[];
-    revisions: RevisionRow[];
-  } | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const detail = threadData ?? null;
+  const detailLoading = threadLoading;
+  const busy = actionLoading;
 
   const [toUserId, setToUserId] = useState("");
   const [catalogId, setCatalogId] = useState("");
@@ -78,67 +108,49 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
   const [requestedLines, setRequestedLines] = useState("");
   const [offerNotesExtra, setOfferNotesExtra] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
-  const [busy, setBusy] = useState(false);
 
   const [counterDraft, setCounterDraft] = useState<Record<string, string>>({});
   const [reviseDraft, setReviseDraft] = useState("");
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/market/offers", { cache: "no-store" });
-      const body = (await res.json().catch(() => ({}))) as {
-        threads?: ThreadPack[];
-        error?: string;
-      };
-      if (!res.ok) throw new Error(body.error ?? "Failed to load offers");
-      setThreads(Array.isArray(body.threads) ? body.threads : []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    await runList(async () => {
+      const r = await fetchJson<MarketOffersListPayloadDTO>("/api/market/offers", { cache: "no-store" });
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      return Array.isArray(r.data.threads) ? r.data.threads : [];
+    });
+  }, [runList]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const loadThread = useCallback(async (threadId: string) => {
-    setDetailLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/market/trade-rooms/${encodeURIComponent(threadId)}`, {
-        cache: "no-store",
+  const loadThread = useCallback(
+    async (threadId: string) => {
+      await runThread(async () => {
+        const r = await fetchJson<MarketTradeRoomPayloadDTO>(
+          `/api/market/trade-rooms/${encodeURIComponent(threadId)}`,
+          {
+            cache: "no-store",
+          }
+        );
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        const body = r.data;
+        setOpenThreadId(threadId);
+        return {
+          offers: body.offers ?? [],
+          events: body.events ?? [],
+          revisions: body.revisions ?? [],
+        };
       });
-      const body = (await res.json().catch(() => ({}))) as {
-        offers?: OfferRow[];
-        events?: TimelineEvent[];
-        revisions?: RevisionRow[];
-        error?: string;
-      };
-      if (!res.ok) throw new Error(body.error ?? "Failed to load trade room");
-      setDetail({
-        offers: body.offers ?? [],
-        events: body.events ?? [],
-        revisions: body.revisions ?? [],
-      });
-      setOpenThreadId(threadId);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load thread");
-    } finally {
-      setDetailLoading(false);
-    }
-  }, []);
+    },
+    [runThread]
+  );
 
   const sendOffer = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
+    await runAction(async () => {
       const items_offered = linesToStructuredItems(offeredLines);
       const items_requested = linesToStructuredItems(requestedLines);
-      const res = await fetch("/api/market/offers", {
+      const r = await fetchJson<MarketOfferMutationResponseDTO>("/api/market/offers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -151,8 +163,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
           expires_at: expiresAt.trim() || null,
         }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Could not send offer");
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
       setToUserId("");
       setCatalogId("");
       setOfferBody("");
@@ -161,58 +172,61 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
       setOfferNotesExtra("");
       setExpiresAt("");
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send");
-    } finally {
-      setBusy(false);
-    }
-  }, [toUserId, catalogId, offerBody, offeredLines, requestedLines, offerNotesExtra, expiresAt, load]);
+      requestMarketSurfacesRefresh();
+      scheduleCoalescedRouterRefresh(router);
+    });
+  }, [
+    runAction,
+    toUserId,
+    catalogId,
+    offerBody,
+    offeredLines,
+    requestedLines,
+    offerNotesExtra,
+    expiresAt,
+    load,
+    router,
+  ]);
 
   const counter = useCallback(
     async (offerId: string) => {
       const text = (counterDraft[offerId] ?? "").trim();
       if (!text) return;
-      setBusy(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/market/offers/${encodeURIComponent(offerId)}/counter`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body: text }),
-        });
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Could not counter");
+      await runAction(async () => {
+        const r = await fetchJson<MarketOfferMutationResponseDTO>(
+          `/api/market/offers/${encodeURIComponent(offerId)}/counter`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ body: text }),
+          }
+        );
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
         setCounterDraft((d) => ({ ...d, [offerId]: "" }));
         await load();
         if (openThreadId) await loadThread(openThreadId);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not counter");
-      } finally {
-        setBusy(false);
-      }
+        requestMarketSurfacesRefresh();
+        scheduleCoalescedRouterRefresh(router);
+      });
     },
-    [counterDraft, load, loadThread, openThreadId]
+    [counterDraft, load, loadThread, openThreadId, runAction, router]
   );
 
   const decline = useCallback(
     async (offerId: string) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/market/offers/${encodeURIComponent(offerId)}/decline`, {
-          method: "POST",
-        });
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Could not decline");
+      await runAction(async () => {
+        const r = await fetchJson<MarketOfferMutationResponseDTO>(
+          `/api/market/offers/${encodeURIComponent(offerId)}/decline`,
+          { method: "POST" }
+        );
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
         await load();
         if (openThreadId) await loadThread(openThreadId);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not decline");
-      } finally {
-        setBusy(false);
-      }
+        requestMarketSurfacesRefresh();
+        scheduleCoalescedRouterRefresh(router);
+      });
     },
-    [load, loadThread, openThreadId]
+    [load, loadThread, openThreadId, runAction, router]
   );
 
   const pendingForYou = useMemo(() => {
@@ -242,35 +256,39 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
     if (!pendingFromYou) return;
     const text = reviseDraft.trim();
     if (!text) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/market/offers/${encodeURIComponent(pendingFromYou.id)}/revise`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: text }),
-      });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Could not revise");
+    await runAction(async () => {
+      const r = await fetchJson<MarketOfferMutationResponseDTO>(
+        `/api/market/offers/${encodeURIComponent(pendingFromYou.id)}/revise`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: text }),
+        }
+      );
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
       await load();
       if (openThreadId) await loadThread(openThreadId);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not revise");
-    } finally {
-      setBusy(false);
-    }
-  }, [pendingFromYou, reviseDraft, load, loadThread, openThreadId]);
+      requestMarketSurfacesRefresh();
+      scheduleCoalescedRouterRefresh(router);
+    });
+  }, [pendingFromYou, reviseDraft, load, loadThread, openThreadId, runAction, router]);
 
   if (loading) {
     return (
       <Panel className="border-mca-border bg-mca-surface/40 p-mca-md">
-        <p className="text-mca-caption text-mca-ink-muted">Loading offers…</p>
+        <section aria-live="polite" aria-busy>
+          <p className="text-mca-caption text-mca-ink-muted">Loading offers…</p>
+        </section>
       </Panel>
     );
   }
 
   return (
-    <div className="touch-manipulation space-y-mca-lg">
+    <section
+      className="touch-manipulation space-y-mca-lg"
+      aria-live="polite"
+      aria-busy={busy || detailLoading}
+    >
       <Panel className="border-mca-border bg-mca-surface-elevated/40 p-mca-md">
         <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
           Send an offer
@@ -286,7 +304,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
               value={toUserId}
               onChange={(e) => setToUserId(e.target.value)}
               placeholder="Trainer profile UUID"
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm font-mono text-sm text-mca-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control font-mono text-sm"
             />
           </Field>
           <Field id="offer-catalog" label="Catalog card id (optional)" className="min-w-0">
@@ -295,7 +313,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
               value={catalogId}
               onChange={(e) => setCatalogId(e.target.value)}
               placeholder="Optional catalog card UUID"
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm font-mono text-sm text-mca-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control font-mono text-sm"
             />
           </Field>
         </div>
@@ -305,7 +323,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
             value={offerBody}
             onChange={(e) => setOfferBody(e.target.value)}
             rows={3}
-            className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm text-sm text-mca-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+            className="mca-input mt-mca-sm rounded-mca-control text-sm min-h-[4rem]"
           />
         </Field>
         <div className="mt-mca-md grid gap-mca-sm md:grid-cols-2">
@@ -316,7 +334,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
               onChange={(e) => setOfferedLines(e.target.value)}
               rows={3}
               placeholder="Optional structured lines"
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm font-mono text-mca-caption outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control font-mono text-mca-caption min-h-[4rem]"
             />
           </Field>
           <Field id="offer-items-want" label="Items requested (catalog UUIDs, one per line)" className="min-w-0">
@@ -326,7 +344,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
               onChange={(e) => setRequestedLines(e.target.value)}
               rows={3}
               placeholder="Optional structured lines"
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm font-mono text-mca-caption outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control font-mono text-mca-caption min-h-[4rem]"
             />
           </Field>
         </div>
@@ -336,7 +354,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
               id="offer-notes-extra"
               value={offerNotesExtra}
               onChange={(e) => setOfferNotesExtra(e.target.value)}
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm text-sm outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control text-sm"
             />
           </Field>
           <Field id="offer-expires" label="Expires (optional)" className="min-w-0">
@@ -345,7 +363,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
               type="datetime-local"
               value={expiresAt}
               onChange={(e) => setExpiresAt(e.target.value)}
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm text-sm outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control text-sm"
             />
           </Field>
         </div>
@@ -450,7 +468,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
                             <time dateTime={r.created_at}>{new Date(r.created_at).toLocaleString()}</time>
                           </p>
                           <p className="mt-mca-trace whitespace-pre-wrap text-mca-body text-mca-ink-body">
-                            {String((r.snapshot as { body?: unknown }).body ?? "")}
+                            {String((r.snapshot as MarketOfferRevisionSnapshotDTO).body ?? "")}
                           </p>
                         </li>
                       ))}
@@ -474,36 +492,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
                 <p className="text-mca-caption font-medium text-mca-ink-muted">Offers</p>
                 <ul className="mt-mca-sm space-y-mca-sm">
                   {detail.offers.map((o) => (
-                    <li
-                      key={o.id}
-                      className="rounded-mca-control border border-mca-border/70 bg-mca-surface/40 px-mca-sm py-mca-xs"
-                    >
-                      <p className="text-mca-caption text-mca-ink-muted">
-                        {o.from_user_id === currentUserId ? "You" : "Them"} →{" "}
-                        {o.to_user_id === currentUserId ? "you" : "them"} ·{" "}
-                        <span className="font-medium text-mca-ink-strong">{o.status}</span>
-                      </p>
-                      <p className="mt-mca-trace whitespace-pre-wrap text-mca-body text-mca-ink-body">{o.body}</p>
-                      {Array.isArray(o.items_offered) && o.items_offered.length > 0 ? (
-                        <p className="mt-mca-trace font-mono text-mca-caption text-mca-ink-muted">
-                          Offered: {JSON.stringify(o.items_offered)}
-                        </p>
-                      ) : null}
-                      {Array.isArray(o.items_requested) && o.items_requested.length > 0 ? (
-                        <p className="mt-mca-trace font-mono text-mca-caption text-mca-ink-muted">
-                          Requested: {JSON.stringify(o.items_requested)}
-                        </p>
-                      ) : null}
-                      {o.offer_notes ? (
-                        <p className="mt-mca-trace text-mca-caption text-mca-ink-muted">Notes: {o.offer_notes}</p>
-                      ) : null}
-                      {o.expires_at ? (
-                        <div className="mt-mca-trace">
-                          <OfferExpiryCountdown expiresAt={o.expires_at} />
-                        </div>
-                      ) : null}
-                      <CatalogOfferPreviews itemsOffered={o.items_offered} itemsRequested={o.items_requested} />
-                    </li>
+                    <OfferDetailCard key={o.id} o={o} currentUserId={currentUserId} />
                   ))}
                 </ul>
               </div>
@@ -518,7 +507,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
                         value={reviseDraft}
                         onChange={(e) => setReviseDraft(e.target.value)}
                         rows={3}
-                        className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm text-sm outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+                        className="mca-input mt-mca-sm rounded-mca-control text-sm min-h-[4rem]"
                       />
                     </Field>
                     <Button
@@ -549,7 +538,7 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
                           setCounterDraft((d) => ({ ...d, [pendingForYou.id]: e.target.value }))
                         }
                         rows={2}
-                        className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm text-sm outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+                        className="mca-input mt-mca-sm rounded-mca-control text-sm min-h-[3.5rem]"
                       />
                     </Field>
                     <Button
@@ -575,6 +564,6 @@ export function MarketOffersPanel({ currentUserId }: { currentUserId: string }) 
           ) : null}
         </Panel>
       ) : null}
-    </div>
+    </section>
   );
 }

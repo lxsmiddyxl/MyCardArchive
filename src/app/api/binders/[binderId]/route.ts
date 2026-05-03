@@ -1,3 +1,5 @@
+import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
+import type { BinderSummaryDTO } from "@/lib/dto/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { defineRoute } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
@@ -6,39 +8,35 @@ async function GET_handler(
   _request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await validateSession(supabase, ctx);
+    if (!session.ok) return session.response;
 
     const id = context.params["binderId"]?.trim();
     if (!id) {
-      return NextResponse.json({ error: "Invalid binder id" }, { status: 400 });
+      return errorJson(ctx, "Invalid binder id", 400);
     }
 
     const { data, error } = await supabase
       .from("binders")
       .select("*")
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", session.userId)
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return errorJson(ctx, error.message, 500);
     }
 
     if (!data) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return errorJson(ctx, "Not found", 404);
     }
 
-    return NextResponse.json({ binder: data });
+    return NextResponse.json({ success: true, context_id: ctx.contextId, binder: data as BinderSummaryDTO });
   } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return errorJson(ctx, "Server error", 500);
   }
 }
 
@@ -46,26 +44,22 @@ async function PATCH_handler(
   request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await validateSession(supabase, ctx);
+    if (!session.ok) return session.response;
 
     const id = context.params["binderId"]?.trim();
     if (!id) {
-      return NextResponse.json({ error: "Invalid binder id" }, { status: 400 });
+      return errorJson(ctx, "Invalid binder id", 400);
     }
 
     let body: { name?: string; description?: string | null };
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return errorJson(ctx, "Invalid JSON", 400);
     }
 
     const patch: { name?: string; description?: string | null } = {};
@@ -73,7 +67,7 @@ async function PATCH_handler(
     if (typeof body.name === "string") {
       const trimmed = body.name.trim();
       if (!trimmed) {
-        return NextResponse.json({ error: "name cannot be empty" }, { status: 400 });
+        return errorJson(ctx, "name cannot be empty", 400);
       }
       patch.name = trimmed;
     }
@@ -85,31 +79,28 @@ async function PATCH_handler(
     }
 
     if (Object.keys(patch).length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return errorJson(ctx, "No valid fields to update", 400);
     }
 
     const { data, error } = await supabase
       .from("binders")
       .update(patch)
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", session.userId)
       .select("*")
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return errorJson(ctx, error.message, 500);
     }
 
     if (!data) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return errorJson(ctx, "Not found", 404);
     }
 
-    return NextResponse.json({ binder: data });
+    return NextResponse.json({ success: true, context_id: ctx.contextId, binder: data as BinderSummaryDTO });
   } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return errorJson(ctx, "Server error", 500);
   }
 }
 
@@ -117,40 +108,36 @@ async function DELETE_handler(
   _request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await validateSession(supabase, ctx);
+    if (!session.ok) return session.response;
 
     const id = context.params["binderId"]?.trim();
     if (!id) {
-      return NextResponse.json({ error: "Invalid binder id" }, { status: 400 });
+      return errorJson(ctx, "Invalid binder id", 400);
     }
 
     const { data, error } = await supabase
       .from("binders")
       .delete()
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", session.userId)
       .select("id")
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return errorJson(ctx, error.message, 500);
     }
 
     if (!data) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return errorJson(ctx, "Not found", 404);
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ success: true, context_id: ctx.contextId, ok: true });
   } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return errorJson(ctx, "Server error", 500);
   }
 }
 

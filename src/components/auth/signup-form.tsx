@@ -1,6 +1,7 @@
 "use client";
 
 import { safeNextPath } from "@/lib/auth/safe-next-path";
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -86,7 +87,7 @@ export function SignupForm({
         typeof window !== "undefined" ? window.location.origin : "";
       const emailRedirectTo = `${origin}/api/auth/callback?next=${encodeURIComponent(next)}`;
 
-      const res = await fetch("/api/auth/sign-up", {
+      const r = await fetchJson<SignupResult & { ok: boolean }>("/api/auth/sign-up", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -95,11 +96,17 @@ export function SignupForm({
           emailRedirectTo,
         }),
       });
-      const payload = (await res.json()) as SignupResult;
+      if (r.kind !== "ok") {
+        setVariant("error");
+        setMessage(fetchJsonErrorMessage(r));
+        mcaLog.event("auth.signup", { ok: false, reason: "request_failed" }, telemetryCtx);
+        return;
+      }
+      const payload = r.data as SignupResult;
 
-      if (!res.ok || !payload.ok) {
-        const reason = payload.ok ? "signup_failed" : payload.reason;
-        const err = payload.ok ? "Could not create account." : payload.error;
+      if (!payload.ok) {
+        const reason = payload.reason;
+        const err = payload.error;
         setVariant("error");
         setMessage(err);
         mcaLog.event("auth.signup", { ok: false, reason }, telemetryCtx);
@@ -192,7 +199,7 @@ export function SignupForm({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={loading || envMissing}
-            className="mt-mca-sm w-full rounded-mca-control border border-mca-border-subtle bg-mca-surface px-mca-compact py-mca-tight text-sm text-mca-ink-strong shadow-mca-panel transition-all placeholder:text-mca-ink-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-60"
+            className="mca-input mt-mca-sm"
           />
         </div>
         <div>
@@ -212,7 +219,7 @@ export function SignupForm({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={loading || envMissing}
-            className="mt-mca-sm w-full rounded-mca-control border border-mca-border-subtle bg-mca-surface px-mca-compact py-mca-tight text-sm text-mca-ink-strong shadow-mca-panel transition-all placeholder:text-mca-ink-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-60"
+            className="mca-input mt-mca-sm"
           />
         </div>
         <div>
@@ -232,7 +239,7 @@ export function SignupForm({
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             disabled={loading || envMissing}
-            className="mt-mca-sm w-full rounded-mca-control border border-mca-border-subtle bg-mca-surface px-mca-compact py-mca-tight text-sm text-mca-ink-strong shadow-mca-panel transition-all placeholder:text-mca-ink-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-60"
+            className="mca-input mt-mca-sm"
           />
         </div>
 

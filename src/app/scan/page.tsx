@@ -1,6 +1,8 @@
 "use client";
 
+import { SeasonalActivityPulse } from "@/components/activity-waves/seasonal-activity-pulse";
 import { SeasonalEventLiveBannerScan } from "@/components/seasonal/seasonal-event-live-banner";
+import { listActiveSeasonalEvents } from "@/lib/events/seasonal-events";
 import { FtueOverlay } from "@/components/onboarding/ftue-overlay";
 import { TierFeatureGateBadge } from "@/components/tier/tier-feature-gate-badge";
 import type { ScanPackOffer } from "@/components/billing/scan-pack-purchase-panel";
@@ -10,7 +12,13 @@ import {
   parseScanTierFeatureBlockError,
   type ScanUpgradeReason,
 } from "@/components/scan/scan-upgrade-modal";
+import { requestBinderSurfacesRefresh } from "@/lib/binders/binder-surfaces-refresh";
 import type { NormalizedCard } from "@/lib/ai/normalize-card";
+import type {
+  AddCardToBinderDTO,
+  ScanLegacyErrorBodyDTO,
+  ScanResultDTO,
+} from "@/lib/dto/scan-add";
 import type { AutoMatchCandidate, AutoMatchResult } from "@/lib/types/auto-match";
 import { fetchWithRetry } from "@/lib/http/fetch-with-retry";
 import { mcaLog } from "@/lib/logging/mca-log-client";
@@ -31,26 +39,9 @@ const SCAN_TEL = { componentName: "ScanPage", surfaceName: "scan" } as const;
 
 type BinderListItem = { id: string; name: string };
 
-type ScanApiSuccess = {
-  success: true;
-  card: NormalizedCard;
-  scan_event_id: string;
-  raw_ai: unknown;
-  auto_match?: AutoMatchResult;
-};
-
-type ScanApiErrorBody = {
-  error?: string;
-  code?: string;
-  success?: false;
-  scan_event_id?: string;
-  raw_ai?: unknown;
-  card?: NormalizedCard;
-  auto_match?: AutoMatchResult;
-};
-
 type BinderCardFields = NormalizedCard & {
   catalog_card_id?: string | null;
+  set_name?: string | null;
 };
 
 function effectiveCardForBinder(
@@ -59,7 +50,7 @@ function effectiveCardForBinder(
 ): BinderCardFields {
   const bm = autoMatch?.best_match;
   if (!bm) {
-    return { ...normalized, catalog_card_id: null };
+    return { ...normalized, catalog_card_id: null, set_name: null };
   }
   const num =
     bm.number.trim() && bm.number !== "—"
@@ -71,6 +62,7 @@ function effectiveCardForBinder(
     rarity: (bm.rarity?.trim() || normalized.rarity) ?? "",
     image_url: bm.image_url ?? normalized.image_url,
     catalog_card_id: bm.catalog_card_id ?? null,
+    set_name: bm.set_name?.trim() || null,
   };
 }
 
@@ -86,6 +78,9 @@ function buildAddCardHref(
   if (card.image_url) q.set("image_url", card.image_url);
   if (card.catalog_card_id) {
     q.set("catalog_card_id", card.catalog_card_id);
+  }
+  if (card.set_name?.trim()) {
+    q.set("set_name", card.set_name.trim());
   }
   if (scanEventId) q.set("scan_event_id", scanEventId);
   const qs = q.toString();
@@ -109,6 +104,9 @@ function buildUseMatchHref(
   if (match.catalog_card_id) {
     q.set("catalog_card_id", match.catalog_card_id);
   }
+  if (match.set_name?.trim()) {
+    q.set("set_name", match.set_name.trim());
+  }
   q.set("scan_event_id", scanEventId);
   return `/binders/${encodeURIComponent(binderId)}/add-card?${q}`;
 }
@@ -116,6 +114,8 @@ function buildUseMatchHref(
 export default function ScanPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const scanRunSeqRef = useRef(0);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -127,7 +127,7 @@ export default function ScanPage() {
   const [attachBinderId, setAttachBinderId] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"info" | "error">("info");
-  const [lastSuccess, setLastSuccess] = useState<ScanApiSuccess | null>(null);
+  const [lastSuccess, setLastSuccess] = useState<ScanResultDTO | null>(null);
   const [lastRawJson, setLastRawJson] = useState<string | null>(null);
   const [savedWithBinder, setSavedWithBinder] = useState(false);
   const [attachLoading, setAttachLoading] = useState(false);
@@ -150,6 +150,8 @@ export default function ScanPage() {
     }),
     []
   );
+
+  const pulseSeason = useMemo(() => listActiveSeasonalEvents()[0], []);
   useSuspenseProfile("scan", telemetryCtx);
   useListRenderStats("scan-binders", binders.length, telemetryCtx);
 
@@ -205,7 +207,7 @@ export default function ScanPage() {
 
   useEffect(() => {
     const snap = lkgGet<{
-      lastSuccess: ScanApiSuccess;
+      lastSuccess: ScanResultDTO;
       lastRawJson: string | null;
       savedWithBinder: boolean;
     }>(LKG_KEY.scanLast);
@@ -233,7 +235,7 @@ export default function ScanPage() {
     (async () => {
       setBindersLoading(true);
       setBinderError(null);
-      const res = await fetch("/api/binders");
+      const res = await fetch("/api/binders", { cache: "no-store" });
       const payload = await res.json().catch(() => ({}));
       if (cancelled) return;
       setBindersLoading(false);
@@ -262,6 +264,12 @@ export default function ScanPage() {
     if (next && !next.type.startsWith("image/")) {
       return;
     }
+    scanRunSeqRef.current += 1;
+    setLoading(false);
+    setLastSuccess(null);
+    setMessage(null);
+    setLastRawJson(null);
+    setSavedWithBinder(false);
     setPreviewUrl((prev) => {
       if (prev) {
         URL.revokeObjectURL(prev);
@@ -353,6 +361,7 @@ export default function ScanPage() {
       setMessage("You're offline — connect to the network to run a scan.");
       return;
     }
+    const runId = ++scanRunSeqRef.current;
     setLoading(true);
     setMessage(null);
     setLastSuccess(null);
@@ -379,11 +388,14 @@ export default function ScanPage() {
     });
 
     const payloadUnknown = await res.json().catch(() => ({}));
+    if (runId !== scanRunSeqRef.current) {
+      return;
+    }
     setLoading(false);
 
     if (!res.ok) {
       setMessageTone("error");
-      const errBody = payloadUnknown as ScanApiErrorBody;
+      const errBody = payloadUnknown as ScanLegacyErrorBodyDTO;
       const err =
         typeof errBody.error === "string" ? errBody.error : "Scan failed.";
       setMessage(err);
@@ -426,7 +438,7 @@ export default function ScanPage() {
       return;
     }
 
-    const ok = payloadUnknown as ScanApiSuccess;
+    const ok = payloadUnknown as ScanResultDTO;
     if (!ok.success || !ok.scan_event_id || !ok.card) {
       setMessageTone("error");
       setMessage("Unexpected response from server.");
@@ -463,6 +475,7 @@ export default function ScanPage() {
     );
 
     void (async () => {
+      const tierRun = runId;
       try {
         const tr = await fetch("/api/tier/status", { cache: "no-store" });
         const b = (await tr.json().catch(() => ({}))) as {
@@ -470,6 +483,7 @@ export default function ScanPage() {
           at_scan_limit?: boolean;
           stripe_checkout_available?: boolean;
         };
+        if (tierRun !== scanRunSeqRef.current) return;
         if (tr.ok) {
           setAtScanLimitFromApi(Boolean(b.at_scan_limit));
           setStripeCheckoutAvailable(Boolean(b.stripe_checkout_available));
@@ -481,6 +495,10 @@ export default function ScanPage() {
         /* ignore */
       }
     })();
+
+    if (runId !== scanRunSeqRef.current) {
+      return;
+    }
 
     if (showPaidScanTools) {
       setBatchQueue((prev) => {
@@ -525,20 +543,22 @@ export default function ScanPage() {
     setAttachLoading(true);
     setMessage(null);
 
+    const body: AddCardToBinderDTO = {
+      binder_id: bid,
+      name,
+      number: merged.number.trim() || null,
+      rarity: merged.rarity.trim() || null,
+      image_url: merged.image_url,
+      scan_event_id: lastSuccess.scan_event_id,
+      ...(merged.catalog_card_id
+        ? { catalog_card_id: merged.catalog_card_id }
+        : {}),
+    };
+
     const res = await fetchWithRetry("/api/cards", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        binder_id: bid,
-        name,
-        number: merged.number.trim() || null,
-        rarity: merged.rarity.trim() || null,
-        image_url: merged.image_url,
-        scan_event_id: lastSuccess.scan_event_id,
-        ...(merged.catalog_card_id
-          ? { catalog_card_id: merged.catalog_card_id }
-          : {}),
-      }),
+      body: JSON.stringify(body),
     });
 
     const payload = await res.json().catch(() => ({}));
@@ -554,6 +574,7 @@ export default function ScanPage() {
       return;
     }
 
+    requestBinderSurfacesRefresh(bid);
     setMessageTone("info");
     setMessage("Card added and linked to this scan.");
     setSavedWithBinder(true);
@@ -568,6 +589,19 @@ export default function ScanPage() {
 
   return (
     <div className="space-y-mca-2xl">
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-busy={loading || attachLoading}
+        aria-atomic="true"
+      >
+        {loading
+          ? "Scan in progress."
+          : attachLoading
+            ? "Adding card to binder."
+            : message ?? ""}
+      </div>
       <header className="space-y-mca-compact">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-mca-accent-strong/90">
           Capture
@@ -583,6 +617,23 @@ export default function ScanPage() {
           <code className="rounded bg-mca-chrome/80 px-mca-micro py-mca-trace text-xs">cards</code> row when
           a binder is selected.
         </p>
+        <nav
+          className="flex flex-wrap gap-mca-md pt-mca-sm text-sm"
+          aria-label="Scanning modes"
+        >
+          <Link
+            href="/scan/text"
+            className="font-semibold text-mca-accent-strong/90 transition duration-200 ease-mca-standard hover:text-mca-accent"
+          >
+            Text scan (OCR + catalog)
+          </Link>
+          <Link
+            href="/scan/v2"
+            className="font-semibold text-mca-accent-strong/90 transition duration-200 ease-mca-standard hover:text-mca-accent"
+          >
+            Model scan (v2.5)
+          </Link>
+        </nav>
         {!tierStatusLoading ? (
           <p className="text-xs text-mca-ink-subtle">
             Scan mode ·{" "}
@@ -604,6 +655,25 @@ export default function ScanPage() {
       </header>
 
       <SeasonalEventLiveBannerScan />
+
+      <aside
+        className="max-w-2xl rounded-mca-card border border-dashed border-mca-border-subtle bg-mca-surface/35 p-mca-md"
+        aria-label="Scanning v2.5 preview"
+      >
+        <p className="text-sm font-semibold text-mca-ink-strong">Scanning v2.5</p>
+        <p className="mt-mca-xs text-sm text-mca-ink-muted">
+          Hybrid vision + OCR + qualitative visual intelligence lives on{" "}
+          <Link href="/scan/v2" className="font-medium text-mca-accent-strong/90 hover:underline">
+            Model scan
+          </Link>{" "}
+          (<code className="text-xs text-mca-ink-muted">POST /api/scan/v2</code>). Text-only OCR
+          uses <code className="text-xs text-mca-ink-muted">POST /api/scan/v1</code>.
+        </p>
+      </aside>
+
+      {pulseSeason ? (
+        <SeasonalActivityPulse seasonId={pulseSeason.eventId} className="max-w-2xl" />
+      ) : null}
 
       {!tierStatusLoading && atScanLimitFromApi ? (
         <div
@@ -647,7 +717,7 @@ export default function ScanPage() {
           value={selectedBinderId}
           onChange={(e) => setSelectedBinderId(e.target.value)}
           disabled={bindersLoading || loading}
-          className="w-full rounded-mca-card border border-mca-border-subtle bg-mca-surface-elevated px-mca-base py-mca-tight text-sm text-white focus:border-mca-accent-strong/50 focus:outline-none focus:ring-2 focus:ring-mca-accent-strong/25 disabled:opacity-60"
+          className="mca-input rounded-mca-card px-mca-base py-mca-tight text-sm focus:border-mca-accent-strong/50 focus:ring-mca-accent-strong/25 disabled:opacity-60"
         >
           <option value="">— Scan only (no card yet) —</option>
           {binders.map((b) => (
@@ -782,7 +852,7 @@ export default function ScanPage() {
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               onDrop={onDrop}
-              className={`flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-mca-sheet border-2 border-dashed px-mca-lg py-mca-2xl text-center transition outline-none focus-visible:ring-2 focus-visible:ring-mca-accent-strong/60 ${
+              className={`flex min-h-[220px] cursor-pointer touch-manipulation flex-col items-center justify-center rounded-mca-sheet border-2 border-dashed px-mca-lg py-mca-2xl text-center transition outline-none focus-visible:ring-2 focus-visible:ring-mca-accent-strong/60 ${
                 isDragging
                   ? "border-mca-accent-strong/60 bg-mca-warning-surface/20"
                   : "border-mca-border-subtle bg-mca-surface-elevated/30 hover:border-mca-field-border hover:bg-mca-surface-elevated/45"
@@ -814,20 +884,37 @@ export default function ScanPage() {
             className="sr-only"
             onChange={onInputChange}
           />
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="sr-only"
+            aria-label="Capture card photo with camera"
+            onChange={onInputChange}
+          />
 
           <div className="flex flex-wrap gap-mca-compact">
             <button
               type="button"
               onClick={openFilePicker}
-              className="inline-flex flex-1 items-center justify-center rounded-mca-card bg-mca-accent-strong/90 px-mca-comfortable py-mca-tight text-sm font-semibold text-mca-on-accent shadow-[0_4px_20px_-4px_rgba(245,158,11,0.45)] transition hover:bg-mca-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mca-accent sm:flex-none"
+              className="inline-flex min-h-[44px] flex-1 touch-manipulation items-center justify-center rounded-mca-card bg-mca-accent-strong/90 px-mca-comfortable py-mca-sm text-sm font-semibold text-mca-on-accent shadow-[0_4px_20px_-4px_rgba(245,158,11,0.45)] transition hover:bg-mca-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mca-accent sm:flex-none"
             >
               {showPaidScanTools ? "Upload images" : "Upload one image"}
             </button>
             <button
               type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={tierStatusLoading}
+              className="inline-flex min-h-[44px] flex-1 touch-manipulation items-center justify-center rounded-mca-card border border-mca-field-border bg-mca-surface-elevated/50 px-mca-comfortable py-mca-sm text-sm font-medium text-mca-ink-soft transition hover:border-mca-border-interactive hover:bg-mca-chrome focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mca-border-interactive disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
+            >
+              Use camera
+            </button>
+            <button
+              type="button"
               disabled={loading || !file}
               onClick={runScan}
-              className="inline-flex flex-1 items-center justify-center rounded-mca-card border border-mca-field-border bg-mca-surface-elevated/50 px-mca-comfortable py-mca-tight text-sm font-medium text-mca-ink-soft transition hover:border-mca-border-interactive hover:bg-mca-chrome focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mca-border-interactive disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
+              className="inline-flex min-h-[44px] flex-1 touch-manipulation items-center justify-center rounded-mca-card border border-mca-field-border bg-mca-surface-elevated/50 px-mca-comfortable py-mca-sm text-sm font-medium text-mca-ink-soft transition hover:border-mca-border-interactive hover:bg-mca-chrome focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mca-border-interactive disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
             >
               {loading ? "Scanning…" : "Run scan"}
             </button>
@@ -1030,7 +1117,7 @@ export default function ScanPage() {
                   value={attachBinderId}
                   onChange={(e) => setAttachBinderId(e.target.value)}
                   disabled={attachLoading}
-                  className="w-full rounded-mca-card border border-mca-border-subtle bg-mca-surface-elevated px-mca-base py-mca-tight text-sm text-white focus:border-mca-accent-strong/50 focus:outline-none focus:ring-2 focus:ring-mca-accent-strong/25"
+                  className="mca-input rounded-mca-card px-mca-base py-mca-tight text-sm focus:border-mca-accent-strong/50 focus:ring-mca-accent-strong/25"
                 >
                   <option value="">— Select binder —</option>
                   {binders.map((b) => (
@@ -1055,7 +1142,7 @@ export default function ScanPage() {
                       value={attachNameOverride}
                       onChange={(e) => setAttachNameOverride(e.target.value)}
                       placeholder="e.g. Charizard"
-                      className="mt-mca-sm w-full rounded-mca-card border border-mca-border-subtle bg-mca-surface-elevated px-mca-base py-mca-tight text-sm text-white focus:border-mca-accent-strong/50 focus:outline-none focus:ring-2 focus:ring-mca-accent-strong/25"
+                      className="mca-input mt-mca-sm rounded-mca-card px-mca-base py-mca-tight text-sm focus:border-mca-accent-strong/50 focus:ring-mca-accent-strong/25"
                     />
                   </div>
                 ) : null}

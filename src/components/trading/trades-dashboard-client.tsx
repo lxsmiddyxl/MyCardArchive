@@ -18,6 +18,7 @@ import { McaIcons } from "@/lib/icons/mca-icons";
 import { getRealtimePostgresClient, subscribeToTrades } from "@/lib/realtime/channels";
 import { AuthenticatedPresenceShell, useAppWidePresence } from "@/components/realtime/app-wide-presence";
 import { useListRenderStats, useSuspenseProfile } from "@/lib/telemetry";
+import { useAsyncState } from "@/lib/client";
 import { cn } from "@/lib/ui/cn";
 import { useMicroFlash } from "@/lib/ui/use-micro-flash";
 import { McaVirtualList } from "@/components/ui/mca-virtual-list";
@@ -87,9 +88,17 @@ export function TradesDashboardClient({ userId }: { userId: string }) {
 
 function TradesDashboardBody() {
   const { isUserOnline } = useAppWidePresence();
-  const [trades, setTrades] = useState<TradeRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data: tradesData,
+    loading: listLoading,
+    error: listError,
+    setData: setTradesData,
+    setLoading: setListLoading,
+    setError: setListError,
+  } = useAsyncState<TradeRecord[]>();
+  const trades = useMemo(() => tradesData ?? [], [tradesData]);
+  const loading = listLoading || (tradesData === null && !listError);
+  const error = listError;
   const [statusFilter, setStatusFilter] = useState("all");
   const [binderFilter, setBinderFilter] = useState("all");
   const [setFilter, setSetFilter] = useState("all");
@@ -107,39 +116,55 @@ function TradesDashboardBody() {
   useSuspenseProfile("trades-dashboard", telemetryCtx);
   useListRenderStats("trades", trades.length, telemetryCtx);
 
-  const load = useCallback(async (opts?: { silent?: boolean }) => {
-    const seq = ++loadSeq.current;
-    if (!opts?.silent) {
-      setLoading(true);
-      setError(null);
-    }
-    try {
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const seq = ++loadSeq.current;
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (binderFilter !== "all") params.set("binder", binderFilter);
       if (setFilter !== "all") params.set("set", setFilter);
       if (rarityFilter !== "all") params.set("rarity", rarityFilter);
       const q = params.toString();
-      const out = await fetchTradesList(q ? `?${q}` : "");
-      if (seq !== loadSeq.current) return;
-      if (!out.ok) throw new Error(out.error);
+
       if (opts?.silent) {
-        startTransition(() => setTrades(out.trades));
-      } else {
-        setTrades(out.trades);
+        try {
+          const out = await fetchTradesList(q ? `?${q}` : "");
+          if (seq !== loadSeq.current || !out.ok) return;
+          startTransition(() => setTradesData(out.trades));
+          if (seq === loadSeq.current) triggerSilentListFlash();
+        } catch {
+          /* ignore silent failures */
+        }
+        return;
       }
-      if (opts?.silent && seq === loadSeq.current) {
-        triggerSilentListFlash();
+
+      setListLoading(true);
+      setListError(null);
+      try {
+        const out = await fetchTradesList(q ? `?${q}` : "");
+        if (seq !== loadSeq.current) return;
+        if (!out.ok) throw new Error(out.error);
+        setTradesData(out.trades);
+      } catch (e) {
+        if (seq !== loadSeq.current) return;
+        setListError(e instanceof Error ? e.message : "Failed to load trades");
+      } finally {
+        if (seq === loadSeq.current) {
+          setListLoading(false);
+        }
       }
-    } catch (e) {
-      if (seq !== loadSeq.current) return;
-      setError(e instanceof Error ? e.message : "Failed to load trades");
-    } finally {
-      if (seq === loadSeq.current && !opts?.silent) {
-        setLoading(false);
-      }
-    }
-  }, [statusFilter, binderFilter, setFilter, rarityFilter, triggerSilentListFlash]);
+    },
+    [
+      statusFilter,
+      binderFilter,
+      setFilter,
+      rarityFilter,
+      triggerSilentListFlash,
+      setTradesData,
+      setListLoading,
+      setListError,
+    ]
+  );
 
   const loadRef = useRef(load);
   loadRef.current = load;

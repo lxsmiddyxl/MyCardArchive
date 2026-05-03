@@ -1,6 +1,7 @@
 "use client";
 
 import { formatRelativeTime } from "@/lib/format-relative";
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { useCallback, useEffect, useState } from "react";
 import { CreateDeckModal } from "./create-deck-modal";
 import { DeckCard } from "./deck-card";
@@ -62,18 +63,17 @@ export function DeckListView() {
   const loadDecks = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch("/api/decks/list");
-      if (res.status === 401) {
-        window.location.href = "/login?next=/decks";
-        return;
-      }
-      const data = (await res.json()) as { decks?: DeckListRow[]; error?: string };
-      if (!res.ok) {
-        setError(data.error ?? "Could not load decks.");
+      const r = await fetchJson<{ decks: DeckListRow[] }>("/api/decks/list");
+      if (r.kind !== "ok") {
+        if (r.kind === "error" && r.status === 401) {
+          window.location.href = "/login?next=/decks";
+          return;
+        }
+        setError(r.kind === "error" ? fetchJsonErrorMessage(r) : "Could not load decks.");
         setDecks([]);
         return;
       }
-      setDecks(data.decks ?? []);
+      setDecks(Array.isArray(r.data.decks) ? r.data.decks : []);
     } catch {
       setError("Network error. Try refreshing the page.");
       setDecks([]);
@@ -99,7 +99,12 @@ export function DeckListView() {
   const showEmpty = !loading && !error && decks.length === 0;
 
   return (
-    <div className="space-y-mca-2xl">
+    <section
+      aria-label="Your decks"
+      aria-live="polite"
+      aria-busy={loading}
+      className="space-y-mca-2xl"
+    >
       <div className="flex flex-col gap-mca-base sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-semibold tracking-tight text-mca-ink-strong sm:text-4xl">
           Your Decks
@@ -199,7 +204,7 @@ export function DeckListView() {
         onClose={() => setDeleteTarget(null)}
         onDeleted={() => void loadDecks()}
       />
-    </div>
+    </section>
   );
 }
 

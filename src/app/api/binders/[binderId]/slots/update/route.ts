@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/route";
+import type { BinderSlotDTO } from "@/lib/dto/binder";
+import { errorJson, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { defineRoute } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
 
@@ -8,33 +10,30 @@ async function POST_handler(
   request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await validateSession(supabase, ctx);
+    if (!session.ok) return session.response;
+    const userId = session.userId;
 
     const binderId = context.params["binderId"]?.trim();
     if (!binderId) {
-      return NextResponse.json({ error: "Invalid binder id" }, { status: 400 });
+      return errorJson(ctx, "Invalid binder id", 400);
     }
 
     const { data: binder, error: bErr } = await supabase
       .from("binders")
       .select("id")
       .eq("id", binderId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle();
 
     if (bErr) {
-      return NextResponse.json({ error: bErr.message }, { status: 500 });
+      return errorJson(ctx, bErr.message, 500);
     }
     if (!binder) {
-      return NextResponse.json({ error: "Binder not found" }, { status: 404 });
+      return errorJson(ctx, "Binder not found", 404);
     }
 
     let body: {
@@ -45,7 +44,7 @@ async function POST_handler(
     try {
       body = (await request.json()) as typeof body;
     } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return errorJson(ctx, "Invalid JSON", 400);
     }
 
     const pageNumber =
@@ -58,14 +57,11 @@ async function POST_handler(
         : NaN;
 
     if (!Number.isFinite(pageNumber) || !Number.isFinite(slotIndex)) {
-      return NextResponse.json(
-        { error: "page_number and slot_index are required" },
-        { status: 400 }
-      );
+      return errorJson(ctx, "page_number and slot_index are required", 400);
     }
 
     if (slotIndex < 0 || slotIndex > 23) {
-      return NextResponse.json({ error: "slot_index out of range" }, { status: 400 });
+      return errorJson(ctx, "slot_index out of range", 400);
     }
 
     const cardIdRaw = body.card_id;
@@ -77,10 +73,7 @@ async function POST_handler(
           : undefined;
 
     if (cardId === undefined) {
-      return NextResponse.json(
-        { error: "card_id is required (or null to clear)" },
-        { status: 400 }
-      );
+      return errorJson(ctx, "card_id is required (or null to clear)", 400);
     }
 
     if (cardId !== null) {
@@ -88,17 +81,14 @@ async function POST_handler(
         .from("cards")
         .select("id, binder_id")
         .eq("id", cardId)
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (cErr) {
-        return NextResponse.json({ error: cErr.message }, { status: 500 });
+        return errorJson(ctx, cErr.message, 500);
       }
       if (!card || card.binder_id !== binderId) {
-        return NextResponse.json(
-          { error: "Card must belong to this binder" },
-          { status: 400 }
-        );
+        return errorJson(ctx, "Card must belong to this binder", 400);
       }
     }
 
@@ -134,12 +124,15 @@ async function POST_handler(
       .single();
 
     if (upErr) {
-      return NextResponse.json({ error: upErr.message }, { status: 500 });
+      return errorJson(ctx, upErr.message, 500);
     }
 
-    return NextResponse.json({ slot: row });
+    return successJson(ctx, {
+      slot: row as BinderSlotDTO,
+      duration_ms: Date.now() - ctx.startedAt,
+    });
   } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return errorJson(ctx, "Server error", 500);
   }
 }
 

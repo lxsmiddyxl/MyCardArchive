@@ -1,8 +1,15 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage, useAsyncState } from "@/lib/client";
 import { resolveAuthorName } from "@/lib/profile/resolveAuthor";
 import { safeTrainerAccent } from "@/lib/profile/trainer-accent";
-import type { SocialProfilePayload } from "@/lib/social/types";
+import type {
+  AvatarUploadResponseDTO,
+  ProfileDTO,
+  ProfilePatchDTO,
+  ProfileUpdateResponseDTO,
+} from "@/lib/dto/social-profile";
+import { requestSocialSurfacesRefresh } from "@/lib/social/social-surfaces-refresh";
 import {
   PROFILE_LIMITS,
   sanitizeDisplayName,
@@ -17,7 +24,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-type Props = { initial: SocialProfilePayload };
+type Props = { initial: ProfileDTO };
 
 export function ProfileEditClient({ initial }: Props) {
   const router = useRouter();
@@ -31,11 +38,11 @@ export function ProfileEditClient({ initial }: Props) {
   const [favoriteColor, setFavoriteColor] = useState(() => initial.favoriteColor ?? "");
   const [avatarUrl, setAvatarUrl] = useState(() => initial.avatarUrl ?? "");
   const [errors, setErrors] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
+  const { run: runSave, loading: saving } = useAsyncState<ProfileUpdateResponseDTO>();
+  const { run: runAvatar, loading: avatarBusy } = useAsyncState<AvatarUploadResponseDTO>();
   const [success, setSuccess] = useState(false);
   const [adjustedInfo, setAdjustedInfo] = useState<string | null>(null);
   const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
-  const [avatarBusy, setAvatarBusy] = useState(false);
 
   const previewAccent = useMemo(() => safeTrainerAccent(favoriteColor), [favoriteColor]);
 
@@ -73,10 +80,12 @@ export function ProfileEditClient({ initial }: Props) {
         handle: sanitizedHandle,
         exclude_user_id: initial.userId,
       });
-      const res = await fetch(`/api/profile/handle-available?${q.toString()}`, { cache: "no-store" });
-      const j = (await res.json().catch(() => ({}))) as { available?: boolean };
-      if (res.ok && typeof j.available === "boolean") {
-        setHandleAvailable(j.available);
+      const r = await fetchJson<{ available?: boolean }>(
+        `/api/profile/handle-available?${q.toString()}`,
+        { cache: "no-store" }
+      );
+      if (r.kind === "ok" && typeof r.data.available === "boolean") {
+        setHandleAvailable(r.data.available);
       }
     }, 400);
     return () => window.clearTimeout(t);
@@ -91,23 +100,21 @@ export function ProfileEditClient({ initial }: Props) {
   async function onAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setAvatarBusy(true);
     setErrors([]);
-    try {
+    await runAvatar(async () => {
       const fd = new FormData();
       fd.set("file", file);
-      const res = await fetch("/api/profile/avatar", { method: "POST", body: fd });
-      const j = (await res.json().catch(() => ({}))) as { avatar_url?: string; error?: string };
-      if (!res.ok) {
-        setErrors([j.error ?? "Avatar upload failed."]);
-        return;
-      }
-      if (j.avatar_url) setAvatarUrl(j.avatar_url);
+      const r = await fetchJson<AvatarUploadResponseDTO>("/api/profile/avatar", {
+        method: "POST",
+        body: fd,
+      });
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      if (r.data.avatar_url) setAvatarUrl(r.data.avatar_url);
+      requestSocialSurfacesRefresh({ userId: initial.userId });
       router.refresh();
-    } finally {
-      setAvatarBusy(false);
-      e.target.value = "";
-    }
+      return r.data;
+    });
+    e.target.value = "";
   }
 
   const onSubmit = useCallback(
@@ -136,41 +143,37 @@ export function ProfileEditClient({ initial }: Props) {
         setErrors(["That handle is already taken. Pick another."]);
         return;
       }
-      setSaving(true);
-      try {
-        const res = await fetch("/api/profile/update", {
+      await runSave(async () => {
+        const patch: ProfilePatchDTO = {
+          display_name: disp,
+          handle: han,
+          bio: bio.trim(),
+          location: location.trim(),
+          website: website.trim(),
+          favorite_card: favoriteCard.trim(),
+          favorite_set: favoriteSet.trim(),
+          favorite_color: favoriteColor.trim(),
+        };
+        const r = await fetchJson<ProfileUpdateResponseDTO>("/api/profile/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            display_name: disp,
-            handle: han,
-            bio: bio.trim(),
-            location: location.trim(),
-            website: website.trim(),
-            favorite_card: favoriteCard.trim(),
-            favorite_set: favoriteSet.trim(),
-            favorite_color: favoriteColor.trim(),
-          }),
+          body: JSON.stringify(patch),
         });
-        const j = (await res.json().catch(() => ({}))) as {
-          error?: string;
-          errors?: string[];
-          adjusted?: boolean;
-        };
-        if (!res.ok) {
-          setErrors([j.error ?? "Could not save profile.", ...(j.errors ?? [])].filter(Boolean) as string[]);
-          return;
+        if (r.kind !== "ok") {
+          setErrors([fetchJsonErrorMessage(r)]);
+          throw new Error(fetchJsonErrorMessage(r));
         }
+        const j = r.data;
         setSuccess(true);
         if (j.adjusted) {
           setAdjustedInfo(
             "Some fields were adjusted to meet community standards (e.g. censored words or a generated trainer name)."
           );
         }
+        requestSocialSurfacesRefresh({ userId: initial.userId });
         router.refresh();
-      } finally {
-        setSaving(false);
-      }
+        return j;
+      });
     },
     [
       bio,
@@ -180,9 +183,11 @@ export function ProfileEditClient({ initial }: Props) {
       favoriteSet,
       handle,
       handleAvailable,
+      initial.userId,
       location,
       router,
       website,
+      runSave,
     ]
   );
 
@@ -240,7 +245,7 @@ export function ProfileEditClient({ initial }: Props) {
             <input
               id="mca-edit-display"
               name="display_name"
-              className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-body"
+              className="mca-input w-full rounded-mca-control text-mca-body"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               minLength={PROFILE_LIMITS.displayMin}
@@ -256,7 +261,7 @@ export function ProfileEditClient({ initial }: Props) {
               <input
                 id="mca-edit-handle"
                 name="handle"
-                className="min-w-[12rem] flex-1 rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs font-mono text-mca-body"
+                className="mca-input min-w-[12rem] flex-1 rounded-mca-control font-mono text-mca-body"
                 value={handle}
                 onChange={(e) => setHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase())}
                 maxLength={PROFILE_LIMITS.handleMax}
@@ -281,7 +286,7 @@ export function ProfileEditClient({ initial }: Props) {
             <textarea
               id="mca-edit-bio"
               name="bio"
-              className="min-h-[5rem] w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-body"
+              className="mca-input min-h-[5rem] w-full rounded-mca-control text-mca-body"
               value={bio}
               onChange={(e) => setBio(e.target.value.slice(0, PROFILE_LIMITS.bioMax))}
               maxLength={PROFILE_LIMITS.bioMax}
@@ -293,7 +298,7 @@ export function ProfileEditClient({ initial }: Props) {
             <input
               id="mca-edit-location"
               name="location"
-              className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-body"
+              className="mca-input w-full rounded-mca-control text-mca-body"
               value={location}
               onChange={(e) => setLocation(e.target.value.slice(0, PROFILE_LIMITS.locationMax))}
               maxLength={PROFILE_LIMITS.locationMax}
@@ -306,7 +311,7 @@ export function ProfileEditClient({ initial }: Props) {
               id="mca-edit-website"
               name="website"
               type="url"
-              className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-body"
+              className="mca-input w-full rounded-mca-control text-mca-body"
               value={website}
               onChange={(e) => setWebsite(e.target.value.slice(0, PROFILE_LIMITS.websiteMax))}
               maxLength={PROFILE_LIMITS.websiteMax}
@@ -319,7 +324,7 @@ export function ProfileEditClient({ initial }: Props) {
             <input
               id="mca-edit-fav-card"
               name="favorite_card"
-              className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-body"
+              className="mca-input w-full rounded-mca-control text-mca-body"
               value={favoriteCard}
               onChange={(e) => setFavoriteCard(e.target.value.slice(0, PROFILE_LIMITS.favoriteMax))}
               maxLength={PROFILE_LIMITS.favoriteMax}
@@ -332,7 +337,7 @@ export function ProfileEditClient({ initial }: Props) {
             <input
               id="mca-edit-fav-set"
               name="favorite_set"
-              className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-body"
+              className="mca-input w-full rounded-mca-control text-mca-body"
               value={favoriteSet}
               onChange={(e) => setFavoriteSet(e.target.value.slice(0, PROFILE_LIMITS.favoriteMax))}
               maxLength={PROFILE_LIMITS.favoriteMax}

@@ -1,4 +1,5 @@
 import { mcaLog } from "@/lib/logging/mca-log-server";
+import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { getRateLimitHealthBuckets } from "@/lib/server/rate-limit-api";
 import { NextResponse } from "next/server";
 
@@ -6,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 const CTX = { componentName: "health", surfaceName: "rate-limits" } as const;
 
-export async function GET(): Promise<Response> {
+async function GET_handler(): Promise<Response> {
   const timestamp = Date.now();
   try {
     const buckets = getRateLimitHealthBuckets();
@@ -33,3 +34,5 @@ export async function GET(): Promise<Response> {
     );
   }
 }
+
+export const GET = defineRouteNoArgs("GET /api/health/rate-limits", GET_handler);

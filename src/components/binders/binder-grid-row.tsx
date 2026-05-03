@@ -11,6 +11,8 @@ type SlotSlice = Pick<
   | "card"
   | "busy"
   | "isDragOver"
+  | "gridCellId"
+  | "isGridActive"
   | "onOpenDetail"
   | "onOpenPicker"
   | "onMove"
@@ -36,6 +38,8 @@ function BinderGridRowInner({ rowKey, slots }: BinderGridRowProps) {
           card={s.card}
           busy={s.busy}
           isDragOver={s.isDragOver}
+          gridCellId={s.gridCellId}
+          isGridActive={s.isGridActive}
           onOpenDetail={s.onOpenDetail}
           onOpenPicker={s.onOpenPicker}
           onMove={s.onMove}
@@ -59,6 +63,8 @@ function rowPropsEqual(a: BinderGridRowProps, b: BinderGridRowProps): boolean {
       x.cardId !== y.cardId ||
       x.busy !== y.busy ||
       x.isDragOver !== y.isDragOver ||
+      x.gridCellId !== y.gridCellId ||
+      x.isGridActive !== y.isGridActive ||
       x.card?.id !== y.card?.id ||
       x.card?.name !== y.card?.name ||
       x.card?.image_url !== y.card?.image_url ||

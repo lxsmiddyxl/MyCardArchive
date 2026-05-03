@@ -1,8 +1,9 @@
 "use client";
 
+import { useAsyncState } from "@/lib/client";
 import { Button } from "@/mca-ui/button";
 import { Panel } from "@/mca-ui/panel";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 
 type RankingMeta =
   | {
@@ -40,30 +41,25 @@ type Row = {
 };
 
 export function FeedInspectorClient() {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { run: runLoad, data: rowsData, loading, error } = useAsyncState<Row[]>();
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+    await runLoad(async () => {
       const res = await fetch("/api/feed?limit=40&debug=1", { cache: "no-store" });
       const body = (await res.json().catch(() => ({}))) as { items?: Row[]; error?: string };
       if (!res.ok) throw new Error(body.error ?? "Failed to load feed");
-      setRows(Array.isArray(body.items) ? body.items : []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return Array.isArray(body.items) ? body.items : [];
+    });
+  }, [runLoad]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  if (loading) {
+  const rows = rowsData ?? [];
+  const showInitialSpinner = loading || (rowsData === null && !error);
+
+  if (showInitialSpinner) {
     return <p className="text-mca-body text-mca-ink-muted">Loading ranked feed…</p>;
   }
 
@@ -102,6 +98,9 @@ export function FeedInspectorClient() {
               <th className="py-mca-xs pr-mca-sm font-medium tabular-nums">Pred</th>
               <th className="py-mca-xs pr-mca-sm font-medium tabular-nums">Aff</th>
               <th className="py-mca-xs pr-mca-sm font-medium tabular-nums">Fresh</th>
+              <th className="py-mca-xs pr-mca-sm font-medium tabular-nums">Id align</th>
+              <th className="py-mca-xs pr-mca-sm font-medium tabular-nums">Presence</th>
+              <th className="py-mca-xs pr-mca-sm font-medium tabular-nums">Cluster</th>
             </tr>
           </thead>
           <tbody>
@@ -127,6 +126,15 @@ export function FeedInspectorClient() {
                   <td className="py-mca-sm pr-mca-sm tabular-nums">{v4 ? v4.predicted_engagement.toFixed(4) : "—"}</td>
                   <td className="py-mca-sm pr-mca-sm tabular-nums">{v4 ? v4.affinity.toFixed(4) : "—"}</td>
                   <td className="py-mca-sm pr-mca-sm tabular-nums">{v4 ? v4.freshness_decay.toFixed(4) : "—"}</td>
+                  <td className="py-mca-sm pr-mca-sm tabular-nums text-mca-ink-muted">
+                    {typeof r.signals?.identity_alignment === "number" ? r.signals.identity_alignment.toFixed(0) : "—"}
+                  </td>
+                  <td className="py-mca-sm pr-mca-sm tabular-nums text-mca-ink-muted">
+                    {typeof r.signals?.presence_proximity === "number" ? r.signals.presence_proximity.toFixed(0) : "—"}
+                  </td>
+                  <td className="py-mca-sm pr-mca-sm tabular-nums text-mca-ink-muted">
+                    {typeof r.signals?.cluster_fusion === "number" ? r.signals.cluster_fusion.toFixed(0) : "—"}
+                  </td>
                 </tr>
               );
             })}

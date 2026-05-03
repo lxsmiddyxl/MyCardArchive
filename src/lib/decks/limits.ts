@@ -1,3 +1,4 @@
+import { isCurrentUserInternalUnlimited } from "@/lib/entitlements/internal-unlimited";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 
@@ -12,7 +13,8 @@ export function isDeckLimitError(e: unknown): e is DeckLimitError {
   return e instanceof DeckLimitError;
 }
 
-function maxDecksForTier(tierSlug: string | null | undefined): number | null {
+/** Exported for entitlement resolution — `null` means unlimited decks. */
+export function maxDecksForTierSlug(tierSlug: string | null | undefined): number | null {
   const s = (tierSlug ?? "free").trim().toLowerCase();
   if (s === "elite") return null;
   if (s === "pro") return 10;
@@ -26,6 +28,10 @@ export async function assertCanCreateDeck(
   supabase: SupabaseClient<Database>,
   userId: string
 ): Promise<void> {
+  if (await isCurrentUserInternalUnlimited(supabase)) {
+    return;
+  }
+
   const { data: tier, error: tierErr } = await supabase
     .from("user_tiers")
     .select("tier_slug")
@@ -36,7 +42,7 @@ export async function assertCanCreateDeck(
     throw new Error(tierErr.message);
   }
 
-  const max = maxDecksForTier(tier?.tier_slug);
+  const max = maxDecksForTierSlug(tier?.tier_slug);
   if (max === null) {
     return;
   }

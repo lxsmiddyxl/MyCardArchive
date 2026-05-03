@@ -20,12 +20,14 @@ import type {
   CollectionStats,
   FandomSuggestionsPayload,
   GrailCardPayload,
+  SocialBadgeProgressPayload,
   SocialPresenceSnapshot,
   SocialProfilePayload,
   SocialInfluenceBlock,
   SocialReputationBlock,
   TimelineEventPayload,
 } from "@/lib/social/types";
+import { partitionBadgeV2Rows, type BadgeV2RpcRow } from "@/lib/badges/badge-catalog";
 import { getLastCompletedSeasonForDate } from "@/lib/seasons/season-catalog";
 import type { SeasonSummaryJsonV1, YearInReviewJsonV1 } from "@/lib/seasons/summary-types";
 import { mapClubIdsToChips, pickPrimaryClubId } from "@/lib/clubs/club-catalog";
@@ -46,8 +48,55 @@ import { buildReputationSummaryLine, pickTopReputationDimension } from "@/lib/re
 import type { ReputationScores } from "@/lib/reputation/reputation-summary";
 import { buildInfluenceSummaryLine, pickTopInfluenceDimension } from "@/lib/influence/influence-summary";
 import type { InfluenceScores } from "@/lib/influence/influence-summary";
+import { buildPresenceQualitativeLabel } from "@/lib/presence/presence-labels";
+import { buildPersonaV2FromArchetypes, type ArchetypeFitRow } from "@/lib/persona/persona-v2";
+import { parseIdentityMapJson, type IdentityMapPublic } from "@/lib/identity/collector-identity-map";
+import { loadCollectorIdentityMapByUserIds } from "@/lib/identity/load-identity-map-batch";
+import { loadCollectorArchetypesByUserIds } from "@/lib/persona/load-collector-archetypes-batch";
 
 const STATS_STALE_MS = 5 * 60 * 1000;
+
+async function loadIdentityMapProfileRpc(
+  supabase: SupabaseClient<Database>,
+  userId: string
+): Promise<IdentityMapPublic> {
+  try {
+    const { data, error } = await supabase.rpc("get_user_identity_map", { p_user_id: userId });
+    if (error || !Array.isArray(data) || data.length === 0) {
+      return parseIdentityMapJson(null);
+    }
+    const row = data[0] as { identity?: unknown };
+    return parseIdentityMapJson(row.identity);
+  } catch {
+    return parseIdentityMapJson(null);
+  }
+}
+
+async function loadPersonaV2ProfileRpc(
+  supabase: SupabaseClient<Database>,
+  userId: string
+): Promise<{
+  personaV2Label: string | null;
+  personaV2Summary: string | null;
+  topArchetypes: ArchetypeFitRow[];
+}> {
+  try {
+    const { data, error } = await supabase.rpc("get_user_archetypes", { p_user_id: userId });
+    if (error || !Array.isArray(data)) {
+      return { personaV2Label: null, personaV2Summary: null, topArchetypes: [] };
+    }
+    const rows: ArchetypeFitRow[] = (data as Record<string, unknown>[]).map((raw) => ({
+      archetype_id: String(raw.archetype_id ?? ""),
+      label: String(raw.label ?? ""),
+      description: raw.description != null ? String(raw.description) : null,
+      icon_key: raw.icon_key != null ? String(raw.icon_key) : null,
+      confidence_band: String(raw.confidence_band ?? ""),
+    }));
+    return buildPersonaV2FromArchetypes(rows);
+  } catch {
+    return { personaV2Label: null, personaV2Summary: null, topArchetypes: [] };
+  }
+}
 
 function profilePresenceFromLoad(
   row: import("@/lib/presence/load-presence-batch").UserPresenceRow | undefined
@@ -149,7 +198,17 @@ export function stubPublicProfile(userId: string, reason?: string): SocialProfil
     fandomIdentity: null,
     fandomSuggestions: null,
     personaText: null,
+    personaV2Label: null,
+    personaV2Summary: null,
+    topArchetypes: [],
+    identityHeadline: null,
+    identitySummary: null,
+    identityTraits: [],
+    identityClusters: [],
+    identitySignals: [],
+    identityArchetypeBlend: [],
     presence: null,
+    presenceLabel: null,
     activityHeatmap: null,
     timelineEvents: [],
     lastSeasonSummary: null,
@@ -158,6 +217,7 @@ export function stubPublicProfile(userId: string, reason?: string): SocialProfil
     primaryClubId: null,
     reputation: null,
     influence: null,
+    badgesV2: null,
   };
 }
 
@@ -457,6 +517,27 @@ async function loadInfluenceBlock(
       topDimension: pickTopInfluenceDimension(radar),
       radar,
       recentEvents,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function loadBadgeV2Progress(
+  supabase: SupabaseClient<Database>,
+  userId: string
+): Promise<SocialBadgeProgressPayload | null> {
+  try {
+    const { data, error } = await supabase.rpc("get_user_badge_progress", { p_user_id: userId });
+    if (error || data == null) return null;
+    const rows = (Array.isArray(data) ? data : []) as BadgeV2RpcRow[];
+    const p = partitionBadgeV2Rows(rows);
+    return {
+      rows: p.badgeProgress,
+      topBadges: p.topBadges,
+      seasonalBadges: p.seasonalBadges,
+      prestigeBadges: p.prestigeBadges,
+      badgeHighlight: p.badgeHighlight,
     };
   } catch {
     return null;
@@ -806,6 +887,9 @@ async function loadSimilarCollectorsForSubject(
       p_user_ids: top6,
     });
 
+    const archetypesBySimilar = await loadCollectorArchetypesByUserIds(supabase, top6);
+    const identityBySimilar = await loadCollectorIdentityMapByUserIds(supabase, top6);
+
     const profBy = new Map((profs ?? []).map((p) => [p.user_id, p]));
     const personaRows = Array.isArray(personas) ? personas : [];
     const personaBy = new Map(
@@ -830,6 +914,8 @@ async function loadSimilarCollectorsForSubject(
 
     return top6.map((uid) => {
       const p = profBy.get(uid);
+      const pv2 = buildPersonaV2FromArchetypes(archetypesBySimilar[uid] ?? []);
+      const idm = identityBySimilar[uid];
       return {
         userId: uid,
         similarityScore: scoreBy.get(uid) ?? 0,
@@ -838,6 +924,10 @@ async function loadSimilarCollectorsForSubject(
         handle: p?.handle?.trim() || null,
         avatarUrl: p?.avatar_url ?? null,
         personaText: personaBy.get(uid) ?? null,
+        personaV2Label: pv2.personaV2Label,
+        personaV2Summary: pv2.personaV2Summary,
+        identityHeadline: idm?.identityHeadline ?? null,
+        identitySummary: idm?.identitySummary ?? null,
         presence: profilePresenceFromLoad(presenceBy[uid]),
         activityHeatmapStrip: stripBy.get(uid),
       };
@@ -880,7 +970,7 @@ export async function loadSelfSocialProfile(
   const stats = await loadStats(supabase, user.id);
   const followMeta = await loadFollowMeta(supabase, user.id, user.id);
   const tierSlugSelf = pub?.tier_slug ?? null;
-  const [activityCounts, badges, flairExtras, playTopDecks, grailCards, fandomSuggestions, personaTextSelf] =
+  const [activityCounts, badges, flairExtras, playTopDecks, grailCards, fandomSuggestions, personaTextSelf, personaV2Self, identityMapSelf] =
     await Promise.all([
       loadActivityCounts(supabase, user.id, stats.tradeCount),
       loadUserBadges(supabase, user.id),
@@ -889,6 +979,8 @@ export async function loadSelfSocialProfile(
       loadUserGrailCardsRpc(supabase, user.id),
       loadUserFandomSuggestionsRpc(supabase, user.id),
       loadUserPersonaRpc(supabase, user.id),
+      loadPersonaV2ProfileRpc(supabase, user.id),
+      loadIdentityMapProfileRpc(supabase, user.id),
     ]);
   const journeysFull = buildFullJourneyProfileRows(flairExtras.journeyRows);
   const { active: activeJourneys, completed: completedJourneys } = splitActiveAndCompleted(journeysFull);
@@ -907,6 +999,7 @@ export async function loadSelfSocialProfile(
     clubsPayload,
     reputationBlock,
     influenceBlock,
+    badgesV2Block,
   ] = await Promise.all([
     loadSimilarCollectorsForSubject(supabase, user.id),
     loadSocialPresenceByUserIds(supabase, [user.id]),
@@ -917,8 +1010,19 @@ export async function loadSelfSocialProfile(
     loadUserClubsPayload(supabase, user.id),
     loadReputationBlock(supabase, user.id),
     loadInfluenceBlock(supabase, user.id),
+    loadBadgeV2Progress(supabase, user.id),
   ]);
   const presence = profilePresenceFromLoad(presenceRows[user.id]);
+  const prPresenceRow = presenceRows[user.id];
+  const presenceLabelSelf =
+    prPresenceRow &&
+    buildPresenceQualitativeLabel({
+      nowMs: Date.now(),
+      presenceOptOut: prPresenceRow.presenceOptOut,
+      lastSeenAtIso: prPresenceRow.lastSeenAt,
+      presenceState: prPresenceRow.presenceState,
+      activityState: prPresenceRow.activityState,
+    });
 
   const profile: SocialProfilePayload = {
     userId: user.id,
@@ -937,6 +1041,16 @@ export async function loadSelfSocialProfile(
     favoriteSets: parseFavoriteSets(pub?.favorite_sets),
     tierSlug: tierSlugSelf,
     personaText: personaTextSelf,
+    personaV2Label: personaV2Self.personaV2Label,
+    personaV2Summary: personaV2Self.personaV2Summary,
+    topArchetypes: personaV2Self.topArchetypes,
+    identityHeadline: identityMapSelf.identityHeadline,
+    identitySummary: identityMapSelf.identitySummary,
+    identityTraits: identityMapSelf.identityTraits,
+    identityClusters: identityMapSelf.identityClusters,
+    identitySignals: identityMapSelf.identitySignals,
+    identityArchetypeBlend: identityMapSelf.identityArchetypeBlend,
+    presenceLabel: presenceLabelSelf ?? null,
     badges,
     reputationScore: flairExtras.reputationScore,
     activityStreak: flairExtras.activityStreak,
@@ -968,6 +1082,7 @@ export async function loadSelfSocialProfile(
     primaryClubId: clubsPayload.primaryClubId,
     reputation: reputationBlock,
     influence: influenceBlock,
+    badgesV2: badgesV2Block,
   };
 
   return profile;
@@ -1001,7 +1116,7 @@ export async function loadPublicSocialProfile(
   const viewerId = viewer?.id ?? null;
   const followMeta = await loadFollowMeta(supabase, uid, viewerId);
   const tierSlugPub = pub.tier_slug ?? null;
-  const [activityCounts, badges, flairExtras, playTopDecks, grailCardsPub, fandomSuggestionsPub, personaTextPub] =
+  const [activityCounts, badges, flairExtras, playTopDecks, grailCardsPub, fandomSuggestionsPub, personaTextPub, personaV2Pub, identityMapPub] =
     await Promise.all([
       loadActivityCounts(supabase, uid, stats.tradeCount),
       loadUserBadges(supabase, uid),
@@ -1010,6 +1125,8 @@ export async function loadPublicSocialProfile(
       loadUserGrailCardsRpc(supabase, uid),
       loadUserFandomSuggestionsRpc(supabase, uid),
       loadUserPersonaRpc(supabase, uid),
+      loadPersonaV2ProfileRpc(supabase, uid),
+      loadIdentityMapProfileRpc(supabase, uid),
     ]);
   const journeysFull = buildFullJourneyProfileRows(flairExtras.journeyRows);
   const { active: activeJourneys, completed: completedJourneys } = splitActiveAndCompleted(journeysFull);
@@ -1028,6 +1145,7 @@ export async function loadPublicSocialProfile(
     clubsPayloadPub,
     reputationBlockPub,
     influenceBlockPub,
+    badgesV2BlockPub,
   ] = await Promise.all([
     loadSimilarCollectorsForSubject(supabase, uid),
     loadSocialPresenceByUserIds(supabase, [uid]),
@@ -1038,8 +1156,19 @@ export async function loadPublicSocialProfile(
     loadUserClubsPayload(supabase, uid),
     loadReputationBlock(supabase, uid),
     loadInfluenceBlock(supabase, uid),
+    loadBadgeV2Progress(supabase, uid),
   ]);
   const presence = profilePresenceFromLoad(presenceRows[uid]);
+  const prPubRow = presenceRows[uid];
+  const presenceLabelPub =
+    prPubRow &&
+    buildPresenceQualitativeLabel({
+      nowMs: Date.now(),
+      presenceOptOut: prPubRow.presenceOptOut,
+      lastSeenAtIso: prPubRow.lastSeenAt,
+      presenceState: prPubRow.presenceState,
+      activityState: prPubRow.activityState,
+    });
 
   return {
     userId: uid,
@@ -1057,6 +1186,16 @@ export async function loadPublicSocialProfile(
     favoriteSets: parseFavoriteSets(pub.favorite_sets),
     tierSlug: tierSlugPub,
     personaText: personaTextPub,
+    personaV2Label: personaV2Pub.personaV2Label,
+    personaV2Summary: personaV2Pub.personaV2Summary,
+    topArchetypes: personaV2Pub.topArchetypes,
+    identityHeadline: identityMapPub.identityHeadline,
+    identitySummary: identityMapPub.identitySummary,
+    identityTraits: identityMapPub.identityTraits,
+    identityClusters: identityMapPub.identityClusters,
+    identitySignals: identityMapPub.identitySignals,
+    identityArchetypeBlend: identityMapPub.identityArchetypeBlend,
+    presenceLabel: presenceLabelPub ?? null,
     badges,
     reputationScore: flairExtras.reputationScore,
     activityStreak: flairExtras.activityStreak,
@@ -1088,5 +1227,6 @@ export async function loadPublicSocialProfile(
     primaryClubId: clubsPayloadPub.primaryClubId,
     reputation: reputationBlockPub,
     influence: influenceBlockPub,
+    badgesV2: badgesV2BlockPub,
   };
 }

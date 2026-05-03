@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/route";
+import { errorJson, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { defineRoute } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
 
@@ -8,40 +9,37 @@ async function POST_handler(
   request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await validateSession(supabase, ctx);
+    if (!session.ok) return session.response;
+    const userId = session.userId;
 
     const binderId = context.params["binderId"]?.trim();
     if (!binderId) {
-      return NextResponse.json({ error: "Invalid binder id" }, { status: 400 });
+      return errorJson(ctx, "Invalid binder id", 400);
     }
 
     const { data: binder, error: bErr } = await supabase
       .from("binders")
       .select("id")
       .eq("id", binderId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle();
 
     if (bErr) {
-      return NextResponse.json({ error: bErr.message }, { status: 500 });
+      return errorJson(ctx, bErr.message, 500);
     }
     if (!binder) {
-      return NextResponse.json({ error: "Binder not found" }, { status: 404 });
+      return errorJson(ctx, "Binder not found", 404);
     }
 
     let body: { page_number?: number };
     try {
       body = (await request.json()) as typeof body;
     } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return errorJson(ctx, "Invalid JSON", 400);
     }
 
     const pageNumber =
@@ -50,7 +48,7 @@ async function POST_handler(
         : NaN;
 
     if (!Number.isFinite(pageNumber)) {
-      return NextResponse.json({ error: "page_number required" }, { status: 400 });
+      return errorJson(ctx, "page_number required", 400);
     }
 
     const { data: distinct } = await supabase
@@ -63,14 +61,15 @@ async function POST_handler(
     );
 
     if (!pageSet.has(pageNumber)) {
-      return NextResponse.json({ ok: true, message: "Page had no rows" });
+      return successJson(ctx, {
+        ok: true,
+        message: "Page had no rows",
+        duration_ms: Date.now() - ctx.startedAt,
+      });
     }
 
     if (pageSet.size <= 1) {
-      return NextResponse.json(
-        { error: "Cannot remove the only stored page. Clear slots instead." },
-        { status: 400 }
-      );
+      return errorJson(ctx, "Cannot remove the only stored page. Clear slots instead.", 400);
     }
 
     const { error: delErr } = await supabase
@@ -80,7 +79,7 @@ async function POST_handler(
       .eq("page_number", pageNumber);
 
     if (delErr) {
-      return NextResponse.json({ error: delErr.message }, { status: 500 });
+      return errorJson(ctx, delErr.message, 500);
     }
 
     const { data: toShift } = await supabase
@@ -95,13 +94,13 @@ async function POST_handler(
         .update({ page_number: row.page_number - 1 })
         .eq("id", row.id);
       if (uErr) {
-        return NextResponse.json({ error: uErr.message }, { status: 500 });
+        return errorJson(ctx, uErr.message, 500);
       }
     }
 
-    return NextResponse.json({ ok: true });
+    return successJson(ctx, { ok: true, duration_ms: Date.now() - ctx.startedAt });
   } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return errorJson(ctx, "Server error", 500);
   }
 }
 

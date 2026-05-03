@@ -1,15 +1,28 @@
 "use client";
 
 import { BinderGridRow } from "@/components/binders/binder-grid-row";
+import { BinderPageRail } from "@/components/binders/binder-page-rail";
 import { CardDetailModal } from "@/components/cards/card-detail-modal";
 import { EmptySlotPickerModal } from "@/components/decks/empty-slot-picker-modal";
 import { Icon } from "@/mca-ui/icon";
 import { InlineError } from "@/mca-ui/inline-error";
 import { LoadingSpinner } from "@/mca-ui/loading-button";
 import {
+  BINDER_SURFACES_REFRESH_EVENT,
+  type BinderSurfacesRefreshDetail,
+} from "@/lib/binders/binder-surfaces-refresh";
+import {
   BINDER_GRID_COLS,
   BINDER_SLOTS_PER_PAGE,
 } from "@/lib/binders/constants";
+import { useBinderDragChrome } from "@/lib/binders/use-binder-drag-chrome";
+import {
+  fetchJson,
+  fetchJsonErrorMessage,
+  scheduleCoalescedRouterRefresh,
+  useAsyncState,
+} from "@/lib/client";
+import type { BinderSlotDTO, BinderSlotsListPayloadDTO } from "@/lib/dto/binder";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import {
   enqueueOfflineAction,
@@ -28,29 +41,17 @@ import {
 } from "@/lib/realtime/channels";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { useListRenderStats, useSuspenseProfile } from "@/lib/telemetry";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 
-type SlotCard = {
-  id: string;
-  name: string;
-  image_url: string | null;
-  image_front_thumb_url?: string | null;
-  rarity: string | null;
-  number: string | null;
-  binder_id: string;
-};
-
-type SlotRow = {
-  id: string;
-  binder_id: string;
-  page_number: number;
-  slot_index: number;
-  card_id: string | null;
-  created_at: string;
-  card: SlotCard | null;
-};
-
-type PagesMap = Record<string, SlotRow[]>;
+type PagesMap = Record<string, BinderSlotDTO[]>;
 
 type OwnedCard = {
   id: string;
@@ -64,15 +65,15 @@ type Props = {
   binderId: string;
 };
 
+/** Threshold: virtualized page rail for medium/large binders. */
+const PAGE_RAIL_MIN_PAGES = 10;
+
 export function BinderBook({ binderId }: Props) {
+  const router = useRouter();
   const [pages, setPages] = useState<PagesMap>({});
   const [page, setPage] = useState(0);
   const [maxPagesAllowed, setMaxPagesAllowed] = useState(24);
   const [pageNumbers, setPageNumbers] = useState<number[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [assigningCardId, setAssigningCardId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<{ page: number; slot: number } | null>(
     null
   );
@@ -85,6 +86,19 @@ export function BinderBook({ binderId }: Props) {
   const animRef = useRef<number | null>(null);
   const [binderPresencePeers, setBinderPresencePeers] = useState(0);
   const binderConflictLogged = useRef(false);
+  const binderShellRef = useRef<HTMLDivElement | null>(null);
+  const gridNavRef = useRef<HTMLDivElement | null>(null);
+  const loadSeq = useRef(0);
+
+  const loadState = useAsyncState<BinderSlotsListPayloadDTO>();
+  const {
+    setLoading: setLoadLoading,
+    setError: setLoadError,
+    setData: setLoadData,
+  } = loadState;
+  const mutationState = useAsyncState<void>();
+
+  const [activeSlotIndex, setActiveSlotIndex] = useState(0);
 
   const telemetryCtx = useMemo(
     () => ({
@@ -140,76 +154,148 @@ export function BinderBook({ binderId }: Props) {
 
   const apiBase = `/api/binders/${encodeURIComponent(binderId)}`;
 
-  const loadSlots = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${apiBase}/slots/list`, { cache: "no-store" });
-      const body = (await res.json().catch(() => ({}))) as {
-        pages?: PagesMap;
-        maxPages?: number;
-        pageNumbers?: number[];
-        error?: string;
-      };
-      if (!res.ok) throw new Error(body.error ?? "Failed to load binder slots");
-      const pages = body.pages ?? {};
-      setPages(pages);
-      if (typeof body.maxPages === "number" && body.maxPages > 0) {
-        setMaxPagesAllowed(body.maxPages);
+  const applySlotsPayload = useCallback(
+    (payload: BinderSlotsListPayloadDTO) => {
+      const nextPages = payload.pages ?? {};
+      setPages(nextPages);
+      if (typeof payload.maxPages === "number" && payload.maxPages > 0) {
+        setMaxPagesAllowed(payload.maxPages);
       }
-      const nums = Array.isArray(body.pageNumbers) ? body.pageNumbers : [];
+      const nums = Array.isArray(payload.pageNumbers) ? payload.pageNumbers : [];
       setPageNumbers(nums);
       lkgSet(LKG_KEY.binderSlots(binderId), {
-        pages,
+        pages: nextPages,
         maxPages:
-          typeof body.maxPages === "number" && body.maxPages > 0
-            ? body.maxPages
+          typeof payload.maxPages === "number" && payload.maxPages > 0
+            ? payload.maxPages
             : undefined,
         pageNumbers: nums,
       });
-    } catch (e) {
-      const snap = lkgGet<{
-        pages?: PagesMap;
-        maxPages?: number;
-        pageNumbers?: number[];
-      }>(LKG_KEY.binderSlots(binderId));
-      if (snap?.pages && Object.keys(snap.pages).length > 0) {
-        setPages(snap.pages);
-        if (typeof snap.maxPages === "number" && snap.maxPages > 0) {
-          setMaxPagesAllowed(snap.maxPages);
-        }
-        if (Array.isArray(snap.pageNumbers)) {
-          setPageNumbers(snap.pageNumbers);
-        }
-        mcaLog.event(
-          "offline.lkg.restore",
-          { surface: "binder-detail", key: "binder-slots" },
-          telemetryCtx
-        );
-        setError(
-          "You're offline or the network failed — showing the last loaded binder pages."
-        );
-      } else {
-        setError(e instanceof Error ? e.message : "Failed to load binder");
-      }
-    } finally {
-      setLoading(false);
+    },
+    [binderId]
+  );
+
+  const reloadSlotsFromServer = useCallback(async (): Promise<BinderSlotsListPayloadDTO> => {
+    const seq = ++loadSeq.current;
+    const r = await fetchJson<BinderSlotsListPayloadDTO>(`${apiBase}/slots/list`, {
+      cache: "no-store",
+    });
+    if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+    if (loadSeq.current !== seq) {
+      return r.data;
     }
-  }, [apiBase, binderId, telemetryCtx]);
+    applySlotsPayload(r.data);
+    loadState.setData(r.data);
+    return r.data;
+  }, [apiBase, applySlotsPayload, loadState]);
 
   useEffect(() => {
-    void loadSlots();
-  }, [loadSlots]);
+    const handler = (ev: Event) => {
+      const ce = ev as CustomEvent<BinderSurfacesRefreshDetail>;
+      const target = ce.detail?.binderId;
+      if (target && target !== binderId) return;
+      void reloadSlotsFromServer().catch(() => {
+        /* errors surfaced via loadState */
+      });
+    };
+    window.addEventListener(BINDER_SURFACES_REFRESH_EVENT, handler as EventListener);
+    return () =>
+      window.removeEventListener(BINDER_SURFACES_REFRESH_EVENT, handler as EventListener);
+  }, [binderId, reloadSlotsFromServer]);
 
-  const maxPageFromData = useMemo(() => {
-    const keys = Object.keys(pages)
-      .map((k) => parseInt(k, 10))
-      .filter((n) => Number.isFinite(n));
-    return keys.length > 0 ? Math.max(...keys) : 0;
-  }, [pages]);
+  useEffect(() => {
+    let cancelled = false;
+    const seq = ++loadSeq.current;
+    void (async () => {
+      setLoadLoading(true);
+      setLoadError(null);
+      try {
+        const r = await fetchJson<BinderSlotsListPayloadDTO>(`${apiBase}/slots/list`, {
+          cache: "no-store",
+        });
+        if (cancelled || loadSeq.current !== seq) return;
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        applySlotsPayload(r.data);
+        setLoadData(r.data);
+      } catch (e) {
+        if (cancelled || loadSeq.current !== seq) return;
+        const snap = lkgGet<{
+          pages?: PagesMap;
+          maxPages?: number;
+          pageNumbers?: number[];
+        }>(LKG_KEY.binderSlots(binderId));
+        if (snap?.pages && Object.keys(snap.pages).length > 0) {
+          applySlotsPayload({
+            pages: snap.pages,
+            maxPages:
+              typeof snap.maxPages === "number" && snap.maxPages > 0 ? snap.maxPages : 24,
+            pageNumbers: Array.isArray(snap.pageNumbers) ? snap.pageNumbers : [],
+          });
+          setLoadError(
+            "You're offline or the network failed — showing the last loaded binder pages."
+          );
+          mcaLog.event(
+            "offline.lkg.restore",
+            { surface: "binder-detail", key: "binder-slots" },
+            telemetryCtx
+          );
+        } else {
+          setLoadError(e instanceof Error ? e.message : "Failed to load binder");
+        }
+      } finally {
+        if (!cancelled) setLoadLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiBase,
+    applySlotsPayload,
+    binderId,
+    setLoadData,
+    setLoadError,
+    setLoadLoading,
+    telemetryCtx,
+  ]);
+
+  useEffect(() => {
+    setActiveSlotIndex(0);
+  }, [page]);
 
   const canGoNext = page < maxPagesAllowed - 1;
   const canGoPrev = page > 0;
+
+  const triggerPageAnim = useCallback((dir: "next" | "prev", fn: () => void) => {
+    if (animRef.current) window.clearTimeout(animRef.current);
+    setPageAnim(dir);
+    animRef.current = window.setTimeout(() => {
+      fn();
+      setPageAnim("none");
+      animRef.current = null;
+    }, 140);
+  }, []);
+
+  const goPrevPage = useCallback(() => {
+    if (page <= 0 || mutationState.loading) return;
+    triggerPageAnim("prev", () => setPage((p) => Math.max(0, p - 1)));
+  }, [page, mutationState.loading, triggerPageAnim]);
+
+  const goNextPage = useCallback(() => {
+    if (mutationState.loading || page >= maxPagesAllowed - 1) return;
+    triggerPageAnim("next", () =>
+      setPage((p) => Math.min(maxPagesAllowed - 1, p + 1))
+    );
+  }, [mutationState.loading, maxPagesAllowed, page, triggerPageAnim]);
+
+  useBinderDragChrome({
+    busy: mutationState.loading || loadState.loading,
+    canGoPrev,
+    canGoNext,
+    onPrevPage: goPrevPage,
+    onNextPage: goNextPage,
+    binderShellRef,
+  });
 
   const slotsForPage = useMemo(() => {
     const list = pages[String(page)] ?? [];
@@ -244,51 +330,35 @@ export function BinderBook({ binderId }: Props) {
     return rows;
   }, [slotsForPage]);
 
-  const triggerPageAnim = useCallback((dir: "next" | "prev", fn: () => void) => {
-    if (animRef.current) window.clearTimeout(animRef.current);
-    setPageAnim(dir);
-    animRef.current = window.setTimeout(() => {
-      fn();
-      setPageAnim("none");
-      animRef.current = null;
-    }, 140);
-  }, []);
+  const displayError = mutationState.error ?? loadState.error;
 
-  const goPrevPage = useCallback(() => {
-    if (page <= 0 || busy) return;
-    triggerPageAnim("prev", () => setPage((p) => Math.max(0, p - 1)));
-  }, [page, busy, triggerPageAnim]);
-
-  const goNextPage = useCallback(() => {
-    if (busy || page >= maxPagesAllowed - 1) return;
-    triggerPageAnim("next", () =>
-      setPage((p) => Math.min(maxPagesAllowed - 1, p + 1))
-    );
-  }, [busy, maxPagesAllowed, page, triggerPageAnim]);
-
-  const onOpenDetail = useCallback((cardId: string) => {
-    setDetailCardId(cardId);
-  }, []);
+  const onOpenDetail = useCallback(
+    (cardId: string) => {
+      const idx = slotsForPage.findIndex((s) => s.card?.id === cardId);
+      if (idx >= 0) setActiveSlotIndex(idx);
+      setDetailCardId(cardId);
+    },
+    [slotsForPage]
+  );
 
   const openPicker = useCallback(
     async (pageNum: number, slotIndex: number) => {
       setPicker({ page: pageNum, slot: slotIndex });
       try {
-        const res = await fetch("/api/cards/list", { cache: "no-store" });
-        const body = (await res.json().catch(() => ({}))) as {
-          cards?: Array<{
+        const r = await fetchJson<{
+          cards: Array<{
             id: string;
             name: string;
             binder_id: string;
             image_url: string | null;
             rarity: string | null;
           }>;
-        };
-        if (!res.ok) {
+        }>("/api/cards/list", { cache: "no-store" });
+        if (r.kind !== "ok") {
           setPickerCards([]);
           return;
         }
-        const all = Array.isArray(body.cards) ? body.cards : [];
+        const all = Array.isArray(r.data.cards) ? r.data.cards : [];
         setPickerCards(
           all.filter((c) => c.binder_id === binderId).map((c) => ({
             id: c.id,
@@ -312,36 +382,44 @@ export function BinderBook({ binderId }: Props) {
     [openPicker]
   );
 
+  const runMutation = useCallback(
+    async (fn: () => Promise<void>) => {
+      mutationState.setError(null);
+      const result = await mutationState.run(fn);
+      return result;
+    },
+    [mutationState]
+  );
+
   const moveSlot = useCallback(
     async (from: { page: number; slot: number }, to: { page: number; slot: number }) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const res = await fetch(`${apiBase}/slots/move`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ from, to }),
-        });
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Move failed");
-        await loadSlots();
-      } catch (e) {
-        if (isLikelyOfflineError(e)) {
-          enqueueOfflineAction({ kind: "binder_slot_move", binderId, from, to });
-          setError("Offline — slot move queued to retry when you are back online.");
-          mcaLog.event(
-            "mobile.offline.queue",
-            { kind: "binder_slot_move", op: "enqueue" },
-            telemetryCtx
-          );
-        } else {
-          setError(e instanceof Error ? e.message : "Move failed");
+      await runMutation(async () => {
+        try {
+          const r = await fetchJson(`${apiBase}/slots/move`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ from, to }),
+          });
+          if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+          await reloadSlotsFromServer();
+        } catch (e) {
+          if (isLikelyOfflineError(e)) {
+            enqueueOfflineAction({ kind: "binder_slot_move", binderId, from, to });
+            mutationState.setError(
+              "Offline — slot move queued to retry when you are back online."
+            );
+            mcaLog.event(
+              "mobile.offline.queue",
+              { kind: "binder_slot_move", op: "enqueue" },
+              telemetryCtx
+            );
+            return;
+          }
+          throw e;
         }
-      } finally {
-        setBusy(false);
-      }
+      });
     },
-    [apiBase, binderId, loadSlots, telemetryCtx]
+    [apiBase, binderId, mutationState, reloadSlotsFromServer, runMutation, telemetryCtx]
   );
 
   useEffect(() => {
@@ -352,21 +430,20 @@ export function BinderBook({ binderId }: Props) {
       for (const p of pending) {
         if (p.kind !== "binder_slot_move") continue;
         try {
-          const res = await fetch(`${apiBase}/slots/move`, {
+          const r = await fetchJson(`${apiBase}/slots/move`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ from: p.from, to: p.to }),
           });
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          if (res.ok) {
+          if (r.kind === "ok") {
             finalizeOfflineAction(p.id, "synced");
             mcaLog.event(
               "mobile.offline.queue",
               { kind: "binder_slot_move", op: "flush_ok", id: p.id },
               telemetryCtx
             );
-            await loadSlots();
-          } else if (body.error) {
+            await reloadSlotsFromServer();
+          } else {
             break;
           }
         } catch {
@@ -378,7 +455,7 @@ export function BinderBook({ binderId }: Props) {
     const onOnline = () => void flush();
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-  }, [apiBase, binderId, loadSlots, telemetryCtx]);
+  }, [apiBase, binderId, reloadSlotsFromServer, telemetryCtx]);
 
   const onMove = useCallback(
     (from: { page: number; slot: number }, to: { page: number; slot: number }) => {
@@ -387,33 +464,31 @@ export function BinderBook({ binderId }: Props) {
     [moveSlot]
   );
 
+  const [assigningCardId, setAssigningCardId] = useState<string | null>(null);
+
   const assignCard = useCallback(
     async (pageP: number, slotIndex: number, cardId: string | null) => {
       if (cardId) setAssigningCardId(cardId);
-      setBusy(true);
-      setError(null);
       try {
-        const res = await fetch(`${apiBase}/slots/update`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            page_number: pageP,
-            slot_index: slotIndex,
-            card_id: cardId,
-          }),
+        await runMutation(async () => {
+          const r = await fetchJson(`${apiBase}/slots/update`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              page_number: pageP,
+              slot_index: slotIndex,
+              card_id: cardId,
+            }),
+          });
+          if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+          await reloadSlotsFromServer();
+          setPicker(null);
         });
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Update failed");
-        await loadSlots();
-        setPicker(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Update failed");
       } finally {
-        setBusy(false);
         setAssigningCardId(null);
       }
     },
-    [apiBase, loadSlots]
+    [apiBase, reloadSlotsFromServer, runMutation]
   );
 
   const onDragOverSlot = useCallback((p: number, s: number) => {
@@ -429,8 +504,9 @@ export function BinderBook({ binderId }: Props) {
   }, []);
 
   const onDetailChanged = useCallback(async () => {
-    await loadSlots();
-  }, [loadSlots]);
+    await reloadSlotsFromServer();
+    scheduleCoalescedRouterRefresh(router);
+  }, [reloadSlotsFromServer, router]);
 
   const onPickCard = useCallback(
     (cardId: string) => {
@@ -441,68 +517,47 @@ export function BinderBook({ binderId }: Props) {
   );
 
   const addPage = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`${apiBase}/pages/add`, { method: "POST" });
-      const body = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        page_number?: number;
-      };
-      if (!res.ok) throw new Error(body.error ?? "Could not add page");
-      await loadSlots();
-      if (typeof body.page_number === "number") {
-        setPage(body.page_number);
+    await runMutation(async () => {
+      const r = await fetchJson<{ page_number?: number }>(`${apiBase}/pages/add`, {
+        method: "POST",
+      });
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      await reloadSlotsFromServer();
+      if (typeof r.data.page_number === "number") {
+        setPage(r.data.page_number);
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not add page");
-    } finally {
-      setBusy(false);
-    }
-  }, [apiBase, loadSlots]);
+    });
+  }, [apiBase, reloadSlotsFromServer, runMutation]);
 
   const removeCurrentPage = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`${apiBase}/pages/remove`, {
+    const removedPage = page;
+    await runMutation(async () => {
+      const r = await fetchJson(`${apiBase}/pages/remove`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ page_number: page }),
+        body: JSON.stringify({ page_number: removedPage }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Could not remove page");
-      await loadSlots();
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      await reloadSlotsFromServer();
       setPage((p) => {
-        if (p > page) return p - 1;
-        if (p === page) return Math.max(0, page - 1);
+        if (p > removedPage) return p - 1;
+        if (p === removedPage) return Math.max(0, removedPage - 1);
         return p;
       });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not remove page");
-    } finally {
-      setBusy(false);
-    }
-  }, [apiBase, loadSlots, page]);
+    });
+  }, [apiBase, page, reloadSlotsFromServer, runMutation]);
 
   const swapWithNext = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`${apiBase}/pages/reorder`, {
+    await runMutation(async () => {
+      const r = await fetchJson(`${apiBase}/pages/reorder`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ page_a: page, page_b: page + 1 }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Could not reorder pages");
-      await loadSlots();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not reorder pages");
-    } finally {
-      setBusy(false);
-    }
-  }, [apiBase, loadSlots, page]);
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      await reloadSlotsFromServer();
+    });
+  }, [apiBase, page, reloadSlotsFromServer, runMutation]);
 
   const storedPageCount = pageNumbers.length;
   const canRemovePage = storedPageCount > 1;
@@ -515,16 +570,86 @@ export function BinderBook({ binderId }: Props) {
         ? "mca-binder-page-turn-prev"
         : "";
 
+  const loading = loadState.loading;
+  const busy = mutationState.loading;
+
+  const activateSlotFromPointer = useCallback((slotIndex: number) => {
+    setActiveSlotIndex(slotIndex);
+  }, []);
+
+  const handleGridNavKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLDivElement>) => {
+      const cols = BINDER_GRID_COLS;
+      const total = BINDER_SLOTS_PER_PAGE;
+      let next = activeSlotIndex;
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        const row = Math.floor(activeSlotIndex / cols);
+        const col = activeSlotIndex % cols;
+        if (col < cols - 1) next = row * cols + col + 1;
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        const row = Math.floor(activeSlotIndex / cols);
+        const col = activeSlotIndex % cols;
+        if (col > 0) next = row * cols + col - 1;
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (activeSlotIndex + cols < total) next = activeSlotIndex + cols;
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (activeSlotIndex >= cols) next = activeSlotIndex - cols;
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        next = 0;
+      } else if (e.key === "End") {
+        e.preventDefault();
+        next = total - 1;
+      } else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const slot = slotsForPage[activeSlotIndex];
+        if (!slot) return;
+        if (slot.cardId && slot.card) onOpenDetail(slot.card.id);
+        else onOpenPicker(page, slot.slotIndex);
+      } else {
+        return;
+      }
+      setActiveSlotIndex(Math.max(0, Math.min(total - 1, next)));
+    },
+    [activeSlotIndex, onOpenDetail, onOpenPicker, page, slotsForPage]
+  );
+
+  const showPageRail = maxPagesAllowed >= PAGE_RAIL_MIN_PAGES;
+
+  const activeDescendantId =
+    `binder-${binderId}-p${page}-s${activeSlotIndex}` as const;
+
   return (
-    <div className="space-y-mca-lg">
-      {error ? (
-        <InlineError className="px-mca-base py-mca-compact">{error}</InlineError>
+    <div
+      className="space-y-mca-lg"
+      aria-busy={loading || busy || undefined}
+    >
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {dragOver
+          ? `Drop target: page ${dragOver.page + 1}, slot ${dragOver.slot + 1}.`
+          : ""}
+      </div>
+
+      {displayError ? (
+        <div role="alert">
+          <InlineError className="px-mca-base py-mca-compact">{displayError}</InlineError>
+        </div>
       ) : null}
 
       {binderPresencePeers > 0 ? (
         <p
           className="rounded-mca-card border border-mca-warning-surface-border/50 bg-mca-warning-surface/20 px-mca-base py-mca-sm text-sm text-mca-nav-accent"
           role="status"
+          aria-live="polite"
         >
           Another session is viewing this binder ({binderPresencePeers} other
           {binderPresencePeers === 1 ? " viewer" : " viewers"}). Edits elsewhere may race—refresh
@@ -599,11 +724,26 @@ export function BinderBook({ binderId }: Props) {
         </div>
       </div>
 
+      {showPageRail ? (
+        <BinderPageRail
+          binderId={binderId}
+          pageCount={maxPagesAllowed}
+          storedPageIndices={pageNumbers}
+          currentPage={page}
+          busy={busy}
+          onSelectPage={(p) => {
+            if (busy) return;
+            setPage(p);
+          }}
+        />
+      ) : null}
+
       {loading ? (
-        <p className="text-sm text-mca-ink-subtle">Loading binder pages…</p>
+        <p className="text-sm text-mca-ink-subtle" role="status" aria-live="polite" aria-busy="true">
+          Loading binder pages…
+        </p>
       ) : (
         <div className="relative mx-auto max-w-4xl">
-          {/* binder spine / gutter */}
           <div
             className="pointer-events-none absolute inset-y-4 left-1/2 z-0 w-px -translate-x-1/2 bg-gradient-to-b from-mca-border-subtle/20 via-mca-field-border/70 to-mca-border-subtle/20 shadow-[2px_0_12px_rgba(0,0,0,0.35)]"
             aria-hidden
@@ -622,20 +762,22 @@ export function BinderBook({ binderId }: Props) {
             </button>
 
             <div
+              ref={binderShellRef}
               className={`binder-page-shell relative min-w-0 flex-1 overflow-hidden rounded-mca-card border border-mca-border/90 bg-gradient-to-br from-mca-surface-elevated via-mca-surface to-mca-surface p-mca-lg shadow-[6px_8px_28px_-6px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.04)] dark:border-mca-border-subtle ${pageTurnClass}`}
+              aria-busy={busy}
             >
               {busy ? (
                 <div
                   className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-mca-compact rounded-mca-card bg-mca-surface/65 backdrop-blur-[1px]"
                   role="status"
                   aria-live="polite"
+                  aria-busy="true"
                 >
                   <LoadingSpinner className="size-8 text-mca-accent" />
                   <p className="text-sm text-mca-ink-body">Updating binder…</p>
                 </div>
               ) : null}
 
-              {/* subtle right-edge “page thickness” */}
               <div
                 className="pointer-events-none absolute inset-y-3 right-2 w-2 rounded-sm bg-gradient-to-l from-black/35 to-transparent"
                 aria-hidden
@@ -657,15 +799,23 @@ export function BinderBook({ binderId }: Props) {
               />
 
               <div
-                className="relative z-[1] grid gap-mca-md"
+                ref={gridNavRef}
+                role="grid"
+                aria-label="Binder page slots"
+                aria-rowcount={BINDER_SLOTS_PER_PAGE / BINDER_GRID_COLS}
+                aria-colcount={BINDER_GRID_COLS}
+                tabIndex={0}
+                aria-activedescendant={activeDescendantId}
+                onKeyDown={handleGridNavKeyDown}
+                className="relative z-[1] grid gap-mca-md outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 focus-visible:ring-offset-2 focus-visible:ring-offset-mca-surface rounded-mca-block"
                 style={{
                   gridTemplateColumns: `repeat(${BINDER_GRID_COLS}, minmax(0, 1fr))`,
                 }}
               >
                 {slotRows.map((rowSlots, ri) => (
                   <BinderGridRow
-                    key={`${page}-r-${ri}`}
-                    rowKey={`${page}-r-${ri}`}
+                    key={`${binderId}-${page}-r-${ri}`}
+                    rowKey={`${binderId}-${page}-r-${ri}`}
                     slots={rowSlots.map(({ slotIndex, cardId, card }) => ({
                       page,
                       slotIndex,
@@ -674,8 +824,13 @@ export function BinderBook({ binderId }: Props) {
                       busy,
                       isDragOver:
                         dragOver?.page === page && dragOver?.slot === slotIndex,
+                      gridCellId: `binder-${binderId}-p${page}-s${slotIndex}`,
+                      isGridActive: activeSlotIndex === slotIndex,
                       onOpenDetail,
-                      onOpenPicker,
+                      onOpenPicker: (pn, si) => {
+                        activateSlotFromPointer(si);
+                        onOpenPicker(pn, si);
+                      },
                       onMove,
                       onDragOverSlot,
                       onDragLeaveSlot,
@@ -702,10 +857,12 @@ export function BinderBook({ binderId }: Props) {
       )}
 
       <p className="text-xs text-mca-ink-subtle">
-        Drag cards or empty slots between positions (including other pages). Click
-        a card for details; click empty space to assign. Use{" "}
+        Drag cards or empty slots between positions (including other pages). Drag near the left or
+        right edge of the page to turn after a short pause. Click a card for details; click empty
+        space to assign. Use{" "}
         <strong className="font-medium text-mca-ink-muted">Add page</strong> to create a
-        new 9-slot spread (tier limits apply).
+        new 9-slot spread (tier limits apply). Use arrow keys while the slot grid is focused to move
+        between slots.
       </p>
 
       <CardDetailModal

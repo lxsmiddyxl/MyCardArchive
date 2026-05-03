@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/route";
+import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { defineRouteNoArgs } from "@/lib/server/api-route";
+import { createClient } from "@/lib/supabase/route";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -28,25 +29,21 @@ function firstRelation<T>(value: T | T[] | null): T | null {
 }
 
 async function GET_handler() {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const { data, error } = await supabase
     .from("cards")
     .select(
       "rarity, catalog_cards(supertype, set_id, rarity, catalog_sets(id, name))"
     )
-    .eq("user_id", user.id)
+    .eq("user_id", session.userId)
     .limit(8000);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, error.message, 500);
   }
 
   const setMap = new Map<string, string>();
@@ -74,11 +71,12 @@ async function GET_handler() {
     .map(([id, name]) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  return NextResponse.json({
+  const body = {
     sets,
     types: Array.from(types).sort((a, b) => a.localeCompare(b)),
     rarities: Array.from(rarities).sort((a, b) => a.localeCompare(b)),
-  });
+  };
+  return NextResponse.json({ success: true, context_id: ctx.contextId, ...body });
 }
 
 export const GET = defineRouteNoArgs("GET /api/cards/facets", GET_handler);

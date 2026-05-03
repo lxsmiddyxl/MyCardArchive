@@ -19,6 +19,21 @@ import { enqueueOfflineAction, isLikelyOfflineError } from "@/lib/mobile/offline
 import { useSuspenseProfile, useListRenderStats } from "@/lib/telemetry";
 import { useCallback, useMemo } from "@/lib/perf/memo";
 import { GradingNextSteps } from "@/components/flow/grading-next-steps";
+import {
+  fetchJson,
+  fetchJsonErrorMessage,
+  readResponseJson,
+  useAsyncState,
+} from "@/lib/client";
+import type {
+  CardDetailDTO,
+  CardDetailModalBinderDTO,
+  CardDetailModalDeckDTO,
+  CardDetailApiPayloadDTO,
+  CardModalBootstrapDTO,
+  CardPatchResponseDTO,
+} from "@/lib/dto/card-detail-modal";
+import type { DeckCardSlotMutationAckDTO } from "@/lib/dto/deck-import";
 import { fetchWithRetry } from "@/lib/http/fetch-with-retry";
 import Link from "next/link";
 import { lazy, Suspense, useEffect, useState } from "react";
@@ -27,7 +42,7 @@ const CardGradingSectionLazy = lazy(async () => ({
   default: (await import("@/components/grading/card-grading-section")).CardGradingSection,
 }));
 
-function resolveFrontHeroSrc(d: CardDetail): string | null {
+function resolveFrontHeroSrc(d: CardDetailDTO): string | null {
   const thumb = d.image_front_thumb_url ?? d.image_url;
   const full = d.image_front_full_url;
   if (
@@ -44,44 +59,6 @@ function resolveFrontHeroSrc(d: CardDetail): string | null {
 const CardDetailPriceSectionLazy = lazy(async () => ({
   default: (await import("./card-detail-price-section")).CardDetailPriceSection,
 }));
-
-type Binder = { id: string; name: string };
-type Deck = { id: string; name: string };
-
-type CardDetail = {
-  id: string;
-  name: string;
-  number: string | null;
-  rarity: string | null;
-  set_name: string | null;
-  image_url: string | null;
-  image_front_thumb_url?: string | null;
-  image_front_full_url?: string | null;
-  image_back_full_url?: string | null;
-  image_back_thumb_url?: string | null;
-  binder_id: string;
-  binder_name: string | null;
-  catalog_card_id: string | null;
-  for_trade: boolean;
-  looking_for: boolean;
-  catalog: {
-    id: string;
-    name: string;
-    supertype: string | null;
-    subtypes: string[];
-    legal_standard: boolean;
-    legal_expanded: boolean;
-    legal_unlimited: boolean;
-    legal_commander: boolean;
-  } | null;
-  deck_locations: { deck_id: string; deck_name: string; zone: string; quantity: number }[];
-  price: {
-    market_price: number | null;
-    currency: string;
-    provider: string;
-    updated_at: string;
-  } | null;
-};
 
 type Props = {
   open: boolean;
@@ -137,24 +114,49 @@ export function CardDetailModal({
   onChanged,
   readOnly = false,
 }: Props) {
-  const [loading, setLoading] = useState(false);
+  const {
+    data: bootPayload,
+    loading: bootstrapLoading,
+    error: bootstrapError,
+    run: runBootstrap,
+    reset: resetBootstrap,
+  } = useAsyncState<CardModalBootstrapDTO>();
+  const {
+    data: priceHistData,
+    loading: priceHistoryLoading,
+    error: priceHistoryError,
+    run: runPriceHistory,
+    reset: resetPriceHistory,
+  } = useAsyncState<PriceHistRow[]>();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [detail, setDetail] = useState<CardDetail | null>(null);
-  const [binders, setBinders] = useState<Binder[]>([]);
-  const [decks, setDecks] = useState<Deck[]>([]);
   const [showBinderPicker, setShowBinderPicker] = useState(false);
   const [showDeckPicker, setShowDeckPicker] = useState(false);
   const [selectedBinder, setSelectedBinder] = useState("");
   const [selectedDeck, setSelectedDeck] = useState("");
   const [selectedZone, setSelectedZone] = useState<"main" | "sideboard" | "commander">("main");
-  const [priceHistory, setPriceHistory] = useState<PriceHistRow[]>([]);
-  const [priceHistoryLoading, setPriceHistoryLoading] = useState(false);
-  const [priceHistoryError, setPriceHistoryError] = useState<string | null>(null);
   const [backImageFailed, setBackImageFailed] = useState(false);
   const [gradingPayload, setGradingPayload] = useState<GradingPayload | null>(null);
   const [gradingBusy, setGradingBusy] = useState(false);
+
+  const detail = useMemo(
+    () => bootPayload?.detail ?? null,
+    [bootPayload]
+  );
+  const binders: CardDetailModalBinderDTO[] = useMemo(
+    () => bootPayload?.binders ?? [],
+    [bootPayload]
+  );
+  const decks: CardDetailModalDeckDTO[] = useMemo(
+    () => bootPayload?.decks ?? [],
+    [bootPayload]
+  );
+  const priceHistory = useMemo(
+    () => priceHistData ?? [],
+    [priceHistData]
+  );
+  const loading = bootstrapLoading;
 
   const telemetryCtx = useMemo(
     () => ({
@@ -174,15 +176,12 @@ export function CardDetailModal({
     if (!cardId) return;
     setGradingBusy(true);
     try {
-      const res = await fetch(`/api/cards/${encodeURIComponent(cardId)}/grade`, {
-        cache: "no-store",
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        grade?: GradingPayload;
-        error?: string;
-      };
-      if (res.ok && body.grade) {
-        setGradingPayload(body.grade);
+      const r = await fetchJson<{ grade?: GradingPayload }>(
+        `/api/cards/${encodeURIComponent(cardId)}/grade`,
+        { cache: "no-store" }
+      );
+      if (r.kind === "ok" && r.data.grade) {
+        setGradingPayload(r.data.grade);
       } else {
         setGradingPayload(null);
       }
@@ -202,9 +201,9 @@ export function CardDetailModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      const body = (await res.json().catch(() => ({}))) as { grade?: GradingPayload };
-      if (res.ok && body.grade) {
-        setGradingPayload(body.grade);
+      const r = await readResponseJson<{ grade?: GradingPayload }>(res);
+      if (r.kind === "ok" && r.data.grade) {
+        setGradingPayload(r.data.grade);
         mcaLog.event("card.grade.analysis_complete", { cardId }, telemetryCtx);
       }
     } finally {
@@ -214,78 +213,61 @@ export function CardDetailModal({
 
   const load = useCallback(async () => {
     if (!cardId) return;
-    setLoading(true);
     setError(null);
-    try {
-      const detailRes = await fetch(`/api/cards/${encodeURIComponent(cardId)}/detail`, {
-        cache: "no-store",
-      });
-      const detailBody = (await detailRes.json().catch(() => ({}))) as {
-        card?: CardDetail;
-        error?: string;
-      };
-
-      if (!detailRes.ok) {
-        throw new Error(detailBody.error ?? "Failed to load card detail");
+    await runBootstrap(async () => {
+      const detailR = await fetchJson<CardDetailApiPayloadDTO>(
+        `/api/cards/${encodeURIComponent(cardId)}/detail`,
+        { cache: "no-store" }
+      );
+      if (detailR.kind !== "ok") {
+        throw new Error(fetchJsonErrorMessage(detailR));
       }
 
-      setDetail(detailBody.card ?? null);
+      const nextDetail = detailR.data.card ?? null;
 
       if (readOnly) {
-        setBinders([]);
-        setDecks([]);
         setShowBinderPicker(false);
         setShowDeckPicker(false);
-      } else {
-        const [bindersRes, decksRes] = await Promise.all([
-          fetch("/api/binders", { cache: "no-store" }),
-          fetch("/api/decks/list", { cache: "no-store" }),
-        ]);
-        const bindersBody = bindersRes.ok
-          ? ((await bindersRes.json()) as { binders?: Binder[] })
-          : { binders: [] };
-        const decksBody = decksRes.ok ? ((await decksRes.json()) as { decks?: Deck[] }) : { decks: [] };
-        const nextBinders = Array.isArray(bindersBody.binders) ? bindersBody.binders : [];
-        const nextDecks = Array.isArray(decksBody.decks) ? decksBody.decks : [];
-        setBinders(nextBinders);
-        setDecks(nextDecks);
-        setSelectedBinder(nextBinders[0]?.id ?? "");
-        setSelectedDeck(nextDecks[0]?.id ?? "");
+        return { detail: nextDetail, binders: [], decks: [] };
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load card detail");
-    } finally {
-      setLoading(false);
-    }
-  }, [cardId, readOnly]);
+      const [bindersR, decksR] = await Promise.all([
+        fetchJson<{ binders?: CardDetailModalBinderDTO[] }>("/api/binders", { cache: "no-store" }),
+        fetchJson<{ decks?: CardDetailModalDeckDTO[] }>("/api/decks/list", { cache: "no-store" }),
+      ]);
+      const nextBinders =
+        bindersR.kind === "ok" && Array.isArray(bindersR.data.binders) ? bindersR.data.binders : [];
+      const nextDecks =
+        decksR.kind === "ok" && Array.isArray(decksR.data.decks) ? decksR.data.decks : [];
+      setSelectedBinder(nextBinders[0]?.id ?? "");
+      setSelectedDeck(nextDecks[0]?.id ?? "");
+      return { detail: nextDetail, binders: nextBinders, decks: nextDecks };
+    });
+  }, [runBootstrap, cardId, readOnly]);
 
-  const loadPriceHistory = useCallback(async (id: string) => {
-    setPriceHistoryLoading(true);
-    setPriceHistoryError(null);
-    try {
-      const res = await fetch(`/api/cards/${encodeURIComponent(id)}/price-history?limit=120`, {
-        cache: "no-store",
+  const loadPriceHistory = useCallback(
+    async (id: string) => {
+      await runPriceHistory(async () => {
+        const r = await fetchJson<{ history?: PriceHistRow[] }>(
+          `/api/cards/${encodeURIComponent(id)}/price-history?limit=120`,
+          { cache: "no-store" }
+        );
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        return Array.isArray(r.data.history) ? r.data.history : [];
       });
-      const body = (await res.json().catch(() => ({}))) as {
-        history?: PriceHistRow[];
-        error?: string;
-      };
-      if (!res.ok) throw new Error(body.error ?? "Failed to load price history");
-      setPriceHistory(Array.isArray(body.history) ? body.history : []);
-    } catch (e) {
-      setPriceHistory([]);
-      setPriceHistoryError(e instanceof Error ? e.message : "Price history unavailable");
-    } finally {
-      setPriceHistoryLoading(false);
-    }
-  }, []);
+    },
+    [runPriceHistory]
+  );
 
   useEffect(() => {
-    if (!open || !cardId) return;
+    if (!open || !cardId) {
+      resetBootstrap();
+      resetPriceHistory();
+      return;
+    }
     void load();
     void loadPriceHistory(cardId);
     void loadGrading();
-  }, [open, cardId, load, loadGrading, loadPriceHistory]);
+  }, [open, cardId, load, loadGrading, loadPriceHistory, resetBootstrap, resetPriceHistory]);
 
   useEffect(() => {
     if (!actionSuccess) return;
@@ -325,11 +307,15 @@ export function CardDetailModal({
       blockClose={pendingKey !== null}
       bodyClassName="p-0"
     >
+      <section
+        aria-live="polite"
+        aria-busy={loading || gradingBusy || priceHistoryLoading || pendingKey !== null}
+      >
       {loading ? (
         <p className="p-mca-lg text-sm text-mca-ink-muted">Loading card details...</p>
-      ) : error ? (
+      ) : error || bootstrapError ? (
         <div className="p-mca-lg">
-          <InlineError showIcon>{error}</InlineError>
+          <InlineError showIcon>{error ?? bootstrapError}</InlineError>
         </div>
       ) : !detail ? (
         <p className="p-mca-lg text-sm text-mca-ink-muted">Card not found.</p>
@@ -454,13 +440,15 @@ export function CardDetailModal({
                           setPendingKey("market");
                           setError(null);
                           try {
-                            const res = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ for_trade: e.target.checked }),
-                            });
-                            const body = (await res.json().catch(() => ({}))) as { error?: string };
-                            if (!res.ok) throw new Error(body.error ?? "Could not update");
+                            const r = await fetchJson<CardPatchResponseDTO>(
+                              `/api/cards/${encodeURIComponent(cardId)}`,
+                              {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ for_trade: e.target.checked }),
+                              }
+                            );
+                            if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
                             await load();
                             if (onChanged) await onChanged();
                           } catch (err) {
@@ -506,13 +494,15 @@ export function CardDetailModal({
                           setPendingKey("market");
                           setError(null);
                           try {
-                            const res = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ looking_for: e.target.checked }),
-                            });
-                            const body = (await res.json().catch(() => ({}))) as { error?: string };
-                            if (!res.ok) throw new Error(body.error ?? "Could not update");
+                            const r = await fetchJson<CardPatchResponseDTO>(
+                              `/api/cards/${encodeURIComponent(cardId)}`,
+                              {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ looking_for: e.target.checked }),
+                              }
+                            );
+                            if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
                             await load();
                             if (onChanged) await onChanged();
                           } catch (err) {
@@ -621,7 +611,7 @@ export function CardDetailModal({
                       value={selectedBinder}
                       disabled={pendingKey !== null}
                       onChange={(e) => setSelectedBinder(e.target.value)}
-                      className="flex-1 rounded-mca-control border border-mca-border bg-mca-surface-elevated/95 px-mca-compact py-mca-sm text-sm text-mca-ink-strong transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-50 dark:border-mca-border-subtle"
+                      className="mca-input flex-1 rounded-mca-control px-mca-compact py-mca-sm text-sm disabled:opacity-50"
                     >
                       {binders.map((b) => (
                         <option key={b.id} value={b.id}>
@@ -639,13 +629,15 @@ export function CardDetailModal({
                         setError(null);
                         setPendingKey("binder");
                         try {
-                          const res = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ binder_id: selectedBinder }),
-                          });
-                          const body = (await res.json().catch(() => ({}))) as { error?: string };
-                          if (!res.ok) throw new Error(body.error ?? "Failed to move card");
+                          const r = await fetchJson<CardPatchResponseDTO>(
+                            `/api/cards/${encodeURIComponent(cardId)}`,
+                            {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ binder_id: selectedBinder }),
+                            }
+                          );
+                          if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
                           await load();
                           await loadPriceHistory(cardId);
                           if (onChanged) await onChanged();
@@ -717,7 +709,7 @@ export function CardDetailModal({
                       value={selectedDeck}
                       disabled={pendingKey !== null}
                       onChange={(e) => setSelectedDeck(e.target.value)}
-                      className="rounded-mca-control border border-mca-border bg-mca-surface-elevated/95 px-mca-compact py-mca-sm text-sm text-mca-ink-strong transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-50 dark:border-mca-border-subtle"
+                      className="mca-input rounded-mca-control px-mca-compact py-mca-sm text-sm disabled:opacity-50"
                     >
                       {decks.map((d) => (
                         <option key={d.id} value={d.id}>
@@ -731,7 +723,7 @@ export function CardDetailModal({
                       onChange={(e) =>
                         setSelectedZone(e.target.value as "main" | "sideboard" | "commander")
                       }
-                      className="rounded-mca-control border border-mca-border bg-mca-surface-elevated/95 px-mca-compact py-mca-sm text-sm text-mca-ink-strong transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-50 dark:border-mca-border-subtle"
+                      className="mca-input rounded-mca-control px-mca-compact py-mca-sm text-sm disabled:opacity-50"
                     >
                       <option value="main">Main deck</option>
                       <option value="sideboard">Side deck</option>
@@ -747,7 +739,7 @@ export function CardDetailModal({
                         setError(null);
                         setPendingKey("deck-add");
                         try {
-                          const res = await fetch(
+                          const r = await fetchJson<DeckCardSlotMutationAckDTO>(
                             `/api/decks/${encodeURIComponent(selectedDeck)}/cards/add`,
                             {
                               method: "POST",
@@ -755,8 +747,7 @@ export function CardDetailModal({
                               body: JSON.stringify({ card_id: cardId, zone: selectedZone }),
                             }
                           );
-                          const body = (await res.json().catch(() => ({}))) as { error?: string };
-                          if (!res.ok) throw new Error(body.error ?? "Failed to add card");
+                          if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
                           await load();
                           await loadPriceHistory(cardId);
                           if (onChanged) await onChanged();
@@ -791,7 +782,7 @@ export function CardDetailModal({
                             setError(null);
                             setPendingKey(actionKey);
                             try {
-                              const res = await fetch(
+                              const r = await fetchJson<DeckCardSlotMutationAckDTO>(
                                 `/api/decks/${encodeURIComponent(loc.deck_id)}/cards/remove`,
                                 {
                                   method: "POST",
@@ -799,8 +790,7 @@ export function CardDetailModal({
                                   body: JSON.stringify({ card_id: cardId, zone: loc.zone }),
                                 }
                               );
-                              const body = (await res.json().catch(() => ({}))) as { error?: string };
-                              if (!res.ok) throw new Error(body.error ?? "Failed to remove");
+                              if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
                               await load();
                               await loadPriceHistory(cardId);
                               if (onChanged) await onChanged();
@@ -825,6 +815,7 @@ export function CardDetailModal({
           </div>
         </div>
       )}
+      </section>
     </ModalBase>
   );
 }

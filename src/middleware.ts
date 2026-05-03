@@ -78,7 +78,12 @@ export async function middleware(request: NextRequest) {
     if (blocked) return blocked;
   }
 
-  if (pathname === "/api/scan" && method === "POST") {
+  if (
+    (pathname === "/api/scan" ||
+      pathname === "/api/scan/v1" ||
+      pathname === "/api/scan/v2") &&
+    method === "POST"
+  ) {
     const blocked = rateLimitedResponse(
       request,
       "scan-mut",

@@ -1,5 +1,6 @@
 import { pingSupabaseRest } from "@/lib/health/supabase-ping";
 import { mcaLog } from "@/lib/logging/mca-log-server";
+import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { getLastMcaTelemetryEventAgeMs } from "@/lib/server/mca-telemetry-buffer";
 import { NextResponse } from "next/server";
 
@@ -10,7 +11,7 @@ const CTX = { componentName: "health", surfaceName: "realtime" } as const;
 
 export type ChannelStatus = "connected" | "degraded" | "unconfigured";
 
-export async function GET(): Promise<Response> {
+async function GET_handler(): Promise<Response> {
   const timestamp = Date.now();
   try {
     let channelStatus: ChannelStatus = "unconfigured";
@@ -59,3 +60,5 @@ export async function GET(): Promise<Response> {
     );
   }
 }
+
+export const GET = defineRouteNoArgs("GET /api/health/realtime", GET_handler);

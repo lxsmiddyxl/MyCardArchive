@@ -23,7 +23,7 @@ const variantClasses: Record<ButtonVariant, string> = {
 };
 
 const baseClasses =
-  "inline-flex touch-manipulation select-none items-center justify-center gap-mca-sm rounded-mca-control px-mca-compact py-mca-sm text-sm font-semibold transition-[transform,box-shadow,background-color,border-color,color,opacity] duration-200 ease-mca-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-mca-surface active:scale-[0.98] disabled:pointer-events-none disabled:cursor-not-allowed";
+  "inline-flex min-h-[2.75rem] touch-manipulation select-none items-center justify-center gap-mca-sm rounded-mca-control px-mca-compact py-mca-sm text-sm font-semibold transition-[transform,box-shadow,background-color,border-color,color,opacity] duration-200 ease-mca-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-mca-surface active:scale-[0.98] disabled:pointer-events-none disabled:cursor-not-allowed";
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;

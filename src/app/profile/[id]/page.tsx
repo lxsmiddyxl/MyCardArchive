@@ -1,3 +1,5 @@
+import { CollectorRoomSurface } from "@/components/collector-rooms/collector-room-surface";
+import { CollectorRoomsPanel } from "@/components/collector-rooms/collector-rooms-panel";
 import { PublicProfileClient } from "@/components/social/public-profile-client";
 import { AuthenticatedPresenceShell } from "@/components/realtime/app-wide-presence";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
@@ -58,6 +60,8 @@ export default async function PublicProfilePage({ params }: PageProps) {
             ← My profile
           </Link>
         </header>
+        <CollectorRoomSurface roomType="profile_room" topicKey={profileId} />
+        <CollectorRoomsPanel contextRoomType="profile_room" contextTopicKey={profileId} className="mt-mca-md" />
         <PublicProfileClient initial={initial} viewerId={user.id} />
       </div>
     </AuthenticatedPresenceShell>

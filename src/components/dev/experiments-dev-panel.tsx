@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { Button } from "@/mca-ui/button";
 import { Panel } from "@/mca-ui/panel";
 import { useCallback, useState } from "react";
@@ -19,10 +20,11 @@ export function ExperimentsDevPanel() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/dev/experiments/snapshot", { cache: "no-store" });
-      const body = (await res.json().catch(() => ({}))) as Snapshot & { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Failed");
-      setData(body as Snapshot);
+      const r = await fetchJson<Snapshot & { error?: string }>("/api/dev/experiments/snapshot", {
+        cache: "no-store",
+      });
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      setData(r.data as Snapshot);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
       setData(null);

@@ -5,8 +5,8 @@ import { NextResponse } from "next/server";
 import {
   getBinderCount,
   getCardCount,
+  getEffectiveUserTier,
   getScanCountThisMonth,
-  getUserTier,
   isUnlimitedScans,
   remainingScansThisMonth,
 } from "@/lib/tier/check-limits";
@@ -22,7 +22,7 @@ async function GET_handler() {
   }
 
   const [tier, binderCount, cardCount, scanCount] = await Promise.all([
-    getUserTier(supabase),
+    getEffectiveUserTier(supabase),
     getBinderCount(supabase),
     getCardCount(supabase),
     getScanCountThisMonth(supabase),

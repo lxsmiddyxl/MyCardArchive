@@ -1,3 +1,6 @@
+import { PlatformActivityHeatmap } from "@/components/activity-waves/platform-activity-heatmap";
+import { CollectorRoomSurface } from "@/components/collector-rooms/collector-room-surface";
+import { CollectorRoomsPanel } from "@/components/collector-rooms/collector-rooms-panel";
 import { CollectorQuickSearch } from "@/components/search/collector-quick-search";
 import { GlobalFeedClient } from "@/components/feed/global-feed-client";
 import { RecommendedCollectorsStrip } from "@/components/social/recommended-collectors-strip";
@@ -10,6 +13,9 @@ import { redirect } from "next/navigation";
 export const metadata: Metadata = {
   title: "Feed",
 };
+
+/** Session-scoped shell; avoids accidental static caching of personalized markup. */
+export const dynamic = "force-dynamic";
 
 export default async function FeedPage() {
   const supabase = createClient();
@@ -37,9 +43,12 @@ export default async function FeedPage() {
           <div className="mt-mca-md max-w-xl">
             <CollectorQuickSearch />
           </div>
+          <CollectorRoomSurface roomType="live_feed_room" />
+          <CollectorRoomsPanel contextRoomType="live_feed_room" className="mt-mca-md" />
+          <PlatformActivityHeatmap className="mt-mca-md" />
         </header>
         <RecommendedCollectorsStrip limit={8} />
-        <GlobalFeedClient />
+        <GlobalFeedClient currentUserId={user.id} />
       </div>
     </AuthenticatedPresenceShell>
   );

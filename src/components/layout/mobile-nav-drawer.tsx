@@ -26,7 +26,7 @@ type MobileNavDrawerProps = {
 };
 
 const linkClass =
-  "mca-nav-focus-ring block rounded-mca-block px-mca-compact py-mca-tight text-sm font-medium outline-none transition-colors duration-200 ease-mca-standard focus-visible:ring-2 focus-visible:ring-mca-focus/50 focus-visible:ring-offset-2 focus-visible:ring-offset-mca-surface";
+  "mca-nav-focus-ring flex min-h-[44px] items-center rounded-mca-block px-mca-compact py-mca-sm text-sm font-medium outline-none transition-colors duration-200 ease-mca-standard focus-visible:ring-2 focus-visible:ring-mca-focus/50 focus-visible:ring-offset-2 focus-visible:ring-offset-mca-surface";
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -122,7 +122,7 @@ export function MobileNavDrawer({
             first.focus();
           }
         }}
-        className="absolute left-0 top-0 flex h-full w-[min(20rem,92vw)] flex-col border-r border-mca-border bg-mca-surface shadow-mca-card transition-transform duration-200 ease-mca-standard motion-reduce:transition-none"
+        className="mca-drawer-viewport-h absolute left-0 top-0 flex w-[min(20rem,92vw)] flex-col border-r border-mca-border bg-mca-surface pt-[env(safe-area-inset-top)] shadow-mca-card transition-transform duration-200 ease-mca-standard motion-reduce:transition-none"
       >
         <div className="flex min-h-14 shrink-0 items-center justify-between border-b border-mca-border px-mca-md py-mca-compact">
           <p className="text-sm font-semibold tracking-tight text-mca-ink-strong">Menu</p>
@@ -136,7 +136,10 @@ export function MobileNavDrawer({
           </button>
         </div>
 
-        <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-mca-md py-mca-md" aria-label="Mobile">
+        <nav
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-mca-md py-mca-md pb-[max(1rem,env(safe-area-inset-bottom))] touch-pan-y"
+          aria-label="Mobile"
+        >
           <ul className="space-y-mca-trace">
             {primaryLinks.map((item) => (
               <li key={item.href}>

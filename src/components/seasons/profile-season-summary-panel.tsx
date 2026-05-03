@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson } from "@/lib/client";
 import { getSeasonCatalogEntry } from "@/lib/seasons/season-catalog";
 import type { SocialProfilePayload } from "@/lib/social/types";
 import { formatUsdApproxFromCents } from "@/lib/value/value-identity-helpers";
@@ -118,7 +119,7 @@ export const ProfileSeasonSummaryPanel = memo(function ProfileSeasonSummaryPanel
             type="button"
             className="inline-flex items-center rounded-mca-control border border-mca-border/70 px-mca-sm py-mca-xs text-mca-caption text-mca-ink-muted transition duration-200 ease-mca-standard hover:bg-mca-chrome/25"
             onClick={() =>
-              void fetch("/api/seasons/summary/refresh", {
+              void fetchJson("/api/seasons/summary/refresh", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ year: block.year, season: block.seasonId }),

@@ -1,6 +1,10 @@
 "use client";
 
 import { CardImageUpload } from "@/components/cards/card-image-upload";
+import { requestBinderSurfacesRefresh } from "@/lib/binders/binder-surfaces-refresh";
+import type { AddCardPrefillPayload, CatalogCardHit, CatalogSetHit } from "@/lib/dto/catalog";
+import type { BinderAddMutationResponseDTO } from "@/lib/dto/scan-add";
+import { fetchJson, fetchJsonErrorMessage, fetchJsonUserFacingMessage } from "@/lib/client";
 import { Field } from "@/mca-ui/field";
 import { InlineError } from "@/mca-ui/inline-error";
 import { LoadingButton, LoadingSpinner } from "@/mca-ui/loading-button";
@@ -16,14 +20,7 @@ import { useEffect, useState } from "react";
 const POKEMON_SETS = pokemonData.sets as readonly { id: string; name: string }[];
 const CUSTOM_SET_VALUE = "__custom__";
 
-export type CardFormInitialValues = {
-  name?: string;
-  number?: string;
-  rarity?: string;
-  set_name?: string | null;
-  image_url?: string | null;
-  catalog_card_id?: string | null;
-};
+export type CardFormInitialValues = AddCardPrefillPayload;
 
 type CardFormProps = {
   binderId: string;
@@ -32,14 +29,8 @@ type CardFormProps = {
   cardLimitReached?: boolean;
 };
 
-type CatalogSearchHit = {
-  id: string;
-  name: string;
-  set: string;
-  number: string;
-  rarity: string | null;
-  image_url: string | null;
-};
+type CatalogSearchHit = CatalogCardHit;
+type CatalogSetScopeRow = CatalogSetHit;
 
 const RARITY_OPTIONS = [
   "Common",
@@ -67,9 +58,11 @@ const CatalogHitRow = memo(function CatalogHitRow({
   onPick: (h: CatalogSearchHit) => void;
 }) {
   return (
-    <li className="border-b border-mca-border/80 last:border-0" style={{ height: CATALOG_ROW_H }}>
+    <li role="presentation" className="border-b border-mca-border/80 last:border-0" style={{ height: CATALOG_ROW_H }}>
       <button
         type="button"
+        role="option"
+        aria-selected={false}
         onClick={() => onPick(hit)}
         className="flex h-full w-full gap-mca-compact px-mca-compact py-mca-tight text-left transition-all duration-200 ease-mca-standard hover:bg-mca-surface-elevated/80"
       >
@@ -123,6 +116,8 @@ function CatalogHitsVirtualList({
       <div className="relative" style={{ height: total }}>
         <ul
           className="absolute inset-x-0 top-0"
+          role="listbox"
+          aria-label="Catalog suggestions"
           style={{ transform: `translateY(${start * CATALOG_ROW_H}px)` }}
         >
           {slice.map((hit) => (
@@ -156,6 +151,8 @@ export function CardForm({
   const [catalogHits, setCatalogHits] = useState<CatalogSearchHit[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogErr, setCatalogErr] = useState<string | null>(null);
+  const [catalogSetsForScope, setCatalogSetsForScope] = useState<CatalogSetScopeRow[]>([]);
+  const [catalogSearchSetId, setCatalogSearchSetId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [setMode, setSetMode] = useState<"preset" | "custom">("custom");
@@ -167,6 +164,30 @@ export function CardForm({
     const t = window.setTimeout(() => setDebouncedQuery(nameQuery), 280);
     return () => window.clearTimeout(t);
   }, [nameQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const r = await fetchJson<{ sets: CatalogSetScopeRow[] }>("/api/catalog/sets?limit=120", {
+        cache: "no-store",
+      });
+      if (cancelled) return;
+      if (r.kind !== "ok") {
+        setCatalogSetsForScope([]);
+        return;
+      }
+      setCatalogSetsForScope(Array.isArray(r.data.sets) ? r.data.sets : []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (setMode !== "preset" || !presetId.trim()) return;
+    if (!catalogSetsForScope.some((row) => row.id === presetId.trim())) return;
+    setCatalogSearchSetId(presetId.trim());
+  }, [setMode, presetId, catalogSetsForScope]);
 
   useEffect(() => {
     if (!initialValues) return;
@@ -205,6 +226,7 @@ export function CardForm({
     if (q.length < 1) {
       setCatalogHits([]);
       setCatalogErr(null);
+      setCatalogLoading(false);
       return;
     }
 
@@ -214,23 +236,21 @@ export function CardForm({
 
     (async () => {
       try {
-        const res = await fetch(`/api/catalog/search?q=${encodeURIComponent(q)}&limit=36`);
-        const body = (await res.json().catch(() => ({}))) as {
-          results?: CatalogSearchHit[];
-          error?: string;
-        };
+        const sp = new URLSearchParams({ q, limit: "36" });
+        if (catalogSearchSetId.trim()) {
+          sp.set("set_id", catalogSearchSetId.trim());
+        }
+        const r = await fetchJson<{ results: CatalogSearchHit[] }>(
+          `/api/catalog/search?${sp.toString()}`,
+          { cache: "no-store" }
+        );
         if (cancelled) return;
-        if (!res.ok) {
+        if (r.kind !== "ok") {
           setCatalogHits([]);
-          setCatalogErr(typeof body.error === "string" ? body.error : "Search failed");
+          setCatalogErr(fetchJsonErrorMessage(r));
           return;
         }
-        setCatalogHits(Array.isArray(body.results) ? body.results : []);
-      } catch {
-        if (!cancelled) {
-          setCatalogErr("Network error");
-          setCatalogHits([]);
-        }
+        setCatalogHits(Array.isArray(r.data.results) ? r.data.results : []);
       } finally {
         if (!cancelled) setCatalogLoading(false);
       }
@@ -239,7 +259,7 @@ export function CardForm({
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery]);
+  }, [debouncedQuery, catalogSearchSetId]);
 
   const applyCatalogHit = useCallback((hit: CatalogSearchHit) => {
     setName(hit.name);
@@ -300,46 +320,32 @@ export function CardForm({
       body.catalog_card_id = catalogCardId.trim();
     }
 
-    const res = await fetch("/api/cards", {
+    const created = await fetchJson<BinderAddMutationResponseDTO>("/api/cards", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-
-    const payload = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      card?: { id: string };
-    };
-    if (!res.ok) {
+    if (created.kind !== "ok") {
       setLoading(false);
-      const msg =
-        typeof payload.error === "string" ? payload.error : "Could not create card.";
-      setError(msg);
+      setError(fetchJsonErrorMessage(created));
       return;
     }
 
-    const cardId = payload.card?.id;
+    const cardId = created.data.card?.id;
     if (cardId && (frontFile || backFile)) {
       const fd = new FormData();
       if (frontFile) fd.append("front", frontFile);
       if (backFile) fd.append("back", backFile);
-      const up = await fetch(`/api/cards/${encodeURIComponent(cardId)}/images`, {
-        method: "POST",
-        body: fd,
-      });
-      const upBody = (await up.json().catch(() => ({}))) as {
-        error?: string;
-        userMessage?: string;
-      };
-      if (!up.ok) {
+      const up = await fetchJson<{ partial?: boolean }>(
+        `/api/cards/${encodeURIComponent(cardId)}/images`,
+        { method: "POST", body: fd }
+      );
+      if (up.kind !== "ok") {
         setLoading(false);
-        const friendly =
-          typeof upBody.userMessage === "string"
-            ? upBody.userMessage
-            : typeof upBody.error === "string"
-              ? upBody.error
-              : "Image upload failed.";
-        setError(`${friendly} Your Pokémon card was saved; you can add photos later from card details.`);
+        setError(
+          `${fetchJsonUserFacingMessage(up)} Your Pokémon card was saved; you can add photos later from card details.`
+        );
+        requestBinderSurfacesRefresh(binderId);
         router.push(`/binders/${binderId}`);
         router.refresh();
         return;
@@ -347,12 +353,13 @@ export function CardForm({
     }
 
     setLoading(false);
+    requestBinderSurfacesRefresh(binderId);
     router.push(`/binders/${binderId}`);
     router.refresh();
   }
 
   const inputClass =
-    "mca-input mt-0 w-full rounded-mca-card border-mca-border-subtle bg-mca-surface-elevated text-sm text-white placeholder:text-mca-ink-subtle disabled:opacity-60";
+    "mca-input mt-0 w-full rounded-mca-card disabled:opacity-60";
 
   return (
     <Panel elevated className="max-w-lg border-mca-border bg-mca-surface-elevated/40 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
@@ -403,11 +410,43 @@ export function CardForm({
             </button>
           </p>
         ) : null}
+      </Field>
+
+      <Field
+        id="catalog-add-search-scope"
+        label="Catalog search scope"
+        hint="Optional — narrows catalog matches to one expansion. When your Pokémon TCG preset id matches the catalog (e.g. base1), this updates automatically."
+      >
+        <div className="flex flex-col gap-mca-sm sm:flex-row sm:items-stretch">
+          <select
+            id="catalog-add-search-scope"
+            value={catalogSearchSetId}
+            onChange={(e) => setCatalogSearchSetId(e.target.value)}
+            disabled={loading || cardLimitReached}
+            className={cn(inputClass)}
+          >
+            <option value="">All catalog sets</option>
+            {catalogSetsForScope.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name}
+              </option>
+            ))}
+          </select>
+          <Link
+            href="/catalog/cards/search"
+            className="inline-flex shrink-0 items-center justify-center rounded-mca-card border border-mca-field-border bg-mca-chrome/50 px-mca-base py-mca-tight text-center text-xs font-semibold text-mca-accent-strong/90 transition duration-200 ease-mca-standard hover:border-mca-accent-border/40 hover:text-mca-accent sm:w-auto"
+          >
+            Full catalog search
+          </Link>
+        </div>
+      </Field>
+
+      <div className="space-y-mca-sm" aria-live="polite" aria-busy={catalogLoading}>
         {catalogErr ? (
-          <InlineError className="mt-mca-sm text-xs">{catalogErr}</InlineError>
+          <InlineError className="text-xs">{catalogErr}</InlineError>
         ) : null}
         {catalogLoading ? (
-          <div className="mt-mca-sm flex min-h-[2rem] items-center gap-mca-sm text-xs text-mca-ink-subtle">
+          <div className="flex min-h-[2rem] items-center gap-mca-sm text-xs text-mca-ink-subtle">
             <LoadingSpinner className="size-4 text-mca-accent/90" />
             Searching catalog…
           </div>
@@ -416,7 +455,7 @@ export function CardForm({
         debouncedQuery.trim().length >= 1 &&
         catalogHits.length === 0 &&
         !catalogErr ? (
-          <p className="mt-mca-sm text-xs text-mca-ink-subtle">
+          <p className="text-xs text-mca-ink-subtle">
             No results for &quot;{debouncedQuery.trim()}&quot;.
           </p>
         ) : null}
@@ -424,14 +463,18 @@ export function CardForm({
           catalogHits.length > 10 ? (
             <CatalogHitsVirtualList hits={catalogHits} onPick={applyCatalogHit} />
           ) : (
-            <ul className="mt-mca-sm max-h-52 overflow-auto rounded-mca-card border border-mca-border bg-mca-surface/50">
+            <ul
+              className="max-h-52 overflow-auto rounded-mca-card border border-mca-border bg-mca-surface/50"
+              role="listbox"
+              aria-label="Catalog suggestions"
+            >
               {catalogHits.map((hit) => (
                 <CatalogHitRow key={hit.id} hit={hit} onPick={applyCatalogHit} />
               ))}
             </ul>
           )
         ) : null}
-      </Field>
+      </div>
 
       <div className="grid gap-mca-base sm:grid-cols-2">
         <Field id="card-number" label="Number">

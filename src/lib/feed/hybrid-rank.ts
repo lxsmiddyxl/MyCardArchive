@@ -47,7 +47,20 @@ export function heuristicScore(item: FeedItemForRank): number {
   const e = Math.min(1, (s.engagement ?? 0) / 6000);
   const sh = Math.min(1, (s.shared_sets ?? 0) / 800);
   const mk = Math.min(1, (s.marketplace_overlap ?? 0) / 1000);
-  return 0.22 * r + 0.28 * m + 0.18 * e + 0.16 * sh + 0.16 * mk;
+  /** Feed v3 / Social Feed v3 — SQL `get_global_feed_v3` optional signals (0 when absent). */
+  const ia = Math.min(1, (s.identity_alignment ?? 0) / 720);
+  const pp = Math.min(1, (s.presence_proximity ?? 0) / 7200);
+  const cf = Math.min(1, (s.cluster_fusion ?? 0) / 1760);
+  return (
+    0.18 * r +
+    0.24 * m +
+    0.15 * e +
+    0.14 * sh +
+    0.13 * mk +
+    0.08 * ia +
+    0.04 * pp +
+    0.04 * cf
+  );
 }
 
 /** Per-user personalization: mutuals, overlap, stable actor affinity. */
@@ -57,7 +70,9 @@ export function personalizedBoost(viewerId: string, item: FeedItemForRank): numb
   const affinity = hash01(`mca:feed:pr:${viewerId}:${item.actor_id}`) * 0.12;
   const overlap =
     s != null ? Math.min(0.28, ((s.shared_sets ?? 0) / 1200 + (s.marketplace_overlap ?? 0) / 1500) * 0.5) : 0;
-  return Math.min(1, mutual + affinity + overlap);
+  const cluster =
+    s != null ? Math.min(0.12, ((s.cluster_fusion ?? 0) / 1760 + (s.identity_alignment ?? 0) / 720) * 0.22) : 0;
+  return Math.min(1, mutual + affinity + overlap + cluster);
 }
 
 export type HybridRankOptions = {

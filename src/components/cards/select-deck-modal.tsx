@@ -89,7 +89,7 @@ export function SelectDeckModal({
         </div>
       ) : (
         <select
-          className="mt-mca-base w-full rounded-mca-control border border-mca-border bg-mca-surface-elevated/95 px-mca-base py-mca-tight text-sm text-mca-ink-strong transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-50 dark:border-mca-border-subtle"
+          className="mca-input mt-mca-base rounded-mca-control px-mca-base py-mca-tight text-sm disabled:opacity-50"
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
           disabled={loading}

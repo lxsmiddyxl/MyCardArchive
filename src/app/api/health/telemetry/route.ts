@@ -1,11 +1,12 @@
 import { mcaLog } from "@/lib/logging/mca-log-server";
+import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 const CTX = { componentName: "health", surfaceName: "telemetry" } as const;
 
-export async function GET(): Promise<Response> {
+async function GET_handler(): Promise<Response> {
   const timestamp = Date.now();
   const disabled = process.env.TELEMETRY_INGEST_DISABLED === "1";
 
@@ -60,3 +61,5 @@ export async function GET(): Promise<Response> {
     );
   }
 }
+
+export const GET = defineRouteNoArgs("GET /api/health/telemetry", GET_handler);

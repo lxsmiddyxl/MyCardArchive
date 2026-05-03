@@ -4,9 +4,25 @@ import { InlineUserBadges } from "@/components/badges/inline-user-badges";
 import { InlineUserFlair } from "@/components/flair/inline-user-flair";
 import { TrainerPresenceDot } from "@/components/presence/trainer-presence-dot";
 import { InlineSeasonalEvent } from "@/components/seasonal/inline-seasonal-event";
-import { Button } from "@/mca-ui/button";
-import { Field } from "@/mca-ui/field";
-import { Panel } from "@/mca-ui/panel";
+import {
+  COMMUNITY_SURFACES_REFRESH_EVENT,
+  requestCommunitySurfacesRefresh,
+} from "@/lib/community/community-surfaces-refresh";
+import { requestFeedSurfacesRefresh } from "@/lib/feed/feed-surfaces-refresh";
+import {
+  fetchJson,
+  fetchJsonErrorMessage,
+  scheduleCoalescedRouterRefresh,
+  useAsyncState,
+} from "@/lib/client";
+import type {
+  CommunityCommentDTO,
+  CommunityFeedPageDTO,
+  CommunityFeedPostDTO,
+  CommunityLikeMutationDTO,
+  CommunityReactionMutationDTO,
+} from "@/lib/dto/community-feed";
+import type { CommunityPostDTO as CommunityPostApiRowDTO } from "@/lib/dto/catalog";
 import {
   enqueueOfflineAction,
   finalizeOfflineAction,
@@ -15,125 +31,135 @@ import {
 } from "@/lib/mobile/offline-action-queue";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import { buildInlineIdentityProgressTitle } from "@/lib/social/inline-identity-tooltip";
-import type { SocialPresenceSnapshot } from "@/lib/social/types";
-import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/mca-ui/button";
+import { Field } from "@/mca-ui/field";
+import { Panel } from "@/mca-ui/panel";
+import { useRouter } from "next/navigation";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type FeedPost = {
-  id: string;
-  body: string;
-  created_at: string;
-  author_id: string;
-  author_display: string;
-  author_avatar_url: string | null;
-  author_tier_slug?: string | null;
-  author_top_scan_milestone?: string | null;
-  author_reputation_score?: number;
-  author_activity_streak?: number;
-  author_top_flair_key?: string | null;
-  author_top_seasonal_flair_key?: string | null;
-  author_top_seasonal_badge_key?: string | null;
-  author_seasonal_badge_keys?: string[];
-  author_top_journey_badge_key?: string | null;
-  author_journey_progress_summary?: string | null;
-  author_top_collection_mastery_badge_key?: string | null;
-  author_collection_mastery_summary?: string | null;
-  author_trade_reputation_score_summary?: string | null;
-  author_top_trade_badge_key?: string | null;
-  author_favorite_format_id?: string | null;
-  author_favorite_archetype_id?: string | null;
-  author_favorite_deck_name?: string | null;
-  author_top_play_badge_key?: string | null;
-  author_secondary_play_flair_key?: string | null;
-  author_value_identity_summary?: string | null;
-  author_rarity_profile_label?: string | null;
-  author_top_value_badge_key?: string | null;
-  author_grail_highlight_summary?: string | null;
-  author_top_fandom_badge_key?: string | null;
-  author_fandom_summary?: string | null;
-  author_persona_text?: string | null;
-  author_clubs_summary?: string | null;
-  author_reputation_summary?: string | null;
-  author_influence_summary?: string | null;
-  author_presence?: SocialPresenceSnapshot;
-  like_count: number;
-  comment_count: number;
-  liked_by_viewer: boolean;
-  reaction_counts?: Record<string, number>;
-  viewer_reactions?: string[];
+type FeedPost = CommunityFeedPostDTO;
+type CommentRow = CommunityCommentDTO;
+
+function dedupeAppendPosts(prev: FeedPost[], batch: FeedPost[]): FeedPost[] {
+  const seen = new Set(prev.map((p) => p.id));
+  const out = [...prev];
+  for (const p of batch) {
+    if (!seen.has(p.id)) {
+      seen.add(p.id);
+      out.push(p);
+    }
+  }
+  return out;
+}
+
+const PAGE_SIZE = 24;
+
+const REACTIONS = ["👍", "❤️", "🔥", "😂", "🎉", "🎴", "⚡", "✨"] as const;
+
+const EMPTY_POSTS: FeedPost[] = [];
+
+const REACTION_ARIA: Record<(typeof REACTIONS)[number], string> = {
+  "👍": "Thumbs up",
+  "❤️": "Heart",
+  "🔥": "Fire",
+  "😂": "Laughing",
+  "🎉": "Celebrate",
+  "🎴": "Card nod",
+  "⚡": "Energy spark",
+  "✨": "Highlight sparkle",
 };
-
-type CommentRow = {
-  id: string;
-  body: string;
-  created_at: string;
-  author_id: string;
-  author_display: string;
-  author_avatar_url: string | null;
-  author_tier_slug?: string | null;
-  author_top_scan_milestone?: string | null;
-  author_reputation_score?: number;
-  author_activity_streak?: number;
-  author_top_flair_key?: string | null;
-  author_top_seasonal_flair_key?: string | null;
-  author_top_seasonal_badge_key?: string | null;
-  author_seasonal_badge_keys?: string[];
-  author_top_journey_badge_key?: string | null;
-  author_journey_progress_summary?: string | null;
-  author_top_collection_mastery_badge_key?: string | null;
-  author_collection_mastery_summary?: string | null;
-  author_trade_reputation_score_summary?: string | null;
-  author_top_trade_badge_key?: string | null;
-  author_favorite_format_id?: string | null;
-  author_favorite_archetype_id?: string | null;
-  author_favorite_deck_name?: string | null;
-  author_top_play_badge_key?: string | null;
-  author_secondary_play_flair_key?: string | null;
-  author_value_identity_summary?: string | null;
-  author_rarity_profile_label?: string | null;
-  author_top_value_badge_key?: string | null;
-  author_grail_highlight_summary?: string | null;
-  author_top_fandom_badge_key?: string | null;
-  author_fandom_summary?: string | null;
-  author_persona_text?: string | null;
-  author_clubs_summary?: string | null;
-  author_reputation_summary?: string | null;
-  author_influence_summary?: string | null;
-  author_presence?: SocialPresenceSnapshot;
-  parent_comment_id?: string | null;
-  hidden?: boolean;
-};
-
-const REACTIONS = ["👍", "❤️", "🔥", "😂", "🎉"] as const;
 
 export function CommunityFeedClient({ currentUserId }: { currentUserId: string }) {
-  const [posts, setPosts] = useState<FeedPost[]>([]);
+  const router = useRouter();
+  const {
+    data: postsData,
+    loading: postsLoading,
+    error: postsError,
+    setData: setPostsData,
+    setLoading: setPostsLoading,
+    setError: setPostsError,
+  } = useAsyncState<FeedPost[]>();
+  const posts = postsData ?? EMPTY_POSTS;
+  const loading = postsLoading || (postsData === null && !postsError);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const surfaceError = postsError ?? actionError;
   const [composer, setComposer] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionPostId, setActionPostId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, CommentRow[] | "loading" | undefined>>({});
+  const [nextOffset, setNextOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/community/posts", { cache: "no-store" });
-      const body = (await res.json().catch(() => ({}))) as {
-        posts?: FeedPost[];
-        error?: string;
-      };
-      if (!res.ok) throw new Error(body.error ?? "Failed to load feed");
-      setPosts(Array.isArray(body.posts) ? body.posts : []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+
+  const postsRef = useRef<FeedPost[]>([]);
+  const loadSeqRef = useRef(0);
+  const likeSeqRef = useRef<Record<string, number>>({});
+  const debounceReloadRef = useRef<number | null>(null);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    postsRef.current = posts;
+  }, [posts]);
+
+  const fetchPage = useCallback(
+    async (offset: number, append: boolean) => {
+      const seq = ++loadSeqRef.current;
+      const r = await fetchJson<CommunityFeedPageDTO & { success?: boolean }>(
+        `/api/community/posts?limit=${PAGE_SIZE}&offset=${offset}`,
+        { cache: "no-store" }
+      );
+      if (seq !== loadSeqRef.current) return;
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      const next = Array.isArray(r.data.posts) ? r.data.posts : [];
+      if (append) {
+        setPostsData((prev) => dedupeAppendPosts(prev ?? [], next));
+      } else {
+        setPostsData(next);
+      }
+      setNextOffset(offset + next.length);
+      setHasMore(next.length === PAGE_SIZE);
+    },
+    [setPostsData]
+  );
+
+  const reloadFeed = useCallback(async () => {
+    setPostsLoading(true);
+    setPostsError(null);
+    try {
+      await fetchPage(0, false);
+    } catch (e) {
+      setPostsError(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setPostsLoading(false);
+    }
+  }, [fetchPage, setPostsError, setPostsLoading]);
+
+  const scheduleDebouncedReload = useCallback(() => {
+    if (debounceReloadRef.current) clearTimeout(debounceReloadRef.current);
+    debounceReloadRef.current = window.setTimeout(() => {
+      debounceReloadRef.current = null;
+      void reloadFeed();
+    }, 180);
+  }, [reloadFeed]);
+
+  useEffect(() => {
+    void reloadFeed();
+  }, [reloadFeed]);
+
+  useEffect(() => {
+    const onRefresh = () => scheduleDebouncedReload();
+    window.addEventListener(COMMUNITY_SURFACES_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(COMMUNITY_SURFACES_REFRESH_EVENT, onRefresh);
+  }, [scheduleDebouncedReload]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceReloadRef.current !== null) {
+        window.clearTimeout(debounceReloadRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const flush = async () => {
@@ -141,21 +167,23 @@ export function CommunityFeedClient({ currentUserId }: { currentUserId: string }
       for (const p of pending) {
         if (p.kind !== "community_post_draft") continue;
         try {
-          const res = await fetch("/api/community/posts", {
+          const r = await fetchJson("/api/community/posts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ body: p.body }),
           });
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          if (res.ok) {
+          if (r.kind === "ok") {
             finalizeOfflineAction(p.id, "synced");
             mcaLog.event(
               "mobile.offline.queue",
               { kind: "community_post_draft", op: "flush_ok", id: p.id },
               { componentName: "CommunityFeedClient", surfaceName: "mobile" }
             );
-            await load();
-          } else if (body.error) {
+            await reloadFeed();
+            requestCommunitySurfacesRefresh();
+            requestFeedSurfacesRefresh();
+            scheduleCoalescedRouterRefresh(router);
+          } else {
             break;
           }
         } catch {
@@ -167,86 +195,110 @@ export function CommunityFeedClient({ currentUserId }: { currentUserId: string }
     const onOnline = () => void flush();
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-  }, [load]);
+  }, [reloadFeed, router]);
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore) return;
+    setLoadingMore(true);
+    setActionError(null);
+    try {
+      await fetchPage(nextOffset, true);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Could not load more");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [fetchPage, hasMore, loadingMore, nextOffset]);
 
   const onPost = useCallback(async () => {
     const text = composer.trim();
     if (!text) return;
-    setBusy(true);
-    setError(null);
+    setActionPostId("_composer");
+    setActionError(null);
     try {
-      const res = await fetch("/api/community/posts", {
+      const r = await fetchJson<{ post?: CommunityPostApiRowDTO }>("/api/community/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: text }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Could not post");
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
       setComposer("");
-      await load();
+      await reloadFeed();
+      requestCommunitySurfacesRefresh();
+      requestFeedSurfacesRefresh();
+      scheduleCoalescedRouterRefresh(router);
     } catch (e) {
       if (isLikelyOfflineError(e)) {
         enqueueOfflineAction({ kind: "community_post_draft", body: text });
-        setError("Offline — post queued to send when you are back online.");
+        setActionError("Offline — post queued to send when you are back online.");
         mcaLog.event(
           "mobile.offline.queue",
           { kind: "community_post_draft", op: "enqueue" },
           { componentName: "CommunityFeedClient", surfaceName: "mobile" }
         );
       } else {
-        setError(e instanceof Error ? e.message : "Could not post");
+        setActionError(e instanceof Error ? e.message : "Could not post");
       }
     } finally {
-      setBusy(false);
+      setActionPostId(null);
     }
-  }, [composer, load]);
+  }, [composer, reloadFeed, router]);
 
   const onToggleLike = useCallback(
     async (postId: string) => {
-      setBusy(true);
-      setError(null);
+      setActionError(null);
+      const prevPost = postsRef.current.find((p) => p.id === postId);
+      if (!prevPost) return;
+      const seq = (likeSeqRef.current[postId] = (likeSeqRef.current[postId] ?? 0) + 1);
+      setActionPostId(postId);
+      setPostsData((prev) =>
+        (prev ?? []).map((p) => {
+          if (p.id !== postId) return p;
+          const liked = !p.liked_by_viewer;
+          const delta = liked ? 1 : -1;
+          return {
+            ...p,
+            liked_by_viewer: liked,
+            like_count: Math.max(0, p.like_count + delta),
+          };
+        })
+      );
       try {
-        const res = await fetch(`/api/community/posts/${encodeURIComponent(postId)}/like`, {
-          method: "POST",
-        });
-        const body = (await res.json().catch(() => ({}))) as {
-          liked?: boolean;
-          error?: string;
-        };
-        if (!res.ok) throw new Error(body.error ?? "Could not update like");
-        setPosts((prev) =>
-          prev.map((p) => {
-            if (p.id !== postId) return p;
-            const liked = Boolean(body.liked);
-            const delta = liked ? 1 : -1;
-            return {
-              ...p,
-              liked_by_viewer: liked,
-              like_count: Math.max(0, p.like_count + delta),
-            };
-          })
+        const r = await fetchJson<CommunityLikeMutationDTO & { success?: boolean }>(
+          `/api/community/posts/${encodeURIComponent(postId)}/like`,
+          { method: "POST" }
         );
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        if (likeSeqRef.current[postId] !== seq) return;
+        const liked = Boolean(r.data.liked);
+        setPostsData((prev) =>
+          (prev ?? []).map((p) => (p.id === postId ? { ...p, liked_by_viewer: liked } : p))
+        );
+        requestCommunitySurfacesRefresh();
+        scheduleCoalescedRouterRefresh(router);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not update like");
+        if (likeSeqRef.current[postId] === seq && prevPost) {
+          setPostsData((prev) =>
+            (prev ?? []).map((p) => (p.id === postId ? { ...prevPost } : p))
+          );
+        }
+        setActionError(e instanceof Error ? e.message : "Could not update like");
       } finally {
-        setBusy(false);
+        setActionPostId(null);
       }
     },
-    []
+    [router, setPostsData]
   );
 
   const loadComments = useCallback(async (postId: string) => {
     setExpanded((e) => ({ ...e, [postId]: "loading" }));
     try {
-      const res = await fetch(`/api/community/posts/${encodeURIComponent(postId)}/comments`, {
-        cache: "no-store",
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        comments?: CommentRow[];
-        error?: string;
-      };
-      if (!res.ok) throw new Error(body.error ?? "Could not load comments");
-      setExpanded((e) => ({ ...e, [postId]: body.comments ?? [] }));
+      const r = await fetchJson<{ comments: CommentRow[] }>(
+        `/api/community/posts/${encodeURIComponent(postId)}/comments`,
+        { cache: "no-store" }
+      );
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      setExpanded((e) => ({ ...e, [postId]: r.data.comments ?? [] }));
     } catch {
       setExpanded((e) => ({ ...e, [postId]: [] }));
     }
@@ -254,10 +306,10 @@ export function CommunityFeedClient({ currentUserId }: { currentUserId: string }
 
   const onComment = useCallback(
     async (postId: string, text: string, parentCommentId?: string | null) => {
-      setBusy(true);
-      setError(null);
+      setActionPostId(postId);
+      setActionError(null);
       try {
-        const res = await fetch(`/api/community/posts/${encodeURIComponent(postId)}/comments`, {
+        const r = await fetchJson(`/api/community/posts/${encodeURIComponent(postId)}/comments`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -265,48 +317,73 @@ export function CommunityFeedClient({ currentUserId }: { currentUserId: string }
             parent_comment_id: parentCommentId ?? null,
           }),
         });
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Could not comment");
-        setPosts((prev) =>
-          prev.map((p) =>
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        setPostsData((prev) =>
+          (prev ?? []).map((p) =>
             p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p
           )
         );
         await loadComments(postId);
+        requestCommunitySurfacesRefresh();
+        scheduleCoalescedRouterRefresh(router);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not comment");
+        setActionError(e instanceof Error ? e.message : "Could not comment");
       } finally {
-        setBusy(false);
+        setActionPostId(null);
       }
     },
-    [loadComments]
+    [loadComments, router, setPostsData]
   );
 
-  const onToggleReaction = useCallback(async (postId: string, reaction: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/community/posts/${encodeURIComponent(postId)}/reactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reaction }),
-      });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Could not react");
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not react");
-    } finally {
-      setBusy(false);
-    }
-  }, [load]);
+  const onToggleReaction = useCallback(
+    async (postId: string, reaction: string) => {
+      setActionPostId(postId);
+      setActionError(null);
+      try {
+        const r = await fetchJson<CommunityReactionMutationDTO & { success?: boolean }>(
+          `/api/community/posts/${encodeURIComponent(postId)}/reactions`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reaction }),
+          }
+        );
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        const active = Boolean(r.data.active);
+        setPostsData((prev) =>
+          (prev ?? []).map((p) => {
+            if (p.id !== postId) return p;
+            const counts = { ...(p.reaction_counts ?? {}) };
+            const cur = counts[reaction] ?? 0;
+            if (active) counts[reaction] = cur + 1;
+            else counts[reaction] = Math.max(0, cur - 1);
+            const mine = new Set(p.viewer_reactions ?? []);
+            if (active) mine.add(reaction);
+            else mine.delete(reaction);
+            return {
+              ...p,
+              reaction_counts: counts,
+              viewer_reactions: [...mine],
+            };
+          })
+        );
+        requestCommunitySurfacesRefresh();
+        scheduleCoalescedRouterRefresh(router);
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : "Could not react");
+      } finally {
+        setActionPostId(null);
+      }
+    },
+    [router, setPostsData]
+  );
 
   const onHideComment = useCallback(
     async (postId: string, commentId: string, hidden: boolean) => {
-      setBusy(true);
-      setError(null);
+      setActionPostId(postId);
+      setActionError(null);
       try {
-        const res = await fetch(
+        const r = await fetchJson(
           `/api/community/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}/hide`,
           {
             method: "POST",
@@ -314,86 +391,244 @@ export function CommunityFeedClient({ currentUserId }: { currentUserId: string }
             body: JSON.stringify({ hidden }),
           }
         );
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Could not update comment");
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
         await loadComments(postId);
+        requestCommunitySurfacesRefresh();
+        scheduleCoalescedRouterRefresh(router);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not update comment");
+        setActionError(e instanceof Error ? e.message : "Could not update comment");
       } finally {
-        setBusy(false);
+        setActionPostId(null);
       }
+    },
+    [loadComments, router]
+  );
+
+  const onDeleteComment = useCallback(
+    async (postId: string, commentId: string) => {
+      setActionPostId(postId);
+      setActionError(null);
+      const prevExpanded = expanded[postId];
+      if (Array.isArray(prevExpanded)) {
+        setExpanded((e) => ({
+          ...e,
+          [postId]: prevExpanded.filter((c) => c.id !== commentId),
+        }));
+      }
+      setPostsData((prev) =>
+        (prev ?? []).map((p) =>
+          p.id === postId ? { ...p, comment_count: Math.max(0, p.comment_count - 1) } : p
+        )
+      );
+      try {
+        const r = await fetchJson(
+          `/api/community/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`,
+          { method: "DELETE" }
+        );
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        await loadComments(postId);
+        requestCommunitySurfacesRefresh();
+        scheduleCoalescedRouterRefresh(router);
+      } catch (e) {
+        if (Array.isArray(prevExpanded)) {
+          setExpanded((ex) => ({ ...ex, [postId]: prevExpanded }));
+        }
+        setPostsData((prev) =>
+          (prev ?? []).map((p) =>
+            p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p
+          )
+        );
+        setActionError(e instanceof Error ? e.message : "Could not delete comment");
+      } finally {
+        setActionPostId(null);
+      }
+    },
+    [expanded, loadComments, router, setPostsData]
+  );
+
+  const onDeletePost = useCallback(
+    async (postId: string) => {
+      if (!window.confirm("Delete this post? This cannot be undone.")) return;
+      setActionPostId(postId);
+      setActionError(null);
+      try {
+        const r = await fetchJson(`/api/community/posts/${encodeURIComponent(postId)}`, {
+          method: "DELETE",
+        });
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        setExpanded((e) => {
+          const next = { ...e };
+          delete next[postId];
+          return next;
+        });
+        setPostsData((prev) => (prev ?? []).filter((p) => p.id !== postId));
+        setEditingPostId((id) => (id === postId ? null : id));
+        await reloadFeed();
+        requestCommunitySurfacesRefresh();
+        scheduleCoalescedRouterRefresh(router);
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : "Could not delete post");
+      } finally {
+        setActionPostId(null);
+      }
+    },
+    [reloadFeed, router, setPostsData]
+  );
+
+  const toggleCommentsPanel = useCallback(
+    (postId: string) => {
+      setExpanded((e) => {
+        const cur = e[postId];
+        if (cur && cur !== "loading") {
+          const next = { ...e };
+          delete next[postId];
+          return next;
+        }
+        void loadComments(postId);
+        return e;
+      });
     },
     [loadComments]
   );
 
-  if (loading) {
-    return <p className="text-mca-body text-mca-ink-muted">Loading community…</p>;
-  }
+  const beginEditPost = useCallback((postId: string) => {
+    const row = postsRef.current.find((x) => x.id === postId);
+    setEditingPostId(postId);
+    setEditDraft(row?.body ?? "");
+  }, []);
+
+  const cancelEditPost = useCallback(() => {
+    setEditingPostId(null);
+    setEditDraft("");
+  }, []);
+
+  const onSaveEdit = useCallback(
+    async (postId: string) => {
+      const text = editDraft.trim();
+      if (!text) return;
+      setActionPostId(postId);
+      setActionError(null);
+      try {
+        const r = await fetchJson<{ post?: CommunityPostApiRowDTO }>(
+          `/api/community/posts/${encodeURIComponent(postId)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ body: text }),
+          }
+        );
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        setPostsData((prev) =>
+          (prev ?? []).map((p) => (p.id === postId ? { ...p, body: text } : p))
+        );
+        cancelEditPost();
+        requestCommunitySurfacesRefresh();
+        scheduleCoalescedRouterRefresh(router);
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : "Could not save edit");
+      } finally {
+        setActionPostId(null);
+      }
+    },
+    [cancelEditPost, editDraft, router, setPostsData]
+  );
+
+  const busyComposer = actionPostId === "_composer";
+  const sectionBusy = loading || actionPostId !== null || loadingMore;
 
   return (
-    <div className="touch-manipulation space-y-mca-xl">
-      {error ? (
-        <p className="text-mca-caption text-mca-error-accent" role="alert">
-          {error}
+    <section
+      aria-label="Community feed"
+      aria-live="polite"
+      aria-busy={sectionBusy}
+      className="touch-manipulation min-w-0 overflow-x-hidden space-y-mca-xl"
+    >
+      {loading ? (
+        <p className="text-mca-body text-mca-ink-muted" role="status">
+          Loading community…
         </p>
       ) : null}
 
-      <Panel className="border-mca-border bg-mca-surface/40 p-mca-md">
-        <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
-          New post
+      {surfaceError ? (
+        <p className="text-mca-caption text-mca-error-accent" role="alert">
+          {surfaceError}
         </p>
-        <p className="mt-mca-xs text-mca-caption text-mca-hint">
-          Lightweight discussion — not trade execution. Keep it kind and Pokémon-focused.
-        </p>
-        <Field id="community-composer" label="Message" className="mt-mca-md">
-          <textarea
-            id="community-composer"
-            value={composer}
-            onChange={(e) => setComposer(e.target.value)}
-            rows={4}
-            maxLength={8000}
-            placeholder="Share a deck idea, a set pull, or a binder tip…"
-            className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm text-sm text-mca-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
-          />
-        </Field>
-        <div className="mt-mca-md flex justify-end">
-          <Button type="button" disabled={busy || !composer.trim()} onClick={() => void onPost()}>
-            Post
-          </Button>
-        </div>
-      </Panel>
+      ) : null}
 
-      <div className="space-y-mca-md">
-        {posts.length === 0 ? (
-          <p className="text-mca-caption text-mca-ink-subtle">No posts yet — be the first.</p>
-        ) : (
-          posts.map((p) => (
-            <PostCard
-              key={p.id}
-              post={p}
-              currentUserId={currentUserId}
-              busy={busy}
-              commentsState={expanded[p.id]}
-              onToggleReaction={(reaction) => void onToggleReaction(p.id, reaction)}
-              onToggleLike={() => void onToggleLike(p.id)}
-              onToggleComments={() => {
-                if (expanded[p.id] && expanded[p.id] !== "loading") {
-                  setExpanded((e) => {
-                    const next = { ...e };
-                    delete next[p.id];
-                    return next;
-                  });
-                } else {
-                  void loadComments(p.id);
-                }
-              }}
-              onSubmitComment={(text, parentId) => void onComment(p.id, text, parentId)}
-              onHideComment={(commentId, hidden) => void onHideComment(p.id, commentId, hidden)}
+      {!loading ? (
+        <Panel className="border-mca-border bg-mca-surface/40 p-mca-md">
+          <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
+            New post
+          </p>
+          <p className="mt-mca-xs text-mca-caption text-mca-hint">
+            Lightweight discussion — not trade execution. Keep it kind and Pokémon-focused.
+          </p>
+          <Field id="community-composer" label="Message" className="mt-mca-md">
+            <textarea
+              id="community-composer"
+              value={composer}
+              onChange={(e) => setComposer(e.target.value)}
+              rows={4}
+              maxLength={8000}
+              placeholder="Share a deck idea, a set pull, or a binder tip…"
+              className="mca-input mt-mca-sm resize-y text-sm text-mca-body"
             />
-          ))
-        )}
-      </div>
-    </div>
+          </Field>
+          <div className="mt-mca-md flex justify-end">
+            <Button
+              type="button"
+              disabled={busyComposer || !composer.trim()}
+              onClick={() => void onPost()}
+            >
+              Post
+            </Button>
+          </div>
+        </Panel>
+      ) : null}
+
+      {!loading ? (
+        <div className="space-y-mca-md">
+          {posts.length === 0 ? (
+            <p className="text-mca-caption text-mca-ink-subtle">No posts yet — be the first.</p>
+          ) : (
+            posts.map((p) => (
+              <PostCard
+                key={p.id}
+                post={p}
+                currentUserId={currentUserId}
+                isBusy={actionPostId === p.id}
+                commentsState={expanded[p.id]}
+                isEditing={editingPostId === p.id}
+                editDraft={editingPostId === p.id ? editDraft : ""}
+                onEditDraftChange={setEditDraft}
+                onToggleReaction={onToggleReaction}
+                onToggleLike={onToggleLike}
+                onToggleComments={toggleCommentsPanel}
+                onSubmitComment={onComment}
+                onHideComment={onHideComment}
+                onDeleteComment={onDeleteComment}
+                onDeletePost={onDeletePost}
+                onStartEdit={beginEditPost}
+                onCancelEdit={cancelEditPost}
+                onSaveEdit={onSaveEdit}
+              />
+            ))
+          )}
+          {hasMore ? (
+            <div className="flex justify-center pt-mca-sm">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={loadingMore || actionPostId !== null}
+                onClick={() => void loadMore()}
+              >
+                {loadingMore ? "Loading…" : "Load more"}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -404,6 +639,7 @@ function CommentThread({
   busy,
   setReplyTo,
   onHideComment,
+  onDeleteComment,
 }: {
   comments: CommentRow[];
   postAuthorId: string;
@@ -411,19 +647,27 @@ function CommentThread({
   busy: boolean;
   setReplyTo: (id: string | null) => void;
   onHideComment: (commentId: string, hidden: boolean) => void;
+  onDeleteComment: (commentId: string) => void;
 }) {
-  const roots = comments.filter((c) => !c.parent_comment_id);
-  const children: Record<string, CommentRow[]> = {};
-  for (const c of comments) {
-    const pid = c.parent_comment_id;
-    if (pid) {
-      if (!children[pid]) children[pid] = [];
-      children[pid].push(c);
+  const roots = useMemo(
+    () => comments.filter((c) => !c.parent_comment_id),
+    [comments]
+  );
+  const children: Record<string, CommentRow[]> = useMemo(() => {
+    const ch: Record<string, CommentRow[]> = {};
+    for (const c of comments) {
+      const pid = c.parent_comment_id;
+      if (pid) {
+        if (!ch[pid]) ch[pid] = [];
+        ch[pid].push(c);
+      }
     }
-  }
+    return ch;
+  }, [comments]);
 
   const renderOne = (c: CommentRow, depth: number) => {
     const isPostOwner = postAuthorId === currentUserId;
+    const isOwnComment = c.author_id === currentUserId;
     const hiddenLabel = c.hidden === true ? " (hidden)" : "";
     return (
       <div
@@ -448,6 +692,10 @@ function CommentThread({
                 clubsSummary: c.author_clubs_summary,
                 reputationSummary: c.author_reputation_summary,
                 influenceSummary: c.author_influence_summary,
+                badgeHighlight: c.author_badge_highlight,
+                presenceLabel: c.author_presence_label,
+                personaV2Summary: c.author_persona_v2_summary,
+                identityMapSummary: c.author_identity_summary,
               }
             )}
           >
@@ -478,7 +726,7 @@ function CommentThread({
                 lastActivityAt={c.author_presence.lastActivityAt}
                 lastActivityKey={c.author_presence.lastActivityKey}
                 presenceOptOut={c.author_presence.optedOut}
-                className="mt-0.5"
+                className="mt-mca-trace"
               />
             ) : null}
             <span>
@@ -490,17 +738,28 @@ function CommentThread({
             <Button
               type="button"
               variant="tertiary"
-              className="text-xs"
+              className="text-mca-caption"
               disabled={busy}
               onClick={() => setReplyTo(c.id)}
             >
               Reply
             </Button>
+            {isOwnComment ? (
+              <Button
+                type="button"
+                variant="tertiary"
+                className="text-mca-caption text-mca-error-accent"
+                disabled={busy}
+                onClick={() => onDeleteComment(c.id)}
+              >
+                Delete
+              </Button>
+            ) : null}
             {isPostOwner ? (
               <Button
                 type="button"
                 variant="tertiary"
-                className="text-xs text-mca-error-accent"
+                className="text-mca-caption text-mca-error-accent"
                 disabled={busy}
                 onClick={() => onHideComment(c.id, c.hidden !== true)}
               >
@@ -509,6 +768,20 @@ function CommentThread({
             ) : null}
           </div>
         </div>
+        {c.author_presence_label?.trim() ? (
+          <p className="mt-mca-micro text-mca-caption leading-snug text-mca-ink-subtle">{c.author_presence_label.trim()}</p>
+        ) : null}
+        {c.author_identity_headline?.trim() ? (
+          <p className="mt-mca-micro text-mca-caption font-medium leading-snug text-mca-ink-strong">
+            {c.author_identity_headline.trim()}
+          </p>
+        ) : null}
+        {c.author_identity_summary?.trim() ? (
+          <p className="mt-mca-micro text-mca-caption leading-snug text-mca-ink-body">{c.author_identity_summary.trim()}</p>
+        ) : null}
+        {c.author_persona_v2_summary?.trim() ? (
+          <p className="mt-mca-micro text-mca-caption leading-snug text-mca-ink-body">{c.author_persona_v2_summary.trim()}</p>
+        ) : null}
         <p className="mt-mca-trace whitespace-pre-wrap text-mca-caption text-mca-ink-body">{c.body}</p>
         {(children[c.id] ?? []).map((ch) => renderOne(ch, depth + 1))}
       </div>
@@ -516,42 +789,58 @@ function CommentThread({
   };
 
   return (
-    <>
+    <div aria-live="polite" aria-relevant="additions text">
       {roots.length === 0 ? (
         <p className="text-mca-caption text-mca-ink-subtle">No comments yet.</p>
       ) : (
         roots.map((c) => renderOne(c, 0))
       )}
-    </>
+    </div>
   );
 }
 
-function PostCard({
+const PostCard = memo(function PostCard({
   post,
   currentUserId,
-  busy,
+  isBusy,
   commentsState,
+  isEditing,
+  editDraft,
+  onEditDraftChange,
   onToggleReaction,
   onToggleLike,
   onToggleComments,
   onSubmitComment,
   onHideComment,
+  onDeleteComment,
+  onDeletePost,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
 }: {
   post: FeedPost;
   currentUserId: string;
-  busy: boolean;
+  isBusy: boolean;
   commentsState: CommentRow[] | "loading" | undefined;
-  onToggleReaction: (reaction: string) => void;
-  onToggleLike: () => void;
-  onToggleComments: () => void;
-  onSubmitComment: (text: string, parentCommentId?: string | null) => void;
-  onHideComment: (commentId: string, hidden: boolean) => void;
+  isEditing: boolean;
+  editDraft: string;
+  onEditDraftChange: (v: string) => void;
+  onToggleReaction: (postId: string, reaction: string) => void | Promise<void>;
+  onToggleLike: (postId: string) => void | Promise<void>;
+  onToggleComments: (postId: string) => void;
+  onSubmitComment: (postId: string, text: string, parentCommentId?: string | null) => void | Promise<void>;
+  onHideComment: (postId: string, commentId: string, hidden: boolean) => void | Promise<void>;
+  onDeleteComment: (postId: string, commentId: string) => void | Promise<void>;
+  onDeletePost: (postId: string) => void | Promise<void>;
+  onStartEdit: (postId: string) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: (postId: string) => void | Promise<void>;
 }) {
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const isOwn = post.author_id === currentUserId;
   const counts = post.reaction_counts ?? {};
-  const mine = new Set(post.viewer_reactions ?? []);
+  const mine = useMemo(() => new Set(post.viewer_reactions ?? []), [post.viewer_reactions]);
 
   return (
     <Panel className="border-mca-border bg-mca-surface-elevated/50 p-mca-md">
@@ -573,6 +862,10 @@ function PostCard({
               clubsSummary: post.author_clubs_summary,
               reputationSummary: post.author_reputation_summary,
               influenceSummary: post.author_influence_summary,
+              badgeHighlight: post.author_badge_highlight,
+              presenceLabel: post.author_presence_label,
+              personaV2Summary: post.author_persona_v2_summary,
+              identityMapSummary: post.author_identity_summary,
             }
           )}
         >
@@ -603,7 +896,7 @@ function PostCard({
               lastActivityAt={post.author_presence.lastActivityAt}
               lastActivityKey={post.author_presence.lastActivityKey}
               presenceOptOut={post.author_presence.optedOut}
-              className="mt-0.5"
+              className="mt-mca-trace"
             />
           ) : null}
           <span className="truncate">{post.author_display}</span>
@@ -612,7 +905,39 @@ function PostCard({
           {new Date(post.created_at).toLocaleString()}
         </time>
       </div>
-      <p className="mt-mca-sm whitespace-pre-wrap text-mca-body text-mca-ink-body">{post.body}</p>
+      {post.author_identity_headline?.trim() ? (
+        <p className="mt-mca-xs text-mca-caption font-medium leading-snug text-mca-ink-strong">
+          {post.author_identity_headline.trim()}
+        </p>
+      ) : null}
+      {post.author_identity_summary?.trim() ? (
+        <p className="mt-mca-xs text-mca-caption leading-snug text-mca-ink-body">{post.author_identity_summary.trim()}</p>
+      ) : null}
+      {post.author_persona_v2_summary?.trim() ? (
+        <p className="mt-mca-xs text-mca-caption leading-snug text-mca-ink-body">{post.author_persona_v2_summary.trim()}</p>
+      ) : null}
+      {post.author_badge_highlight?.trim() ? (
+        <p className="mt-mca-xs text-mca-caption leading-snug text-mca-warn/95">{post.author_badge_highlight.trim()}</p>
+      ) : null}
+      {post.author_presence_label?.trim() ? (
+        <p className="mt-mca-micro text-mca-caption leading-snug text-mca-ink-subtle">{post.author_presence_label.trim()}</p>
+      ) : null}
+
+      {isEditing ? (
+        <Field id={`community-edit-${post.id}`} label="Edit post" className="mt-mca-sm">
+          <textarea
+            id={`community-edit-${post.id}`}
+            value={editDraft}
+            onChange={(e) => onEditDraftChange(e.target.value)}
+            rows={4}
+            maxLength={8000}
+            className="mca-input mt-mca-sm resize-y text-sm text-mca-body"
+          />
+        </Field>
+      ) : (
+        <p className="mt-mca-sm whitespace-pre-wrap text-mca-body text-mca-ink-body">{post.body}</p>
+      )}
+
       <div className="mt-mca-md flex flex-wrap gap-mca-xs">
         {REACTIONS.map((em) => {
           const n = counts[em] ?? 0;
@@ -621,8 +946,10 @@ function PostCard({
             <button
               key={em}
               type="button"
-              disabled={busy}
-              onClick={() => onToggleReaction(em)}
+              disabled={isBusy}
+              aria-label={`${REACTION_ARIA[em]} reaction${active ? ", selected" : ""}`}
+              aria-pressed={active}
+              onClick={() => void onToggleReaction(post.id, em)}
               className={`rounded-full border px-mca-sm py-mca-trace text-sm transition duration-200 ease-mca-standard ${
                 active
                   ? "border-mca-accent-strong bg-mca-accent-strong/15 text-mca-ink-strong"
@@ -638,31 +965,60 @@ function PostCard({
         <Button
           type="button"
           variant={post.liked_by_viewer ? "primary" : "secondary"}
-          disabled={busy}
-          onClick={onToggleLike}
-          className="text-xs"
+          disabled={isBusy}
+          onClick={() => void onToggleLike(post.id)}
+          className="text-mca-caption"
         >
           {post.liked_by_viewer ? "♥ Liked" : "♡ Like"} · {post.like_count}
         </Button>
-        <Button type="button" variant="tertiary" disabled={busy} onClick={onToggleComments} className="text-xs">
+        <Button
+          type="button"
+          variant="tertiary"
+          disabled={isBusy}
+          onClick={() => onToggleComments(post.id)}
+          className="text-mca-caption"
+        >
           Comments · {post.comment_count}
         </Button>
         {isOwn ? (
-          <span className="text-mca-caption text-mca-ink-muted">Your post</span>
+          <>
+            {isEditing ? (
+              <>
+                <Button type="button" variant="secondary" disabled={isBusy} onClick={() => void onSaveEdit(post.id)}>
+                  Save
+                </Button>
+                <Button type="button" variant="tertiary" disabled={isBusy} onClick={onCancelEdit}>
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button type="button" variant="secondary" disabled={isBusy} onClick={() => onStartEdit(post.id)}>
+                  Edit
+                </Button>
+                <Button type="button" variant="destructive" disabled={isBusy} onClick={() => void onDeletePost(post.id)}>
+                  Delete
+                </Button>
+              </>
+            )}
+          </>
         ) : null}
       </div>
 
       {commentsState === "loading" ? (
-        <p className="mt-mca-md text-mca-caption text-mca-ink-muted">Loading comments…</p>
+        <p className="mt-mca-md text-mca-caption text-mca-ink-muted" aria-busy>
+          Loading comments…
+        </p>
       ) : Array.isArray(commentsState) ? (
         <div className="mt-mca-md space-y-mca-sm border-t border-mca-border/80 pt-mca-md">
           <CommentThread
             comments={commentsState}
             postAuthorId={post.author_id}
             currentUserId={currentUserId}
-            busy={busy}
+            busy={isBusy}
             setReplyTo={setReplyTo}
-            onHideComment={onHideComment}
+            onHideComment={(cid, hidden) => void onHideComment(post.id, cid, hidden)}
+            onDeleteComment={(cid) => void onDeleteComment(post.id, cid)}
           />
           <Field
             id={`community-comment-${post.id}`}
@@ -675,7 +1031,7 @@ function PostCard({
               onChange={(e) => setDraft(e.target.value)}
               rows={2}
               maxLength={4000}
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm text-sm text-mca-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm resize-y text-sm text-mca-body"
             />
           </Field>
           {replyTo ? (
@@ -690,12 +1046,12 @@ function PostCard({
           <Button
             type="button"
             variant="secondary"
-            disabled={busy || !draft.trim()}
+            disabled={isBusy || !draft.trim()}
             onClick={() => {
               const t = draft.trim();
               if (!t) return;
               setDraft("");
-              onSubmitComment(t, replyTo);
+              onSubmitComment(post.id, t, replyTo);
               setReplyTo(null);
             }}
           >
@@ -705,4 +1061,4 @@ function PostCard({
       ) : null}
     </Panel>
   );
-}
+});

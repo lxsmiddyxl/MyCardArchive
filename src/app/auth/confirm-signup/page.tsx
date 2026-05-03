@@ -115,7 +115,7 @@ export default function ConfirmSignupPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={loadingResend || loadingChange}
-            className="mt-mca-sm w-full rounded-mca-control border border-mca-border-subtle bg-mca-surface px-mca-compact py-mca-tight text-sm text-mca-ink-strong shadow-mca-panel transition-all placeholder:text-mca-ink-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-60"
+            className="mca-input mt-mca-sm"
           />
         </div>
 
@@ -146,7 +146,7 @@ export default function ConfirmSignupPage() {
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
             disabled={loadingResend || loadingChange}
-            className="mt-mca-sm w-full rounded-mca-control border border-mca-border-subtle bg-mca-surface px-mca-compact py-mca-tight text-sm text-mca-ink-strong shadow-mca-panel transition-all placeholder:text-mca-ink-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-60"
+            className="mca-input mt-mca-sm"
           />
         </div>
         <button

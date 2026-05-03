@@ -1,6 +1,7 @@
 import { runDiagnostics } from "@/lib/diagnostics";
 import type { DiagnosticResult } from "@/lib/diagnostics/types";
 import { mcaLog } from "@/lib/logging/mca-log-server";
+import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ function extractLoadSection(results: DiagnosticResult[]) {
   };
 }
 
-export async function GET(): Promise<Response> {
+async function GET_handler(): Promise<Response> {
   const timestamp = Date.now();
   try {
     const results = await runDiagnostics();
@@ -65,3 +66,5 @@ export async function GET(): Promise<Response> {
     );
   }
 }
+
+export const GET = defineRouteNoArgs("GET /api/health/diagnostics", GET_handler);

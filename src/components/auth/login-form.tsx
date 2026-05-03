@@ -1,6 +1,7 @@
 "use client";
 
 import { safeNextPath } from "@/lib/auth/safe-next-path";
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import Link from "next/link";
@@ -55,15 +56,31 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/sign-in", {
+      const r = await fetchJson<{ ok: boolean; reason?: string; error?: string }>("/api/auth/sign-in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const payload = (await res.json()) as LoginResult;
-      if (!res.ok || !payload.ok) {
-        const reason = payload.ok ? "signin_failed" : payload.reason;
-        const err = payload.ok ? "Could not sign in." : payload.error;
+      if (r.kind !== "ok") {
+        if (r.kind === "error" && r.reason === "email_not_confirmed") {
+          const targetEmail = encodeURIComponent(email.trim().toLowerCase());
+          mcaLog.event("auth.login", { ok: false, reason: "email_not_confirmed" }, telemetryCtx);
+          router.push(`/auth/confirm-signup?email=${targetEmail}`);
+          return;
+        }
+        setVariant("error");
+        setMessage(fetchJsonErrorMessage(r));
+        mcaLog.event(
+          "auth.login",
+          { ok: false, reason: r.kind === "error" ? r.reason ?? "signin_failed" : "network_error" },
+          telemetryCtx
+        );
+        return;
+      }
+      const payload = r.data;
+      if (!payload.ok) {
+        const reason = payload.reason ?? "signin_failed";
+        const err = payload.error ?? "Could not sign in.";
         if (reason === "email_not_confirmed") {
           const targetEmail = encodeURIComponent(email.trim().toLowerCase());
           mcaLog.event("auth.login", { ok: false, reason: "email_not_confirmed" }, telemetryCtx);
@@ -76,7 +93,7 @@ export function LoginForm() {
         return;
       }
 
-      mcaLog.event("auth.login", { ok: true, reason: payload.reason }, telemetryCtx);
+      mcaLog.event("auth.login", { ok: true, reason: payload.reason ?? "signed_in" }, telemetryCtx);
       router.refresh();
       router.push(next);
     } catch {
@@ -157,7 +174,7 @@ export function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={loading || envMissing}
-            className="mt-mca-sm w-full rounded-mca-control border border-mca-border-subtle bg-mca-surface px-mca-compact py-mca-tight text-sm text-mca-ink-strong shadow-mca-panel transition-all placeholder:text-mca-ink-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-60"
+            className="mca-input mt-mca-sm"
           />
         </div>
         <div>
@@ -177,7 +194,7 @@ export function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={loading || envMissing}
-            className="mt-mca-sm w-full rounded-mca-control border border-mca-border-subtle bg-mca-surface px-mca-compact py-mca-tight text-sm text-mca-ink-strong shadow-mca-panel transition-all placeholder:text-mca-ink-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-60"
+            className="mca-input mt-mca-sm"
           />
         </div>
 

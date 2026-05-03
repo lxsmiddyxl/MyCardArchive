@@ -5,10 +5,14 @@ import { InlineUserFlair } from "@/components/flair/inline-user-flair";
 import { TrainerPresenceDot } from "@/components/presence/trainer-presence-dot";
 import { InlineSeasonalEvent } from "@/components/seasonal/inline-seasonal-event";
 import { buildInlineIdentityProgressTitle } from "@/lib/social/inline-identity-tooltip";
+import { fetchJson, fetchJsonErrorMessage, useDebouncedSurfaceReload } from "@/lib/client";
+import { SOCIAL_SURFACES_REFRESH_EVENT } from "@/lib/social/social-surfaces-refresh";
+import { InlineError } from "@/mca-ui/inline-error";
+import { Button } from "@/mca-ui/button";
 import { Panel } from "@/mca-ui/panel";
 import Image from "next/image";
 import Link from "next/link";
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 
 type CollectorRow = {
   userId: string;
@@ -19,6 +23,10 @@ type CollectorRow = {
   tierSlug?: string | null;
   topScanMilestone?: string | null;
   personaText?: string | null;
+  personaV2Label?: string | null;
+  personaV2Summary?: string | null;
+  identityHeadline?: string | null;
+  identitySummary?: string | null;
   topFlairKey?: string | null;
   topSeasonalFlairKey?: string | null;
   topSeasonalBadgeKey?: string | null;
@@ -41,6 +49,8 @@ type CollectorRow = {
   sharedClubsSummary?: string | null;
   reputationSummary?: string | null;
   influenceSummary?: string | null;
+  badgeHighlight?: string | null;
+  presenceLabel?: string | null;
   presence?: {
     optedOut: boolean;
     lastSeenAt: string | null;
@@ -56,31 +66,64 @@ export const RecommendedCollectorsStrip = memo(function RecommendedCollectorsStr
 }) {
   const [rows, setRows] = useState<CollectorRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadCollectors = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const r = await fetchJson<{ collectors: CollectorRow[] }>(
+        `/api/social/recommended-collectors?limit=${encodeURIComponent(String(limit))}`,
+        { cache: "no-store" }
+      );
+      if (r.kind !== "ok") {
+        setLoadError(fetchJsonErrorMessage(r));
+        setRows([]);
+        return;
+      }
+      setRows(Array.isArray(r.data.collectors) ? r.data.collectors : []);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Could not load suggestions.");
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [limit]);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/social/recommended-collectors?limit=${encodeURIComponent(String(limit))}`,
-          { cache: "no-store" }
-        );
-        const body = (await res.json()) as { collectors?: CollectorRow[] };
-        if (!cancelled && res.ok) setRows(body.collectors ?? []);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [limit]);
+    void loadCollectors();
+  }, [loadCollectors]);
+
+  const scheduleSocialReload = useDebouncedSurfaceReload(loadCollectors, 180);
+
+  useEffect(() => {
+    const onRefresh = () => scheduleSocialReload();
+    window.addEventListener(SOCIAL_SURFACES_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(SOCIAL_SURFACES_REFRESH_EVENT, onRefresh);
+  }, [scheduleSocialReload]);
 
   if (loading) {
     return (
-      <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
-        <p className="text-mca-caption text-mca-ink-muted">Loading suggested collectors…</p>
-      </Panel>
+      <section aria-label="Recommended collectors" aria-live="polite" aria-busy="true">
+        <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
+          <p className="text-mca-caption text-mca-ink-muted" role="status">
+            Loading suggested collectors…
+          </p>
+        </Panel>
+      </section>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <section aria-label="Recommended collectors" aria-live="assertive">
+        <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
+          <InlineError>{loadError}</InlineError>
+          <Button type="button" variant="secondary" className="mt-mca-sm text-xs" onClick={() => void loadCollectors()}>
+            Try again
+          </Button>
+        </Panel>
+      </section>
     );
   }
 
@@ -99,6 +142,7 @@ export const RecommendedCollectorsStrip = memo(function RecommendedCollectorsStr
   }
 
   return (
+    <section aria-label="Recommended collectors" aria-live="polite">
     <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
       <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
         Recommended collectors
@@ -150,6 +194,10 @@ export const RecommendedCollectorsStrip = memo(function RecommendedCollectorsStr
                             : null,
                         reputationSummary: m.reputationSummary,
                         influenceSummary: m.influenceSummary,
+                        badgeHighlight: m.badgeHighlight,
+                        presenceLabel: m.presenceLabel,
+                        personaV2Summary: m.personaV2Summary,
+                        identityMapSummary: m.identitySummary,
                       }
                     )]
                       .filter(Boolean)
@@ -180,7 +228,7 @@ export const RecommendedCollectorsStrip = memo(function RecommendedCollectorsStr
                       lastActivityAt={m.presence.lastActivityAt}
                       lastActivityKey={m.presence.lastActivityKey}
                       presenceOptOut={m.presence.optedOut}
-                      className="mt-0.5"
+                      className="mt-mca-trace"
                     />
                   ) : null}
                   <span className="truncate text-mca-body font-medium text-mca-ink-strong">
@@ -195,6 +243,12 @@ export const RecommendedCollectorsStrip = memo(function RecommendedCollectorsStr
                 ) : null}
                 {m.influenceSummary?.trim() ? (
                   <p className="mt-mca-trace text-[11px] leading-snug text-mca-accent-strong/90">{m.influenceSummary.trim()}</p>
+                ) : null}
+                {m.badgeHighlight?.trim() ? (
+                  <p className="mt-mca-trace text-[11px] leading-snug text-mca-warn/95">{m.badgeHighlight.trim()}</p>
+                ) : null}
+                {m.presenceLabel?.trim() ? (
+                  <p className="mt-mca-trace text-[11px] leading-snug text-mca-ink-subtle">{m.presenceLabel.trim()}</p>
                 ) : null}
                 {m.sharedClubsSummary?.trim() ? (
                   <p className="mt-mca-trace text-[11px] leading-snug text-mca-accent-strong/90">
@@ -213,5 +267,6 @@ export const RecommendedCollectorsStrip = memo(function RecommendedCollectorsStr
         ))}
       </ul>
     </Panel>
+    </section>
   );
 });

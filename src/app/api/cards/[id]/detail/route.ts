@@ -1,7 +1,8 @@
 import { getCardImagePublicUrls } from "@/lib/cards/storage-paths";
+import { errorJson, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
+import type { CardDetailDTO } from "@/lib/dto/route-types";
 import { defineRoute } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -60,18 +61,15 @@ type DeckLocationRow = {
 };
 
 async function GET_handler(_request: Request, context: Context) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
+  const userId = session.userId;
 
   const cardId = context.params.id?.trim();
   if (!cardId) {
-    return NextResponse.json({ error: "Invalid card id" }, { status: 400 });
+    return errorJson(ctx, "Invalid card id", 400);
   }
 
   const { data: cardData, error: cardError } = await supabase
@@ -104,14 +102,14 @@ async function GET_handler(_request: Request, context: Context) {
     `
     )
     .eq("id", cardId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (cardError) {
-    return NextResponse.json({ error: cardError.message }, { status: 500 });
+    return errorJson(ctx, cardError.message, 500);
   }
   if (!cardData) {
-    return NextResponse.json({ error: "Card not found" }, { status: 404 });
+    return errorJson(ctx, "Card not found", 404);
   }
 
   const card = cardData as unknown as CardRow;
@@ -122,22 +120,22 @@ async function GET_handler(_request: Request, context: Context) {
         .from("deck_cards")
         .select("deck_id, quantity, section, decks!inner(id, name, user_id)")
         .eq("card_id", cardId)
-        .eq("decks.user_id", user.id),
+        .eq("decks.user_id", userId),
       supabase
         .from("card_prices")
         .select("market_price, currency, provider, updated_at")
         .eq("card_id", cardId)
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
     ]);
 
   if (deckLocError) {
-    return NextResponse.json({ error: deckLocError.message }, { status: 500 });
+    return errorJson(ctx, deckLocError.message, 500);
   }
   if (priceError) {
-    return NextResponse.json({ error: priceError.message }, { status: 500 });
+    return errorJson(ctx, priceError.message, 500);
   }
 
   const binder = firstRelation(card.binders);
@@ -154,8 +152,34 @@ async function GET_handler(_request: Request, context: Context) {
     };
   });
 
-  return NextResponse.json({
-    card: {
+  const detail: CardDetailDTO & {
+    image_front_thumb_url: string | null;
+    image_front_full_url: string | null;
+    image_back_full_url: string | null;
+    image_back_thumb_url: string | null;
+    catalog: {
+      id: string;
+      name: string;
+      supertype: string | null;
+      subtypes: string[];
+      legal_standard: boolean;
+      legal_expanded: boolean;
+      legal_unlimited: boolean;
+      legal_commander: boolean;
+    } | null;
+    deck_locations: {
+      deck_id: string;
+      deck_name: string;
+      zone: string;
+      quantity: number;
+    }[];
+    price: {
+      market_price: number | null;
+      currency: string | null;
+      provider: string | null;
+      updated_at: string;
+    } | null;
+  } = {
       id: card.id,
       name: card.name,
       number: card.number,
@@ -192,7 +216,12 @@ async function GET_handler(_request: Request, context: Context) {
             updated_at: priceData.updated_at,
           }
         : null,
+    };
+  return successJson(ctx, {
+    card: {
+      ...detail,
     },
+    duration_ms: Date.now() - ctx.startedAt,
   });
 }
 

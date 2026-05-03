@@ -14,6 +14,8 @@ export const metadata: Metadata = {
   title: "Marketplace",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function MarketPage() {
   const supabase = createClient();
   const {

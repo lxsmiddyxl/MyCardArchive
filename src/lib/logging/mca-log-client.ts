@@ -9,6 +9,7 @@ declare global {
   }
 }
 
+/** Avoid emails, names, handles, free-form user text, or tokens in `data` — operational ids only if needed. */
 function pushClient(env: McaLogEnvelope): void {
   if (process.env.NODE_ENV === "development") {
     console.debug("[MCA]", JSON.stringify(env));

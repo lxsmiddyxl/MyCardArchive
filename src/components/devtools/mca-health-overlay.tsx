@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson } from "@/lib/client";
 import { Panel } from "@/mca-ui/panel";
 import {
   useSyntheticInpProbe,
@@ -92,13 +93,12 @@ export function McaHealthOverlay() {
     ];
     await Promise.all(
       paths.map(async ([path, setter]) => {
-        try {
-          const res = await fetch(path, { cache: "no-store" });
-          const j = (await res.json()) as HealthJson;
-          setter(j);
-        } catch {
+        const r = await fetchJson<HealthJson>(path, { cache: "no-store" });
+        if (r.kind !== "ok") {
           setter({ ok: false, error: "fetch_failed" });
+          return;
         }
+        setter(r.data as HealthJson);
       })
     );
   }, [allowOverlay]);

@@ -135,6 +135,10 @@ async function GET_handler(request: Request) {
       topFandomBadgeKey: fx?.topFandomBadgeKey ?? null,
       fandomSummary: fx?.fandomSummary ?? null,
       personaText: fx?.personaText ?? null,
+      personaV2Label: fx?.personaV2Label ?? null,
+      personaV2Summary: fx?.personaV2Summary ?? null,
+      identityHeadline: fx?.identityHeadline ?? null,
+      identitySummary: fx?.identitySummary ?? null,
       presence: presenceSnapshotFromFlair(fx),
       activityHeatmapStrip: stripBy.get(r.user_id),
       seasonHighlight: fx?.seasonHighlight ?? null,
@@ -143,6 +147,8 @@ async function GET_handler(request: Request) {
       sharedClubsSummary: sharedClubsLabel(viewerClubIds, otherClubIds),
       reputationSummary: fx?.reputationSummary ?? null,
       influenceSummary: fx?.influenceSummary ?? null,
+      badgeHighlight: fx?.badgeHighlight ?? null,
+      presenceLabel: fx?.presenceLabel ?? null,
     };
   });
 

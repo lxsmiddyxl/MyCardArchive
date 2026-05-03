@@ -1,3 +1,4 @@
+import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
 import { NextResponse } from "next/server";
 
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
  * Debug / admin: consistency checks for the signed-in user (RLS-scoped).
  * Protected: `x-internal-telemetry-secret` OR development session.
  */
-export async function GET(request: Request) {
+async function GET_handler(request: Request) {
   const secret = request.headers.get("x-internal-telemetry-secret");
   const secretOk =
     typeof process.env.INTERNAL_TELEMETRY_SECRET === "string" &&
@@ -114,3 +115,5 @@ export async function GET(request: Request) {
       "Counts are live queries; use for spot-checks. Negative or inconsistent qty should be investigated in DB.",
   });
 }
+
+export const GET = defineRouteSimple("GET /api/internal/integrity/scan", GET_handler);

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/route";
+import { errorJson, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { defineRoute } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
 
@@ -26,53 +27,51 @@ async function POST_handler(
   request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await validateSession(supabase, ctx);
+    if (!session.ok) return session.response;
+    const userId = session.userId;
 
     const binderId = context.params["binderId"]?.trim();
     if (!binderId) {
-      return NextResponse.json({ error: "Invalid binder id" }, { status: 400 });
+      return errorJson(ctx, "Invalid binder id", 400);
     }
 
     const { data: binder, error: bErr } = await supabase
       .from("binders")
       .select("id")
       .eq("id", binderId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle();
 
     if (bErr) {
-      return NextResponse.json({ error: bErr.message }, { status: 500 });
+      return errorJson(ctx, bErr.message, 500);
     }
     if (!binder) {
-      return NextResponse.json({ error: "Binder not found" }, { status: 404 });
+      return errorJson(ctx, "Binder not found", 404);
     }
 
     let body: { from?: unknown; to?: unknown };
     try {
       body = (await request.json()) as { from?: unknown; to?: unknown };
     } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return errorJson(ctx, "Invalid JSON", 400);
     }
 
     const from = normalizeSlotRef(body.from);
     const to = normalizeSlotRef(body.to);
     if (!from || !to) {
-      return NextResponse.json(
-        { error: "from and to must be { page: number, slot: number }" },
-        { status: 400 }
-      );
+      return errorJson(ctx, "from and to must be { page: number, slot: number }", 400);
     }
 
     if (from.page === to.page && from.slot === to.slot) {
-      return NextResponse.json({ ok: true, message: "No-op" });
+      return successJson(ctx, {
+        ok: true,
+        message: "No-op",
+        duration_ms: Date.now() - ctx.startedAt,
+      });
     }
 
     async function readCardId(page: number, slot: number): Promise<string | null> {
@@ -108,12 +107,12 @@ async function POST_handler(
     );
 
     if (upErr) {
-      return NextResponse.json({ error: upErr.message }, { status: 500 });
+      return errorJson(ctx, upErr.message, 500);
     }
 
-    return NextResponse.json({ ok: true });
+    return successJson(ctx, { ok: true, duration_ms: Date.now() - ctx.startedAt });
   } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return errorJson(ctx, "Server error", 500);
   }
 }
 

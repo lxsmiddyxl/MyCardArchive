@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { useCallback, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
@@ -46,9 +47,11 @@ export function DebugAuthBanner() {
   const repair = useCallback(async () => {
     setRepairing(true);
     try {
-      const res = await fetch("/api/dev/repair-profile", { method: "POST" });
-      if (!res.ok) {
-        console.error("repair-profile failed", await res.text());
+      const r = await fetchJson<Record<string, unknown>>("/api/dev/repair-profile", {
+        method: "POST",
+      });
+      if (r.kind !== "ok") {
+        console.error("repair-profile failed", fetchJsonErrorMessage(r));
       }
       await load();
     } finally {

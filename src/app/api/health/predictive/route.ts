@@ -4,13 +4,14 @@ import {
   runPredictors,
 } from "@/lib/predictive/predictive-engine";
 import { mcaLog } from "@/lib/logging/mca-log-server";
+import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 const CTX = { componentName: "health", surfaceName: "predictive" } as const;
 
-export async function GET(): Promise<Response> {
+async function GET_handler(): Promise<Response> {
   const timestamp = Date.now();
   try {
     if (!isPredictiveModeEnabled()) {
@@ -40,3 +41,5 @@ export async function GET(): Promise<Response> {
     );
   }
 }
+
+export const GET = defineRouteNoArgs("GET /api/health/predictive", GET_handler);

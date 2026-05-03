@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson } from "@/lib/client";
 import { Panel } from "@/mca-ui/panel";
 import { useCallback, useEffect, useState } from "react";
 
@@ -65,8 +66,8 @@ export function McaPredictiveOverlay() {
   const fetchPredictive = useCallback(async () => {
     if (!enabled) return;
     try {
-      const res = await fetch("/api/health/predictive", { cache: "no-store" });
-      setJson((await res.json()) as PredictiveJson);
+      const r = await fetchJson<PredictiveJson>("/api/health/predictive", { cache: "no-store" });
+      setJson(r.kind === "ok" ? (r.data as PredictiveJson) : null);
     } catch {
       setJson({ ok: false, predictions: [] });
     }

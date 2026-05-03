@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson } from "@/lib/client";
 import { Button } from "@/mca-ui/button";
 import { Panel } from "@/mca-ui/panel";
 import { mcaLog } from "@/lib/logging/mca-log-client";
@@ -66,12 +67,12 @@ export function GrowthShell() {
     if (!trimmed) return;
     setFeedbackBusy(true);
     try {
-      const res = await fetch("/api/feedback", {
+      const r = await fetchJson<Record<string, unknown>>("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: trimmed, feature: "general" }),
       });
-      if (res.ok) {
+      if (r.kind === "ok") {
         setFeedbackOpen(false);
         setFeedbackText("");
       }
@@ -148,7 +149,7 @@ export function GrowthShell() {
               value={feedbackText}
               onChange={(e) => setFeedbackText(e.target.value)}
               rows={5}
-              className="mt-mca-md w-full rounded-mca-card border border-mca-field-border bg-mca-surface-elevated px-mca-base py-mca-sm text-sm text-mca-ink-body"
+              className="mca-input mt-mca-md resize-y rounded-mca-card px-mca-base text-sm text-mca-body"
               placeholder="Your thoughts…"
             />
             <div className="mt-mca-md flex justify-end gap-mca-sm">

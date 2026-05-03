@@ -1,4 +1,5 @@
 import { getTelemetrySnapshot } from "@/lib/telemetry/aggregation";
+import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
 import { NextResponse } from "next/server";
 
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
  * Aggregated metrics (counts, latency averages, error rates).
  * Protected: `x-internal-telemetry-secret` OR dev session.
  */
-export async function GET(request: Request) {
+async function GET_handler(request: Request) {
   const secret = request.headers.get("x-internal-telemetry-secret");
   if (
     typeof process.env.INTERNAL_TELEMETRY_SECRET === "string" &&
@@ -32,3 +33,5 @@ export async function GET(request: Request) {
 
   return NextResponse.json(getTelemetrySnapshot());
 }
+
+export const GET = defineRouteSimple("GET /api/internal/telemetry", GET_handler);

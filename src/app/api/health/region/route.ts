@@ -3,6 +3,7 @@ import {
   isSecondaryRegionConfigured,
 } from "@/lib/failover/failover-engine";
 import { mcaLog } from "@/lib/logging/mca-log-server";
+import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { isRegionFailoverEnabled } from "@/lib/regions/region-config";
 import { getActiveRegion } from "@/lib/regions/region-state";
 import { NextResponse } from "next/server";
@@ -19,7 +20,7 @@ function maxLatencyMs(bundle: {
   return Math.max(bundle.supabaseRest.latencyMs, bundle.realtime.latencyMs, bundle.telemetry.latencyMs);
 }
 
-export async function GET(): Promise<Response> {
+async function GET_handler(): Promise<Response> {
   const timestamp = Date.now();
   try {
     const health = await checkRegionHealth();
@@ -57,3 +58,5 @@ export async function GET(): Promise<Response> {
     );
   }
 }
+
+export const GET = defineRouteNoArgs("GET /api/health/region", GET_handler);

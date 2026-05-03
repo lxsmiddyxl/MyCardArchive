@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson } from "@/lib/client";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { AchievementToastItem } from "@/components/achievement-toast";
 import { normalizeRarity } from "@/lib/achievements/rarity";
@@ -96,21 +97,13 @@ export function AchievementToastProvider({
         return;
       }
       const { init, seen: seenKey } = storageKeys(uid);
-      let res: Response;
-      try {
-        res = await fetch("/api/achievements/list", {
-          credentials: "include",
-          cache: "no-store",
-        });
-      } catch {
-        return;
-      }
-      if (!res.ok || cancelled) return;
+      const r = await fetchJson<{ achievements?: ListAchievement[] }>("/api/achievements/list", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (r.kind !== "ok" || cancelled) return;
 
-      const body = (await res.json().catch(() => ({}))) as {
-        achievements?: ListAchievement[];
-      };
-      const list = body.achievements ?? [];
+      const list = r.data.achievements ?? [];
 
       const isInit = !localStorage.getItem(init);
       if (isInit) {

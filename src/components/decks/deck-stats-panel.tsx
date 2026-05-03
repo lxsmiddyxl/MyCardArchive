@@ -1,12 +1,13 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage, useAsyncState } from "@/lib/client";
 import type { DeckRowForAnalytics } from "@/lib/decks/deck-analytics";
 import {
   buildCurveHistogram,
   buildTypeBreakdown,
 } from "@/lib/decks/deck-analytics";
 import type { DeckStatsRow } from "@/lib/decks/editor-types";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 
 const COLOR_DOT: Record<string, string> = {
   grass: "bg-mca-success-bold",
@@ -42,8 +43,7 @@ export function DeckStatsPanel({
   onStatsRefreshed,
   className,
 }: Props) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { run: runRecalc, loading: recalcBusy, error: recalcErr } = useAsyncState<null>();
 
   const canRecalc =
     tierSlug.toLowerCase() === "pro" ||
@@ -54,39 +54,32 @@ export function DeckStatsPanel({
   const types = buildTypeBreakdown(analyticsRows);
 
   const recalc = useCallback(async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      const s = await fetch("/api/decks/stats", {
+    await runRecalc(async () => {
+      const s = await fetchJson<Record<string, unknown>>("/api/decks/stats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deck_id: deckId }),
       });
-      if (!s.ok) {
-        const j = (await s.json().catch(() => ({}))) as { error?: string };
-        setErr(j.error ?? "Stats failed.");
-        return;
-      }
-      const syn = await fetch("/api/decks/synergy", {
+      if (s.kind !== "ok") throw new Error(fetchJsonErrorMessage(s) || "Stats failed.");
+      const syn = await fetchJson<Record<string, unknown>>("/api/decks/synergy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deck_id: deckId }),
       });
-      if (!syn.ok) {
-        const j = (await syn.json().catch(() => ({}))) as { error?: string };
-        setErr(j.error ?? "Synergy failed.");
-        return;
-      }
+      if (syn.kind !== "ok") throw new Error(fetchJsonErrorMessage(syn) || "Synergy failed.");
       onStatsRefreshed();
-    } finally {
-      setBusy(false);
-    }
-  }, [deckId, onStatsRefreshed]);
+      return null;
+    });
+  }, [deckId, onStatsRefreshed, runRecalc]);
 
   const synergy = stats?.synergy_score ?? 0;
+  const busy = recalcBusy;
+  const err = recalcErr;
 
   return (
     <aside
+      aria-live="polite"
+      aria-busy={busy}
       className={`flex flex-col gap-mca-base rounded-mca-block border border-mca-border bg-mca-surface-elevated/95 p-mca-base shadow-mca-panel lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto dark:border-mca-border-subtle ${className ?? ""}`}
     >
       <div>

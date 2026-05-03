@@ -4,6 +4,7 @@ import {
   normalizeGradingInput,
   runGradingPipeline,
 } from "@/lib/grading";
+import { errorJson, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { attachGradingConsistencyV4 } from "@/lib/grading/consistency";
 import { attachGradingV5Extras } from "@/lib/grading/v5-extras";
 import { attachGradingV6Extras } from "@/lib/grading/v6-extras";
@@ -14,7 +15,6 @@ import { logGradingModelV2Telemetry } from "@/lib/grading/grading-v2-telemetry";
 import { mcaLog } from "@/lib/logging/mca-log-server";
 import { defineRoute } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -36,23 +36,20 @@ async function assertCardOwner(
 }
 
 async function GET_handler(request: Request, context: { params: Record<string, string> }) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
+  const userId = session.userId;
 
   const cardId = context.params.id?.trim();
   if (!cardId) {
-    return NextResponse.json({ error: "Invalid card id" }, { status: 400 });
+    return errorJson(ctx, "Invalid card id", 400);
   }
 
-  const ok = await assertCardOwner(supabase, cardId, user.id);
+  const ok = await assertCardOwner(supabase, cardId, userId);
   if (!ok) {
-    return NextResponse.json({ error: "Card not found" }, { status: 404 });
+    return errorJson(ctx, "Card not found", 404);
   }
 
   const url = new URL(request.url);
@@ -90,7 +87,7 @@ async function GET_handler(request: Request, context: { params: Record<string, s
   logGradingModelV2Telemetry(result.grade, cardId);
 
   const infer: "heuristic" | "model" = result.source === "model" ? "model" : "heuristic";
-  await attachGradingConsistencyV4(supabase, cardId, user.id, result.grade, {
+  await attachGradingConsistencyV4(supabase, cardId, userId, result.grade, {
     persistRun: false,
     pipelineVersion: GRADING_PIPELINE_VERSION,
     inferenceSource: infer,
@@ -98,9 +95,9 @@ async function GET_handler(request: Request, context: { params: Record<string, s
     modelLabel: result.grade.summary.modelVersion ?? null,
   });
 
-  await attachGradingV5Extras(supabase, cardId, user.id, result.grade, { peerCardId });
-  await attachGradingV6Extras(supabase, cardId, user.id, result.grade);
-  await attachGradingTemporalDriftV7(supabase, user.id, result.grade, (payload) => {
+  await attachGradingV5Extras(supabase, cardId, userId, result.grade, { peerCardId });
+  await attachGradingV6Extras(supabase, cardId, userId, result.grade);
+  await attachGradingTemporalDriftV7(supabase, userId, result.grade, (payload) => {
     mcaLog.event("grading.model.drift_model", { cardId, ...payload }, { ...LOG_CTX, traceId: cardId });
   });
   await attachGradingConsensusV8(supabase, cardId, result.grade);
@@ -193,30 +190,27 @@ async function GET_handler(request: Request, context: { params: Record<string, s
     );
   }
 
-  return NextResponse.json({
+  return successJson(ctx, {
     grade: result.grade,
     inference: { source: result.source, fallbackReason: result.fallbackReason },
   });
 }
 
 async function POST_handler(request: Request, context: { params: Record<string, string> }) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
+  const userId = session.userId;
 
   const cardId = context.params.id?.trim();
   if (!cardId) {
-    return NextResponse.json({ error: "Invalid card id" }, { status: 400 });
+    return errorJson(ctx, "Invalid card id", 400);
   }
 
-  const ok = await assertCardOwner(supabase, cardId, user.id);
+  const ok = await assertCardOwner(supabase, cardId, userId);
   if (!ok) {
-    return NextResponse.json({ error: "Card not found" }, { status: 404 });
+    return errorJson(ctx, "Card not found", 404);
   }
 
   let body: unknown = {};
@@ -263,7 +257,7 @@ async function POST_handler(request: Request, context: { params: Record<string, 
   logGradingModelV2Telemetry(result.grade, cardId);
 
   const infer: "heuristic" | "model" = result.source === "model" ? "model" : "heuristic";
-  await attachGradingConsistencyV4(supabase, cardId, user.id, result.grade, {
+  await attachGradingConsistencyV4(supabase, cardId, userId, result.grade, {
     persistRun: true,
     pipelineVersion: GRADING_PIPELINE_VERSION,
     inferenceSource: infer,
@@ -271,9 +265,9 @@ async function POST_handler(request: Request, context: { params: Record<string, 
     modelLabel: result.grade.summary.modelVersion ?? null,
   });
 
-  await attachGradingV5Extras(supabase, cardId, user.id, result.grade, { peerCardId });
-  await attachGradingV6Extras(supabase, cardId, user.id, result.grade);
-  await attachGradingTemporalDriftV7(supabase, user.id, result.grade, (payload) => {
+  await attachGradingV5Extras(supabase, cardId, userId, result.grade, { peerCardId });
+  await attachGradingV6Extras(supabase, cardId, userId, result.grade);
+  await attachGradingTemporalDriftV7(supabase, userId, result.grade, (payload) => {
     mcaLog.event("grading.model.drift_model", { cardId, ...payload }, { ...LOG_CTX, traceId: cardId });
   });
   await attachGradingConsensusV8(supabase, cardId, result.grade);
@@ -365,7 +359,7 @@ async function POST_handler(request: Request, context: { params: Record<string, 
     );
   }
 
-  return NextResponse.json({
+  return successJson(ctx, {
     status: "completed",
     message:
       result.source === "model"

@@ -37,8 +37,13 @@ export function userAffinity(viewerId: string, item: FeedItemForRank): number {
           ((s.shared_sets ?? 0) / 900 + (s.marketplace_overlap ?? 0) / 1200 + (s.engagement ?? 0) / 8000) * 0.55
         )
       : 0;
+  const identityCluster =
+    s != null
+      ? Math.min(0.18, ((s.identity_alignment ?? 0) / 720 + (s.cluster_fusion ?? 0) / 1760) * 0.35)
+      : 0;
+  const presenceHint = s != null ? Math.min(0.08, (s.presence_proximity ?? 0) / 62000) : 0;
   const aff = hash01(`mca:feed:aff:${viewerId}:${item.actor_id}`) * 0.2;
-  return Math.min(1, mutual + overlap + aff);
+  return Math.min(1, mutual + overlap + identityCluster + presenceHint + aff);
 }
 
 /** Exponential freshness decay (half-life ~72h). */
@@ -67,13 +72,20 @@ function buildWhy(
   pred: number,
   aff: number,
   fresh: number,
-  meta: HybridRankingMeta
+  meta: HybridRankingMeta,
+  item: FeedItemForRank
 ): string {
   const parts: string[] = [];
   parts.push(`Hybrid ${hybrid.toFixed(3)} (ML ${meta.ml.toFixed(3)}, heur ${meta.heuristic.toFixed(3)})`);
   parts.push(`Predicted engagement ${pred.toFixed(3)}`);
   parts.push(`Affinity ${aff.toFixed(3)}`);
   parts.push(`Freshness ${fresh.toFixed(3)}`);
+  const s = item.signals;
+  if (s && (s.identity_alignment != null || s.presence_proximity != null || s.cluster_fusion != null)) {
+    parts.push(
+      `Feed v3 identity ${(s.identity_alignment ?? 0).toFixed(0)} · presence ${(s.presence_proximity ?? 0).toFixed(0)} · cluster ${(s.cluster_fusion ?? 0).toFixed(0)}`
+    );
+  }
   return parts.join(" · ");
 }
 
@@ -93,7 +105,7 @@ export function rankFeedItemsV4(
     const aff = userAffinity(viewerId, it);
     const fresh = freshnessDecay(it);
     const combined = W_H * hybridVal + W_P * pred + W_A * aff + W_F * fresh;
-    const why = buildWhy(hybridVal, pred, aff, fresh, hMeta);
+    const why = buildWhy(hybridVal, pred, aff, fresh, hMeta, it);
     const v4: EngagementV4Meta = {
       predicted_engagement: pred,
       affinity: aff,

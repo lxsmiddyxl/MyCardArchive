@@ -1,5 +1,9 @@
+import { SeasonalActivityPulse } from "@/components/activity-waves/seasonal-activity-pulse";
 import { SeasonalEventLiveBannerTier } from "@/components/seasonal/seasonal-event-live-banner";
-import { listActiveSeasonalBannerLines } from "@/lib/events/seasonal-events";
+import {
+  listActiveSeasonalBannerLines,
+  listActiveSeasonalEvents,
+} from "@/lib/events/seasonal-events";
 import { TierArtworkStrip } from "@/components/artwork/artwork-surfaces";
 import {
   ScanPackPurchasePanel,
@@ -20,11 +24,12 @@ import {
   mergePlanLimitsFromTierRows,
 } from "@/lib/tier/tier-compare-data";
 import { logServerError } from "@/lib/server/observability";
+import { isCurrentUserInternalUnlimited } from "@/lib/entitlements/internal-unlimited";
 import {
   getBinderCount,
   getCardCount,
+  getEffectiveUserTier,
   getScanCountThisMonth,
-  getUserTier,
   isUnlimitedScans,
   remainingScansThisMonth,
 } from "@/lib/tier/check-limits";
@@ -207,6 +212,8 @@ export default async function TierPage() {
     redirect("/login?next=/tier");
   }
 
+  const suppressCommercialUi = await isCurrentUserInternalUnlimited(supabase);
+
   try {
     await ensureUserTier(supabase);
   } catch {
@@ -247,14 +254,14 @@ export default async function TierPage() {
     hasStripeCustomer = Boolean(cust);
   }
 
-  let tier: Awaited<ReturnType<typeof getUserTier>> = null;
+  let tier: Awaited<ReturnType<typeof getEffectiveUserTier>> = null;
   let binderCount = 0;
   let cardCount = 0;
   let scanCount = 0;
   let usageLoadError: string | null = null;
   try {
     [tier, binderCount, cardCount, scanCount] = await Promise.all([
-      getUserTier(supabase),
+      getEffectiveUserTier(supabase),
       getBinderCount(supabase),
       getCardCount(supabase),
       getScanCountThisMonth(supabase),
@@ -282,6 +289,7 @@ export default async function TierPage() {
   const heroAuraKey = resolveTierAuraKey(heroSlug);
   const currentSlug = tier?.tier_slug ?? "free";
   const seasonalBannerLines = listActiveSeasonalBannerLines("tier");
+  const activeSeasonPulse = listActiveSeasonalEvents()[0];
 
   return (
     <div className="relative space-y-mca-2xl pb-mca-xl pt-mca-sm">
@@ -289,9 +297,15 @@ export default async function TierPage() {
 
       <SeasonalEventLiveBannerTier lines={seasonalBannerLines} />
 
-      <Suspense fallback={null}>
-        <TierScanPackSuccessBanner />
-      </Suspense>
+      {activeSeasonPulse ? (
+        <SeasonalActivityPulse seasonId={activeSeasonPulse.eventId} className="max-w-2xl" />
+      ) : null}
+
+      {!suppressCommercialUi ? (
+        <Suspense fallback={null}>
+          <TierScanPackSuccessBanner />
+        </Suspense>
+      ) : null}
 
       {/* Hero — aura + strip only here */}
       <section
@@ -321,11 +335,18 @@ export default async function TierPage() {
             >
               Plans built for every collector
             </h1>
-            <p className="max-w-2xl text-base leading-relaxed text-mca-ink-muted sm:text-lg">
-              Choose Free to get started, Pro for batch-friendly scanning and higher limits, Elite for top
-              capacity and priority, or Business for shops and bulk workflows. Limits and prices come from
-              your live plan catalog—what you see here matches what the app enforces.
-            </p>
+            {suppressCommercialUi ? (
+              <p className="max-w-2xl text-base leading-relaxed text-mca-ink-muted sm:text-lg">
+                Your account has full platform access. Usage below reflects unlimited capacity; checkout and
+                paid upgrades are hidden.
+              </p>
+            ) : (
+              <p className="max-w-2xl text-base leading-relaxed text-mca-ink-muted sm:text-lg">
+                Choose Free to get started, Pro for batch-friendly scanning and higher limits, Elite for top
+                capacity and priority, or Business for shops and bulk workflows. Limits and prices come from
+                your live plan catalog—what you see here matches what the app enforces.
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -336,42 +357,49 @@ export default async function TierPage() {
         </div>
       ) : null}
 
-      {/* Pricing cards */}
-      <section className="space-y-mca-md" aria-labelledby="choose-plan-heading">
-        <h2 id="choose-plan-heading" className="text-sm font-semibold uppercase tracking-wide text-mca-ink-subtle">
-          Choose your plan
-        </h2>
-        <p className="max-w-2xl text-sm leading-relaxed text-mca-ink-muted">
-          Upgrade anytime; paid changes run through Stripe Checkout or your billing portal.
-        </p>
-        <TierPricingPlanCards
-          plans={planCards}
-          currentSlug={currentSlug}
-          billingEnabled={billingEnabled}
-          showBillingAnchor={billingEnabled || hasStripeCustomer || isDev}
-        />
-      </section>
+      {!suppressCommercialUi ? (
+        <>
+          {/* Pricing cards */}
+          <section className="space-y-mca-md" aria-labelledby="choose-plan-heading">
+            <h2
+              id="choose-plan-heading"
+              className="text-sm font-semibold uppercase tracking-wide text-mca-ink-subtle"
+            >
+              Choose your plan
+            </h2>
+            <p className="max-w-2xl text-sm leading-relaxed text-mca-ink-muted">
+              Upgrade anytime; paid changes run through Stripe Checkout or your billing portal.
+            </p>
+            <TierPricingPlanCards
+              plans={planCards}
+              currentSlug={currentSlug}
+              billingEnabled={billingEnabled}
+              showBillingAnchor={billingEnabled || hasStripeCustomer || isDev}
+            />
+          </section>
 
-      <section
-        className="rounded-mca-block border border-mca-border bg-mca-surface-elevated/60 p-mca-lg dark:border-mca-border-subtle sm:p-mca-xl"
-        aria-labelledby="scan-packs-heading"
-      >
-        <h2
-          id="scan-packs-heading"
-          className="text-sm font-semibold uppercase tracking-wide text-mca-ink-subtle"
-        >
-          Need more scans?
-        </h2>
-        <p className="mt-mca-sm max-w-2xl text-sm text-mca-ink-muted">
-          Running low on scans? Top up with a scan pack — one-time purchase, no subscription. Bonus balance is used after
-          your plan&apos;s monthly allowance.
-        </p>
-        <div className="mt-mca-lg">
-          <ScanPackPurchasePanel packs={scanPackOffers} billingEnabled={billingEnabled} />
-        </div>
-      </section>
+          <section
+            className="rounded-mca-block border border-mca-border bg-mca-surface-elevated/60 p-mca-lg dark:border-mca-border-subtle sm:p-mca-xl"
+            aria-labelledby="scan-packs-heading"
+          >
+            <h2
+              id="scan-packs-heading"
+              className="text-sm font-semibold uppercase tracking-wide text-mca-ink-subtle"
+            >
+              Need more scans?
+            </h2>
+            <p className="mt-mca-sm max-w-2xl text-sm text-mca-ink-muted">
+              Running low on scans? Top up with a scan pack — one-time purchase, no subscription. Bonus balance is used
+              after your plan&apos;s monthly allowance.
+            </p>
+            <div className="mt-mca-lg">
+              <ScanPackPurchasePanel packs={scanPackOffers} billingEnabled={billingEnabled} />
+            </div>
+          </section>
+        </>
+      ) : null}
 
-      {anyLimitReached ? (
+      {anyLimitReached && !suppressCommercialUi ? (
         <div className="rounded-mca-block border border-mca-accent-strong/35 bg-mca-warning-surface/25 px-mca-comfortable py-mca-base text-sm text-mca-warning-tint shadow-mca-panel">
           <p className="font-medium">You&apos;re at a plan limit</p>
           <p className="mt-mca-xs text-mca-nav-accent/80">
@@ -500,38 +528,42 @@ export default async function TierPage() {
         )}
       </section>
 
-      <section className="space-y-mca-md" aria-labelledby="compare-tiers-heading">
-        <TierCompareMount currentSlug={currentSlug} />
-        <h2
-          id="compare-tiers-heading"
-          className="text-sm font-semibold uppercase tracking-wide text-mca-ink-subtle"
-        >
-          Compare everything
-        </h2>
-        <p className="max-w-2xl text-sm text-mca-ink-muted">
-          Scan tools, limits, and profile perks at a glance. Numbers follow your{" "}
-          <code className="rounded bg-mca-chrome/80 px-mca-micro py-mca-trace text-xs">tiers</code> catalog;
-          your active caps may differ if your account was grandfathered.
-        </p>
-        <TierCompareFeatureTable rows={compareFeatureRows} currentSlug={currentSlug} />
-      </section>
+      {!suppressCommercialUi ? (
+        <section className="space-y-mca-md" aria-labelledby="compare-tiers-heading">
+          <TierCompareMount currentSlug={currentSlug} />
+          <h2
+            id="compare-tiers-heading"
+            className="text-sm font-semibold uppercase tracking-wide text-mca-ink-subtle"
+          >
+            Compare everything
+          </h2>
+          <p className="max-w-2xl text-sm text-mca-ink-muted">
+            Scan tools, limits, and profile perks at a glance. Numbers follow your{" "}
+            <code className="rounded bg-mca-chrome/80 px-mca-micro py-mca-trace text-xs">tiers</code> catalog;
+            your active caps may differ if your account was grandfathered.
+          </p>
+          <TierCompareFeatureTable rows={compareFeatureRows} currentSlug={currentSlug} />
+        </section>
+      ) : null}
 
-      <section
-        className="rounded-mca-block border border-mca-border bg-mca-surface-elevated/60 p-mca-lg dark:border-mca-border-subtle"
-        aria-labelledby="benefits-heading"
-      >
-        <h2 id="benefits-heading" className="text-sm font-semibold text-mca-ink-strong">
-          What you unlock next
-        </h2>
-        <ul className="mt-mca-sm list-inside list-disc space-y-mca-xs text-sm text-mca-ink-muted">
-          <li>Higher binder and card caps for large collections.</li>
-          <li>More monthly scans for camera-based intake.</li>
-          <li>
-            Pro adds batch capture, auto-crop, and auto-rotate; Elite and Business add priority queue when
-            it&apos;s busy; Business adds CSV export for your collection.
-          </li>
-        </ul>
-      </section>
+      {!suppressCommercialUi ? (
+        <section
+          className="rounded-mca-block border border-mca-border bg-mca-surface-elevated/60 p-mca-lg dark:border-mca-border-subtle"
+          aria-labelledby="benefits-heading"
+        >
+          <h2 id="benefits-heading" className="text-sm font-semibold text-mca-ink-strong">
+            What you unlock next
+          </h2>
+          <ul className="mt-mca-sm list-inside list-disc space-y-mca-xs text-sm text-mca-ink-muted">
+            <li>Higher binder and card caps for large collections.</li>
+            <li>More monthly scans for camera-based intake.</li>
+            <li>
+              Pro adds batch capture, auto-crop, and auto-rotate; Elite and Business add priority queue when
+              it&apos;s busy; Business adds CSV export for your collection.
+            </li>
+          </ul>
+        </section>
+      ) : null}
 
       {user ? (
         <section
@@ -543,14 +575,16 @@ export default async function TierPage() {
             Billing
           </h2>
           <p className="mt-mca-sm text-sm leading-relaxed text-mca-ink-subtle">
-            Subscribe to Pro, Elite, or Business with Stripe Checkout, or open the customer portal to
-            change plans, update payment method, or cancel.
+            {suppressCommercialUi
+              ? "Paid upgrades are hidden for your account. Open the portal only if you already use Stripe for invoices or payment methods."
+              : "Subscribe to Pro, Elite, or Business with Stripe Checkout, or open the customer portal to change plans, update payment method, or cancel."}
           </p>
           <div className="mt-mca-comfortable">
             <BillingActions
               currentTierSlug={tier?.tier_slug ?? "free"}
               hasStripeCustomer={hasStripeCustomer}
               billingEnabled={billingEnabled}
+              suppressCommercialUi={suppressCommercialUi}
             />
           </div>
           <p className="mt-mca-md text-mca-caption text-mca-hint">
@@ -608,6 +642,12 @@ export default async function TierPage() {
             className="inline-flex items-center rounded-mca-control border border-mca-border-subtle bg-mca-surface-elevated/80 px-mca-base py-mca-sm text-sm font-medium text-mca-ink-soft transition-all duration-200 ease-mca-standard hover:border-mca-field-border hover:bg-mca-chrome/60 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 active:scale-[0.97]"
           >
             Your binders
+          </Link>
+          <Link
+            href="/billing"
+            className="inline-flex items-center rounded-mca-control border border-mca-border-subtle bg-mca-surface-elevated/80 px-mca-base py-mca-sm text-sm font-medium text-mca-ink-soft transition-all duration-200 ease-mca-standard hover:border-mca-field-border hover:bg-mca-chrome/60 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 active:scale-[0.97]"
+          >
+            Billing
           </Link>
           <Link
             href="/scan"

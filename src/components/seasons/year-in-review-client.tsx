@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import type { YearInReviewJsonV1 } from "@/lib/seasons/summary-types";
 import { formatUsdApproxFromCents } from "@/lib/value/value-identity-helpers";
 import { Panel } from "@/mca-ui/panel";
@@ -53,13 +54,12 @@ export function YearInReviewClient({ initialYear, subjectUserId, viewerId }: Yea
         year: String(year),
         userId: subjectUserId,
       });
-      const res = await fetch(`/api/year-in-review?${qs.toString()}`, { cache: "no-store" });
-      const body = (await res.json()) as {
+      const r = await fetchJson<{
         summary?: YearInReviewJsonV1 | null;
-        error?: string;
         viewerIsSubject?: boolean;
-      };
-      if (!res.ok) throw new Error(body.error ?? "Failed to load");
+      }>(`/api/year-in-review?${qs.toString()}`, { cache: "no-store" });
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      const body = r.data;
       setSummary((body.summary ?? null) as YearInReviewJsonV1 | null);
       setViewerIsSubject(!!body.viewerIsSubject);
     } catch (e) {
@@ -81,7 +81,7 @@ export function YearInReviewClient({ initialYear, subjectUserId, viewerId }: Yea
   useEffect(() => {
     if (!viewerIsSubject || !viewerId || markedView.current) return;
     markedView.current = true;
-    void fetch("/api/year-in-review/view", {
+    void fetchJson("/api/year-in-review/view", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ year }),
@@ -106,7 +106,7 @@ export function YearInReviewClient({ initialYear, subjectUserId, viewerId }: Yea
           <label className="text-mca-caption text-mca-ink-muted">
             Year{" "}
             <select
-              className="ml-mca-xs rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-body"
+              className="mca-input ml-mca-xs rounded-mca-control px-mca-sm py-mca-xs text-mca-body"
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
             >
@@ -122,7 +122,7 @@ export function YearInReviewClient({ initialYear, subjectUserId, viewerId }: Yea
               type="button"
               className="rounded-mca-control border border-mca-border px-mca-sm py-mca-xs text-mca-caption text-mca-ink-body transition duration-200 ease-mca-standard hover:bg-mca-chrome/25"
               onClick={() =>
-                void fetch("/api/year-in-review/refresh", {
+                void fetchJson("/api/year-in-review/refresh", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ year }),

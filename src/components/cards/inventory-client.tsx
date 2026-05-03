@@ -6,6 +6,7 @@ import { McaIcons } from "@/lib/icons/mca-icons";
 import { Icon } from "@/mca-ui/icon";
 import { InlineError } from "@/mca-ui/inline-error";
 import { LoadingSpinner } from "@/mca-ui/loading-button";
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { Panel } from "@/mca-ui/panel";
 import { useCallback, useMemo } from "@/lib/perf/memo";
 import { useDebouncedValue } from "@/lib/perf/use-debounced-value";
@@ -85,13 +86,11 @@ export function CardsInventoryClient() {
     }
     setError(null);
     try {
-      const cardsRes = await fetch("/api/cards/list", { cache: "no-store" });
-      if (!cardsRes.ok) {
-        const body = (await cardsRes.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? "Failed to load cards");
-      }
-      const cardsBody = (await cardsRes.json()) as { cards?: InventoryCardItem[] };
-      setCards(Array.isArray(cardsBody.cards) ? cardsBody.cards : []);
+      const r = await fetchJson<{ cards: InventoryCardItem[] }>("/api/cards/list", {
+        cache: "no-store",
+      });
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      setCards(Array.isArray(r.data.cards) ? r.data.cards : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load inventory");
     } finally {
@@ -166,7 +165,7 @@ export function CardsInventoryClient() {
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="e.g. Charizard"
             disabled={listBusy}
-            className="mca-input mt-0 w-full rounded-mca-card border-mca-border-subtle bg-mca-surface-elevated text-mca-body text-white placeholder:text-mca-ink-subtle disabled:opacity-60"
+            className="mca-input mt-0 w-full rounded-mca-card text-mca-body disabled:opacity-60"
           />
         </Field>
         <Field id="card-sort" label="Sort">
@@ -175,7 +174,7 @@ export function CardsInventoryClient() {
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
             disabled={listBusy}
-            className="mca-input mt-0 w-full rounded-mca-card border-mca-border-subtle bg-mca-surface-elevated text-mca-body text-white disabled:opacity-60"
+            className="mca-input mt-0 w-full rounded-mca-card text-mca-body disabled:opacity-60"
           >
             <option value="recent">Recently added</option>
             <option value="name_asc">Name (A–Z)</option>
@@ -193,7 +192,7 @@ export function CardsInventoryClient() {
             value={setFilter}
             onChange={(e) => setSetFilter(e.target.value)}
             disabled={listBusy}
-            className="mca-input mt-0 w-full rounded-mca-card border-mca-border-subtle bg-mca-surface-elevated text-mca-body text-white disabled:opacity-60"
+            className="mca-input mt-0 w-full rounded-mca-card text-mca-body disabled:opacity-60"
           >
             <option value="all">All sets</option>
             {setOptions.map((setName) => (
@@ -209,7 +208,7 @@ export function CardsInventoryClient() {
             value={binderFilter}
             onChange={(e) => setBinderFilter(e.target.value)}
             disabled={listBusy}
-            className="mca-input mt-0 w-full rounded-mca-card border-mca-border-subtle bg-mca-surface-elevated text-mca-body text-white disabled:opacity-60"
+            className="mca-input mt-0 w-full rounded-mca-card text-mca-body disabled:opacity-60"
           >
             <option value="all">All binders</option>
             {binderOptions.map(([id, label]) => (
@@ -223,6 +222,7 @@ export function CardsInventoryClient() {
 
       {error ? <InlineError>{error}</InlineError> : null}
 
+      <section aria-label="Card inventory" aria-live="polite" aria-busy={listBusy}>
       {loading ? (
         <div className="flex items-center gap-mca-md rounded-mca-card border border-mca-border bg-mca-surface-elevated/95 px-mca-md py-mca-lg text-mca-body text-mca-ink-muted shadow-mca-panel dark:border-mca-border-subtle">
           <LoadingSpinner className="size-5 text-mca-accent/90" />
@@ -274,6 +274,7 @@ export function CardsInventoryClient() {
           </Suspense>
         </div>
       ) : null}
+      </section>
 
       <CardDetailModal
         open={Boolean(detailCardId)}

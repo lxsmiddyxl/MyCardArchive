@@ -200,7 +200,7 @@ export function DeckGuidesClient() {
           <label className="block space-y-mca-xs">
             <span className="text-mca-caption font-medium text-mca-ink-body">Deck</span>
             <select
-              className="w-full rounded-mca-control border border-mca-field-border bg-mca-surface px-mca-md py-mca-sm text-sm text-mca-ink-strong"
+              className="mca-input w-full px-mca-md text-sm text-mca-body"
               value={deckId}
               onChange={(e) => setDeckId(e.target.value)}
             >
@@ -216,7 +216,7 @@ export function DeckGuidesClient() {
           <label className="block space-y-mca-xs">
             <span className="text-mca-caption font-medium text-mca-ink-body">Title</span>
             <input
-              className="w-full rounded-mca-control border border-mca-field-border bg-mca-surface px-mca-md py-mca-sm text-sm text-mca-ink-strong"
+              className="mca-input w-full px-mca-md text-sm text-mca-body"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Gardevoir ex — tournament notes"
@@ -226,7 +226,7 @@ export function DeckGuidesClient() {
           <label className="block space-y-mca-xs">
             <span className="text-mca-caption font-medium text-mca-ink-body">Description</span>
             <textarea
-              className="min-h-[5rem] w-full rounded-mca-control border border-mca-field-border bg-mca-surface px-mca-md py-mca-sm text-sm text-mca-ink-strong"
+              className="mca-input min-h-[5rem] w-full resize-y px-mca-md text-sm text-mca-body"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Overview, tournament results, or deck philosophy."
@@ -238,7 +238,7 @@ export function DeckGuidesClient() {
               Card highlights (one per line)
             </span>
             <textarea
-              className="min-h-[8rem] w-full rounded-mca-control border border-mca-field-border bg-mca-surface px-mca-md py-mca-sm text-sm text-mca-ink-strong"
+              className="mca-input min-h-[8rem] w-full resize-y px-mca-md text-sm text-mca-body"
               value={highlightsText}
               onChange={(e) => setHighlightsText(e.target.value)}
               placeholder={"Iono — turn 2 consistency\nBoss’s Orders — gust outs\n…"}
@@ -250,7 +250,7 @@ export function DeckGuidesClient() {
               Premium sections (JSON array of {"{ title, body, locked }"})
             </span>
             <textarea
-              className="min-h-[6rem] w-full rounded-mca-control border border-mca-field-border bg-mca-surface px-mca-md py-mca-sm font-mono text-mca-caption text-mca-ink-strong"
+              className="mca-input min-h-[6rem] w-full resize-y px-mca-md font-mono text-mca-caption text-mca-body"
               value={premiumText}
               onChange={(e) => setPremiumText(e.target.value)}
             />

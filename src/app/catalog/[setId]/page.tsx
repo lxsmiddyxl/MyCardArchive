@@ -1,3 +1,6 @@
+import { SetActivityWave } from "@/components/activity-waves/set-activity-wave";
+import { CollectorRoomSurface } from "@/components/collector-rooms/collector-room-surface";
+import { CollectorRoomsPanel } from "@/components/collector-rooms/collector-rooms-panel";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
 import { logServerError } from "@/lib/server/observability";
 import { createClient } from "@/lib/supabase/server";
@@ -60,16 +63,28 @@ export default async function CatalogSetPage({ params }: PageProps) {
 
   const cards = (cardsRaw ?? []) as CatalogCard[];
 
+  const {
+    data: { user: catalogViewer },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="space-y-mca-section">
       <SurfaceMountTelemetry name="catalog-set-page" surfaceName="catalog" />
       <div className="space-y-mca-base">
-        <Link
-          href="/catalog"
-          className="inline-flex text-sm font-medium text-mca-ink-muted transition hover:text-mca-accent"
-        >
-          ← All sets
-        </Link>
+        <div className="flex flex-wrap items-center gap-mca-md gap-y-mca-sm">
+          <Link
+            href="/catalog"
+            className="inline-flex text-sm font-medium text-mca-ink-muted transition duration-200 ease-mca-standard hover:text-mca-accent"
+          >
+            ← All sets
+          </Link>
+          <Link
+            href={`/catalog/cards/search?set_id=${encodeURIComponent(setId)}`}
+            className="inline-flex text-sm font-semibold text-mca-accent-strong/90 transition duration-200 ease-mca-standard hover:text-mca-accent"
+          >
+            Search cards in this set
+          </Link>
+        </div>
 
         <header className="flex flex-wrap items-start gap-mca-lg border-b border-mca-border/80 pb-mca-xl">
           <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-mca-sheet border border-mca-border bg-mca-surface p-mca-sm">
@@ -103,12 +118,29 @@ export default async function CatalogSetPage({ params }: PageProps) {
               {s.name}
             </h1>
             <p className="text-sm text-mca-ink-subtle">
-              {s.release_date ? `Released ${s.release_date}` : null}
-              {s.printed_total != null ? ` · ${s.printed_total} printed` : ""}
+              {[
+                s.set_code ? `Code ${s.set_code}` : null,
+                s.release_year != null
+                  ? `Released ${s.release_year}`
+                  : s.release_date
+                    ? `Released ${s.release_date}`
+                    : null,
+                s.publisher ?? null,
+                s.printed_total != null ? `${s.printed_total} cards in print` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
             <p className="font-mono text-xs text-mca-hint">{s.id}</p>
           </div>
         </header>
+        {catalogViewer ? (
+          <>
+            <CollectorRoomSurface roomType="set_room" topicKey={setId} />
+            <CollectorRoomsPanel contextRoomType="set_room" contextTopicKey={setId} className="mt-mca-md" />
+            <SetActivityWave setId={setId} className="mt-mca-md" />
+          </>
+        ) : null}
       </div>
 
       {cardErr ? (

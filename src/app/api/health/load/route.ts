@@ -3,13 +3,14 @@ import { getCacheStats } from "@/lib/cache/cache-store";
 import { getLoadSheddingFlags, runSheddingRules } from "@/lib/load/load-shedding";
 import { getRecentSheddingEvents } from "@/lib/load/shedding-events";
 import { mcaLog } from "@/lib/logging/mca-log-server";
+import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 const CTX = { componentName: "health", surfaceName: "load" } as const;
 
-export async function GET(): Promise<Response> {
+async function GET_handler(): Promise<Response> {
   const timestamp = Date.now();
   try {
     const { level, snapshot } = await refreshLoadState();
@@ -52,3 +53,5 @@ export async function GET(): Promise<Response> {
     );
   }
 }
+
+export const GET = defineRouteNoArgs("GET /api/health/load", GET_handler);

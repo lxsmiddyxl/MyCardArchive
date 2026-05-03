@@ -5,6 +5,7 @@ import {
   GRADING_PIPELINE_VERSION,
   normalizeGradingInput,
 } from "@/lib/grading";
+import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 /**
  * Dev-only: exposes pipeline shape (no card secrets). Do not enable in production builds.
  */
-export async function GET() {
+async function GET_handler(): Promise<Response> {
   if (process.env.NODE_ENV !== "development") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -35,3 +36,5 @@ export async function GET() {
     heuristicSummary: heuristic.summary,
   });
 }
+
+export const GET = defineRouteNoArgs("GET /api/dev/grading/inspect", GET_handler);

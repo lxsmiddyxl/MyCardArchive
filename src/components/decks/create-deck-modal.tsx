@@ -9,6 +9,7 @@ import {
   modalPanelClasses,
   useModalMount,
 } from "@/lib/ui/use-modal-mount";
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import { useCallback, useEffect, useId, useState } from "react";
 
@@ -57,7 +58,7 @@ export function CreateDeckModal({ open, onClose, onCreated }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/decks/create", {
+      const r = await fetchJson("/api/decks/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -66,11 +67,8 @@ export function CreateDeckModal({ open, onClose, onCreated }: Props) {
           format,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!res.ok) {
-        setError(data.error ?? "Could not create deck.");
+      if (r.kind !== "ok") {
+        setError(fetchJsonErrorMessage(r));
         setSubmitting(false);
         return;
       }
@@ -104,6 +102,8 @@ export function CreateDeckModal({ open, onClose, onCreated }: Props) {
           animIn,
           "w-full max-w-md rounded-mca-card border border-mca-border bg-mca-surface-elevated/95 p-mca-lg shadow-mca-card shadow-black/40 dark:border-mca-border-subtle"
         )}
+        aria-live="polite"
+        aria-busy={submitting}
       >
         <h2 id={titleId} className="mca-section-reveal text-lg font-semibold text-mca-ink-strong">
           Create deck
@@ -124,7 +124,7 @@ export function CreateDeckModal({ open, onClose, onCreated }: Props) {
               id="deck-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface/80 px-mca-compact py-mca-tight text-sm text-mca-ink-strong outline-none transition-all duration-200 ease-mca-standard placeholder:text-mca-hint focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control placeholder:text-mca-hint"
               placeholder="My main deck"
               autoComplete="off"
             />
@@ -141,7 +141,7 @@ export function CreateDeckModal({ open, onClose, onCreated }: Props) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="mt-mca-sm w-full resize-none rounded-mca-control border border-mca-border bg-mca-surface/80 px-mca-compact py-mca-tight text-sm text-mca-ink-strong outline-none transition-all duration-200 ease-mca-standard placeholder:text-mca-hint focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm resize-none rounded-mca-control placeholder:text-mca-hint min-h-[5rem]"
               placeholder="Optional notes…"
             />
           </div>
@@ -158,7 +158,7 @@ export function CreateDeckModal({ open, onClose, onCreated }: Props) {
               onChange={(e) =>
                 setFormat(e.target.value as DeckFormatOptionValue)
               }
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface/80 px-mca-compact py-mca-tight text-sm text-mca-ink-strong outline-none transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control"
             >
               {DECK_FORMAT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>

@@ -1,3 +1,4 @@
+import { isCurrentUserInternalUnlimited } from "@/lib/entitlements/internal-unlimited";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../supabase/types/database.types";
 import { ensureUserTier } from "./ensure-tier";
@@ -84,6 +85,30 @@ export async function getUserTier(
   await ensureUserTier(client);
   row = await selectUserTierRow(client, user.id);
   return row;
+}
+
+/**
+ * Effective tier row for limits enforcement — applies internal unlimited (-1 caps) when applicable.
+ * Does not change `tier_slug` (Stripe/catalog slug stays visible for profile projection elsewhere).
+ */
+export async function getEffectiveUserTier(
+  client: AppSupabaseClient
+): Promise<UserTierRecord | null> {
+  const base = await getUserTier(client);
+  if (!base) return null;
+  try {
+    if (await isCurrentUserInternalUnlimited(client)) {
+      return {
+        ...base,
+        binder_limit: -1,
+        card_limit: -1,
+        scan_limit: -1,
+      };
+    }
+  } catch {
+    /* Entitlement probe must not reject SSR (e.g. fetch failure); use base tier caps. */
+  }
+  return base;
 }
 
 export async function getBinderCount(client: AppSupabaseClient): Promise<number> {
@@ -188,7 +213,7 @@ export async function assertCanCreateBinder(
   }
 
   await ensureUserTier(client);
-  const tier = await getUserTier(client);
+  const tier = await getEffectiveUserTier(client);
   if (!tier) {
     throw new TierLimitError(
       "binder",
@@ -220,7 +245,7 @@ export async function assertCanCreateCard(
   }
 
   await ensureUserTier(client);
-  const tier = await getUserTier(client);
+  const tier = await getEffectiveUserTier(client);
   if (!tier) {
     throw new TierLimitError(
       "card",
@@ -252,7 +277,7 @@ export async function assertCanCreateScan(
   }
 
   await ensureUserTier(client);
-  const tier = await getUserTier(client);
+  const tier = await getEffectiveUserTier(client);
   if (!tier) {
     throw new TierLimitError(
       "scan",

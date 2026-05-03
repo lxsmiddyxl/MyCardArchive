@@ -16,7 +16,10 @@ import {
 import { useCallback, useMemo } from "@/lib/perf/memo";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
+import type { DeckCardsByZoneDTO, DeckCardsListPayloadDTO } from "@/lib/dto/deck-builder";
 import { useRouter } from "next/navigation";
+import { useMobileVirtualOverscan } from "@/lib/ui/use-mobile-virtual-overscan";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useRef, useState } from "react";
 import { useLongPress } from "@/lib/ui/use-long-press";
@@ -62,24 +65,7 @@ type SearchCardRow = {
   type: string | null;
 };
 
-type DeckCard = {
-  card_id: string;
-  quantity: number;
-  section: string;
-  cards: {
-    id: string;
-    name: string;
-    image_url: string | null;
-    rarity: string | null;
-    number: string | null;
-  } | null;
-};
-
-type DeckCardsByZone = {
-  main: DeckCard[];
-  sideboard: DeckCard[];
-  commander: DeckCard[];
-};
+type DeckCardsByZone = DeckCardsByZoneDTO;
 
 type DeckLegalityPayload = {
   format: string;
@@ -310,6 +296,9 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchHasMore, setSearchHasMore] = useState(false);
   const searchReqId = useRef(0);
+  /** Ignore stale `cards/list` responses when rapid mutations overlap. */
+  const zonesFetchSeq = useRef(0);
+  const summaryFetchSeq = useRef(0);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const [loadingCards, setLoadingCards] = useState(true);
@@ -355,6 +344,8 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
     sideboard: false,
     commander: false,
   });
+  /** Roving keyboard focus within a zone list (`zone:cardId`). */
+  const [zoneFocusKey, setZoneFocusKey] = useState<string | null>(null);
 
   const dk = useMemo(() => encodeURIComponent(deckId), [deckId]);
 
@@ -417,25 +408,28 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
   }, [deckId, telemetryCtx]);
 
   const refreshZones = useCallback(async (): Promise<boolean> => {
+    const seq = ++zonesFetchSeq.current;
     try {
-      const deckRes = await fetch(`/api/decks/${dk}/cards/list`, { cache: "no-store" });
-      const deckBody = (await deckRes.json().catch(() => ({}))) as {
-        cards?: DeckCardsByZone;
-        error?: string;
-      };
-      if (!deckRes.ok) {
-        throw new Error(deckBody.error ?? "Failed to load deck cards");
+      const r = await fetchJson<DeckCardsListPayloadDTO>(
+        `/api/decks/${dk}/cards/list`,
+        { cache: "no-store" }
+      );
+      if (zonesFetchSeq.current !== seq) return true;
+      if (r.kind !== "ok") {
+        throw new Error(fetchJsonErrorMessage(r));
       }
       const next =
-        deckBody.cards ?? {
+        r.data.cards ??
+        ({
           main: [],
           sideboard: [],
           commander: [],
-        };
+        } satisfies DeckCardsByZone);
       setDeckCards(next);
       lkgSet(LKG_KEY.deckCards(deckId), next);
       return true;
     } catch (e) {
+      if (zonesFetchSeq.current !== seq) return true;
       const lkg = lkgGet<DeckCardsByZone>(LKG_KEY.deckCards(deckId));
       const hasCards =
         lkg &&
@@ -518,6 +512,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
   }, [deckId, dk, refreshZones, telemetryCtx]);
 
   const refreshSummaryOnly = useCallback(async (): Promise<void> => {
+    const seq = ++summaryFetchSeq.current;
     const summaryRes = await fetch(`/api/decks/${dk}/summary`, { cache: "no-store" });
     const summaryBody = (await summaryRes.json().catch(() => ({}))) as {
       deck?: DeckStatsPayload;
@@ -536,12 +531,15 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
     };
     if (!summaryRes.ok) {
       const msg = summaryBody.error ?? "Failed to load deck summary";
-      setStats(null);
-      setDeckStats(null);
-      setLegality(null);
-      setSectionErrors((s) => ({ ...s, stats: msg, legality: msg }));
+      if (summaryFetchSeq.current === seq) {
+        setStats(null);
+        setDeckStats(null);
+        setLegality(null);
+        setSectionErrors((s) => ({ ...s, stats: msg, legality: msg }));
+      }
       throw new Error(msg);
     }
+    if (summaryFetchSeq.current !== seq) return;
     const deckStatsPayload = summaryBody.deck ?? null;
     setStats(deckStatsPayload);
     setDeckStats(summaryBody.deck_stats ?? null);
@@ -616,6 +614,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
         try {
           await refreshSummaryOnly();
           await refreshSynergy();
+          router.refresh();
           setSaveStatus("saved");
           savedClearRef.current = setTimeout(() => {
             setSaveStatus("idle");
@@ -626,7 +625,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
         }
       })();
     }, 500);
-  }, [refreshSummaryOnly, refreshSynergy]);
+  }, [refreshSummaryOnly, refreshSynergy, router]);
 
   useEffect(() => {
     return () => {
@@ -638,6 +637,18 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
   useEffect(() => {
     hasLoadedDeckMeta.current = false;
   }, [deckId]);
+
+  useEffect(() => {
+    if (!zoneFocusKey) return;
+    requestAnimationFrame(() => {
+      const esc =
+        typeof CSS !== "undefined" && typeof CSS.escape === "function"
+          ? CSS.escape(zoneFocusKey)
+          : zoneFocusKey.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      const el = document.querySelector(`[data-deck-zone-slot="${esc}"]`);
+      if (el instanceof HTMLElement) el.focus();
+    });
+  }, [zoneFocusKey]);
 
   const loadInitial = useCallback(async () => {
     setError(null);
@@ -819,11 +830,12 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
   const enableSearchVirtual = searchResults.length > 6;
   const searchRowCount = Math.ceil(searchResults.length / gridCols);
 
+  const searchOverscan = useMobileVirtualOverscan(3);
   const searchRowVirtualizer = useVirtualizer({
     count: enableSearchVirtual ? searchRowCount : 0,
     getScrollElement: () => searchScrollRef.current,
     estimateSize: () => 160,
-    overscan: 3,
+    overscan: searchOverscan,
   });
 
   useEffect(() => {
@@ -871,53 +883,45 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
     });
   };
 
-  function isAddLoading(
-    cardId: string,
-    zone: "main" | "sideboard" | "commander"
-  ): boolean {
-    return (
+  const isAddLoading = useCallback(
+    (cardId: string, zone: "main" | "sideboard" | "commander"): boolean =>
       busyAction?.kind === "add" &&
       busyAction.cardId === cardId &&
-      busyAction.zone === zone
-    );
-  }
+      busyAction.zone === zone,
+    [busyAction]
+  );
 
-  function isRemoveLoading(
-    cardId: string,
-    zone: "main" | "sideboard" | "commander"
-  ): boolean {
-    return (
+  const isRemoveLoading = useCallback(
+    (cardId: string, zone: "main" | "sideboard" | "commander"): boolean =>
       busyAction?.kind === "remove" &&
       busyAction.cardId === cardId &&
-      busyAction.zone === zone
-    );
-  }
+      busyAction.zone === zone,
+    [busyAction]
+  );
 
-  function isMoveLoading(
-    cardId: string,
-    from: keyof DeckCardsByZone,
-    to: keyof DeckCardsByZone
-  ): boolean {
-    return (
+  const isMoveLoading = useCallback(
+    (cardId: string, from: keyof DeckCardsByZone, to: keyof DeckCardsByZone): boolean =>
       busyAction?.kind === "move" &&
       busyAction.cardId === cardId &&
       busyAction.from === from &&
-      busyAction.to === to
-    );
-  }
+      busyAction.to === to,
+    [busyAction]
+  );
 
   const addToZone = useCallback(
     async (cardId: string, zone: "main" | "sideboard" | "commander") => {
       setError(null);
       setBusyAction({ kind: "add", cardId, zone });
       try {
-        const res = await fetch(`/api/decks/${dk}/cards/add`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ card_id: cardId, zone }),
-        });
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Failed to add card");
+        const r = await fetchJson<Record<string, unknown>>(
+          `/api/decks/${dk}/cards/add`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ card_id: cardId, zone }),
+          }
+        );
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
         await refreshZones();
         scheduleSummaryRefresh();
         mcaLog.event("deck.editor.card_add", { zone }, telemetryCtx);
@@ -947,13 +951,15 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
       setError(null);
       setBusyAction({ kind: "remove", cardId, zone });
       try {
-        const res = await fetch(`/api/decks/${dk}/cards/remove`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ card_id: cardId, zone }),
-        });
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Failed to update quantity");
+        const r = await fetchJson<Record<string, unknown>>(
+          `/api/decks/${dk}/cards/remove`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ card_id: cardId, zone }),
+          }
+        );
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
         await refreshZones();
         scheduleSummaryRefresh();
         mcaLog.event("deck.editor.card_remove", { zone }, telemetryCtx);
@@ -988,7 +994,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
       setError(null);
       setBusyAction({ kind: "move", cardId, from, to });
       try {
-        const res = await fetch("/api/decks/move-card", {
+        const r = await fetchJson<Record<string, unknown>>("/api/decks/move-card", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -998,8 +1004,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
             to_section: to,
           }),
         });
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Could not move card");
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
         await refreshZones();
         scheduleSummaryRefresh();
         mcaLog.event("deck.editor.card_move", { from, to }, telemetryCtx);
@@ -1123,7 +1128,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
     }
   }, [deckId, setDeckVisibility]);
 
-  function renderSearchCard(card: SearchCardRow) {
+  const renderSearchCard = useCallback((card: SearchCardRow) => {
     return (
       <div className="mca-row-reveal group flex gap-mca-compact rounded-mca-card border border-mca-border bg-mca-surface/40 p-mca-compact shadow-mca-panel transition-all duration-200 ease-mca-standard hover:-translate-y-0.5 hover:border-mca-field-border hover:shadow-mca-card dark:border-mca-border-subtle">
         <div className="relative h-24 w-[4.25rem] shrink-0 overflow-hidden rounded-mca-block border border-mca-border bg-mca-surface-elevated dark:border-mca-border-subtle">
@@ -1187,7 +1192,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
         </div>
       </div>
     );
-  }
+  }, [addToZone, busyAction, isAddLoading, loadingCards]);
 
   return (
     <section className="space-y-mca-lg">
@@ -1243,7 +1248,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
               value={editorName}
               onChange={(e) => setEditorName(e.target.value)}
               autoComplete="off"
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm text-sm text-mca-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control"
             />
           </div>
           <div>
@@ -1259,7 +1264,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
               onChange={(e) =>
                 setEditorFormat(e.target.value as DeckFormatOptionValue)
               }
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface py-mca-sm pl-mca-sm pr-mca-xl text-sm text-mca-ink-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control py-mca-sm pl-mca-sm pr-mca-xl"
             >
               {DECK_FORMAT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -1281,7 +1286,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
               onChange={(e) => setEditorDescription(e.target.value)}
               rows={3}
               placeholder="Optional notes…"
-              className="mt-mca-sm w-full resize-none rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm text-sm text-mca-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm resize-none rounded-mca-control min-h-[5rem]"
             />
           </div>
         </div>
@@ -1391,7 +1396,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
           onPointerDown={() => deckSearchInteract.start()}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Name search (debounced)…"
-          className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface-elevated px-mca-base py-mca-tight text-sm text-mca-ink-strong transition-all duration-200 ease-mca-standard placeholder:text-mca-ink-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+          className="mca-input mt-mca-sm rounded-mca-control px-mca-base py-mca-tight placeholder:text-mca-ink-subtle"
         />
         <div className="mt-mca-compact grid gap-mca-compact sm:grid-cols-3">
           <div>
@@ -1401,7 +1406,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
             <select
               value={setFilter}
               onChange={(e) => setSetFilter(e.target.value)}
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface-elevated py-mca-sm pl-mca-sm pr-mca-xl text-sm text-mca-ink-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control py-mca-sm pl-mca-sm pr-mca-xl"
             >
               <option value="">All sets</option>
               {facetSets.map((s) => (
@@ -1418,7 +1423,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface-elevated py-mca-sm pl-mca-sm pr-mca-xl text-sm text-mca-ink-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control py-mca-sm pl-mca-sm pr-mca-xl"
             >
               <option value="">All types</option>
               {facetTypes.map((t) => (
@@ -1435,7 +1440,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
             <select
               value={rarityFilter}
               onChange={(e) => setRarityFilter(e.target.value)}
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface-elevated py-mca-sm pl-mca-sm pr-mca-xl text-sm text-mca-ink-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control py-mca-sm pl-mca-sm pr-mca-xl"
             >
               <option value="">All rarities</option>
               {facetRarities.map((r) => (
@@ -1478,7 +1483,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
               ) : (
                 <div
                   ref={searchScrollRef}
-                  className="max-h-[min(70vh,780px)] overflow-y-auto overflow-x-hidden"
+                  className="max-h-[min(70vh,780px)] overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y max-md:max-h-[min(65dvh,560px)]"
                 >
                   <div
                     className="relative w-full"
@@ -1728,8 +1733,9 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
                         : "No cards in this section."}
                     </p>
                   ) : (
-                    <ul className="space-y-mca-sm">
+                    <ul className="space-y-mca-sm" aria-label={`${meta.label} cards`}>
                       {rows.map((row) => {
+                        const slotKey = `${zone}:${row.card_id}`;
                         const borderClass = illegalCardIds.has(row.card_id)
                           ? "border-mca-error-bright/50 bg-mca-error-surface/20"
                           : "border-mca-border dark:border-mca-border-subtle";
@@ -1758,7 +1764,24 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
                                 </div>
                               }
                             >
-                              <div className="flex flex-col gap-mca-sm px-mca-compact py-mca-tight transition-all duration-200 ease-out hover:-translate-y-px hover:bg-mca-chrome/40 sm:flex-row sm:items-center sm:justify-between">
+                              <div
+                                data-deck-zone-slot={slotKey}
+                                tabIndex={zoneFocusKey === slotKey ? 0 : -1}
+                                role="group"
+                                aria-label={`${row.cards?.name ?? "Card"}, quantity ${row.quantity}`}
+                                onFocus={() => setZoneFocusKey(slotKey)}
+                                onKeyDown={(e) => {
+                                  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+                                  e.preventDefault();
+                                  const list = deckCards[zone] ?? [];
+                                  const cur = list.findIndex((r) => r.card_id === row.card_id);
+                                  const nextIdx = e.key === "ArrowDown" ? cur + 1 : cur - 1;
+                                  if (nextIdx < 0 || nextIdx >= list.length) return;
+                                  const nextRow = list[nextIdx];
+                                  if (nextRow) setZoneFocusKey(`${zone}:${nextRow.card_id}`);
+                                }}
+                                className="flex flex-col gap-mca-sm px-mca-compact py-mca-tight outline-none transition-all duration-200 ease-out hover:-translate-y-px hover:bg-mca-chrome/40 focus-visible:ring-2 focus-visible:ring-mca-focus/60 sm:flex-row sm:items-center sm:justify-between"
+                              >
                                 <div className="min-w-0 flex-1">
                                   <DeckZoneTitleWithLongPress
                                     cardId={row.card_id}
@@ -2002,6 +2025,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
         onClose={() => setDetailCardId(null)}
         onChanged={async () => {
           await loadInitial();
+          router.refresh();
         }}
       />
 
@@ -2017,6 +2041,7 @@ export function DeckEditorOwnedCardsClient({ deckId }: Props) {
         onClose={() => setImportOpen(false)}
         onChanged={async () => {
           await loadInitial();
+          router.refresh();
         }}
       />
 

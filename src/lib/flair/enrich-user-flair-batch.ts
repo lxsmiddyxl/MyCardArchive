@@ -45,6 +45,13 @@ import {
 } from "@/lib/fandom/fandom-identity-helpers";
 import { loadSocialFandomIdentityByUserIds } from "@/lib/fandom/load-fandom-identity-batch";
 import { loadSocialPersonaByUserIds } from "@/lib/persona/load-persona-batch";
+import { loadCollectorIdentityMapByUserIds } from "@/lib/identity/load-identity-map-batch";
+import type { IdentityArchetypeBlendEntry } from "@/lib/identity/collector-identity-map";
+import { loadCollectorArchetypesByUserIds } from "@/lib/persona/load-collector-archetypes-batch";
+import {
+  buildPersonaV2FromArchetypes,
+  type ArchetypeFitRow,
+} from "@/lib/persona/persona-v2";
 import {
   loadSocialSimilarityByUserIds,
   type SimilarUserEntry,
@@ -75,6 +82,21 @@ import {
   type InfluenceScores,
 } from "@/lib/influence/influence-summary";
 import type { InfluenceDimensionId } from "@/lib/influence/influence-catalog";
+import {
+  type BadgeV2ProgressRow,
+  type BadgeV2RpcRow,
+  partitionBadgeV2Rows,
+} from "@/lib/badges/badge-catalog";
+import { buildPresenceQualitativeLabel } from "@/lib/presence/presence-labels";
+import {
+  roomPresenceLabelFromActiveRooms,
+  type ActiveRoomSummary,
+} from "@/lib/collector-rooms/room-presence-label";
+import { loadCollectorRoomsByUserIds } from "@/lib/collector-rooms/load-collector-rooms-batch";
+import {
+  loadActivityWaveLabelsForBatch,
+  type ActivityWaveEnrichmentContext,
+} from "@/lib/activity-waves/load-activity-wave-labels";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type UserFlairEnrichment = {
@@ -118,6 +140,8 @@ export type UserFlairEnrichment = {
   /** Coarse activity key from DB — for client re-derivation with `deriveActivityState`. */
   lastActivityKey: string | null;
   presenceOptOut: boolean;
+  /** Qualitative presence line for strips (no exact timestamps). */
+  presenceLabel: string | null;
   /** One-line season recap strip (last completed season, if generated). */
   seasonHighlight: string | null;
   /** Auto-assigned collector cohorts (public metadata only). */
@@ -137,6 +161,30 @@ export type UserFlairEnrichment = {
   topInfluenceDimension: InfluenceDimensionId | null;
   influenceSummary: string | null;
   influenceDimensionChips: InfluenceDimensionId[];
+  /** Phase 24 — qualitative badge progression (no numeric scores in UI). */
+  badgeProgress: BadgeV2ProgressRow[];
+  topBadges: string[];
+  seasonalBadges: string[];
+  prestigeBadges: string[];
+  badgeHighlight: string | null;
+  /** Phase 26 — ephemeral context rooms (ambient only). */
+  activeRooms: ActiveRoomSummary[];
+  roomPresenceLabel: string | null;
+  /** Phase 27 — platform / contextual qualitative waves (no numeric counts). */
+  platformActivityLabel: string | null;
+  setActivityLabel: string | null;
+  clubActivityLabel: string | null;
+  /** Phase 28 — persona v2 headline + qualitative archetype fits (no raw vectors). */
+  personaV2Label: string | null;
+  personaV2Summary: string | null;
+  topArchetypes: ArchetypeFitRow[];
+  /** Phase 29 — fused qualitative identity map (no raw taste vectors in payload). */
+  identityHeadline: string | null;
+  identitySummary: string | null;
+  identityTraits: string[];
+  identityClusters: string[];
+  identitySignals: string[];
+  identityArchetypeBlend: IdentityArchetypeBlendEntry[];
 };
 
 function defaultPlayRow(userId: string): PlayIdentityBatchRow {
@@ -153,7 +201,8 @@ function defaultPlayRow(userId: string): PlayIdentityBatchRow {
 export async function enrichUsersWithFlair(
   supabase: SupabaseClient<Database>,
   userIds: string[],
-  tierByUserId: Record<string, string | null | undefined>
+  tierByUserId: Record<string, string | null | undefined>,
+  activityWaveContext?: ActivityWaveEnrichmentContext | null
 ): Promise<Record<string, UserFlairEnrichment>> {
   const unique = [...new Set(userIds.map((x) => x.trim()).filter(Boolean))];
   if (unique.length === 0) {
@@ -180,6 +229,11 @@ export async function enrichUsersWithFlair(
     repBadgeRes,
     inflGraphRes,
     inflBadgeRes,
+    badgeProgRes,
+    roomsByUser,
+    waveLabels,
+    archetypesByUser,
+    identityMapByUser,
   ] =
     await Promise.all([
       loadSocialFlairContextByUserIds(supabase, unique),
@@ -209,6 +263,11 @@ export async function enrichUsersWithFlair(
         .select("user_id, badge_key")
         .in("user_id", unique)
         .eq("badge_type", "influence"),
+      supabase.rpc("get_users_badge_progress_batch", { p_user_ids: unique }),
+      loadCollectorRoomsByUserIds(supabase, unique),
+      loadActivityWaveLabelsForBatch(supabase, activityWaveContext ?? null),
+      loadCollectorArchetypesByUserIds(supabase, unique),
+      loadCollectorIdentityMapByUserIds(supabase, unique),
     ]);
   const repByUser = new Map<string, ReputationScores>();
   const repRows = Array.isArray(repGraphRes.data) ? repGraphRes.data : [];
@@ -253,6 +312,29 @@ export async function enrichUsersWithFlair(
     const cur = inflBadgesByUser.get(uid) ?? [];
     cur.push(String(bk));
     inflBadgesByUser.set(uid, cur);
+  }
+  const badgeRowsByUser = new Map<string, BadgeV2RpcRow[]>();
+  const badgeProgRowsRaw =
+    badgeProgRes.error != null ? [] : Array.isArray(badgeProgRes.data) ? badgeProgRes.data : [];
+  for (const raw of badgeProgRowsRaw) {
+    const r = raw as Record<string, unknown>;
+    const uid = String(r.user_id ?? "");
+    if (!uid) continue;
+    const row: BadgeV2RpcRow = {
+      user_id: uid,
+      badge_type: String(r.badge_type ?? ""),
+      badge_key: String(r.badge_key ?? ""),
+      catalog_category: String(r.catalog_category ?? ""),
+      tier: String(r.tier ?? ""),
+      qualitative_label: String(r.qualitative_label ?? ""),
+      season_label: r.season_label != null ? String(r.season_label) : null,
+      prestige_step: r.prestige_step != null ? Number(r.prestige_step) : null,
+      prestige_steps_total: r.prestige_steps_total != null ? Number(r.prestige_steps_total) : null,
+      display_hint: r.display_hint != null ? String(r.display_hint) : null,
+    };
+    const cur = badgeRowsByUser.get(uid) ?? [];
+    cur.push(row);
+    badgeRowsByUser.set(uid, cur);
   }
   const out: Record<string, UserFlairEnrichment> = {};
   for (const id of unique) {
@@ -335,6 +417,24 @@ export async function enrichUsersWithFlair(
     const clubIds = clubsByUser[id] ?? [];
     const clubs = mapClubIdsToChips(clubIds);
     const primaryClubId = pickPrimaryClubId(clubIds);
+    const badgePartition = partitionBadgeV2Rows(badgeRowsByUser.get(id) ?? []);
+    const nowMs = Date.now();
+    const presenceLabel =
+      pr?.presenceOptOut === true
+        ? "Presence hidden"
+        : pr
+          ? buildPresenceQualitativeLabel({
+              nowMs,
+              presenceOptOut: false,
+              lastSeenAtIso: pr.lastSeenAt,
+              presenceState: pr.presenceState,
+              activityState: pr.activityState,
+            })
+          : null;
+    const activeRooms = roomsByUser[id] ?? [];
+    const roomPresenceLabel = roomPresenceLabelFromActiveRooms(activeRooms);
+    const pv2 = buildPersonaV2FromArchetypes(archetypesByUser[id] ?? []);
+    const idMap = identityMapByUser[id];
     out[id] = {
       reputationScore,
       activityStreak,
@@ -375,6 +475,7 @@ export async function enrichUsersWithFlair(
       lastActivityAt: pr?.presenceOptOut ? null : pr?.lastActivityAt ?? null,
       lastActivityKey: pr?.presenceOptOut ? null : pr?.lastActivityRaw ?? null,
       presenceOptOut: pr?.presenceOptOut ?? false,
+      presenceLabel,
       seasonHighlight: seasonHighlights[id] ?? null,
       clubs,
       primaryClubId,
@@ -387,6 +488,25 @@ export async function enrichUsersWithFlair(
       topInfluenceDimension: pickTopInfluenceDimension(inflScores),
       influenceSummary: buildInfluenceSummaryLine(inflScores),
       influenceDimensionChips: inflChips,
+      badgeProgress: badgePartition.badgeProgress,
+      topBadges: badgePartition.topBadges,
+      seasonalBadges: badgePartition.seasonalBadges,
+      prestigeBadges: badgePartition.prestigeBadges,
+      badgeHighlight: badgePartition.badgeHighlight,
+      activeRooms,
+      roomPresenceLabel,
+      platformActivityLabel: waveLabels.platformActivityLabel,
+      setActivityLabel: waveLabels.setActivityLabel,
+      clubActivityLabel: waveLabels.clubActivityLabel,
+      personaV2Label: pv2.personaV2Label,
+      personaV2Summary: pv2.personaV2Summary,
+      topArchetypes: pv2.topArchetypes,
+      identityHeadline: idMap?.identityHeadline ?? null,
+      identitySummary: idMap?.identitySummary ?? null,
+      identityTraits: idMap?.identityTraits ?? [],
+      identityClusters: idMap?.identityClusters ?? [],
+      identitySignals: idMap?.identitySignals ?? [],
+      identityArchetypeBlend: idMap?.identityArchetypeBlend ?? [],
     };
   }
   return out;

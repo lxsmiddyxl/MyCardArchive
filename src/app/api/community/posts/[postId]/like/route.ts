@@ -1,3 +1,4 @@
+import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { mcaLog } from "@/lib/logging/mca-log-server";
 import { defineRoute } from "@/lib/server/api-route";
 import { isUuidString } from "@/lib/server/is-uuid";
@@ -12,29 +13,26 @@ async function POST_handler(
   _request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   const postId = context.params.postId?.trim();
   if (!postId || !isUuidString(postId)) {
-    return NextResponse.json({ error: "Invalid post id" }, { status: 400 });
+    return errorJson(ctx, "Invalid post id", 400);
   }
 
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const { data: post } = await supabase.from("community_posts").select("id").eq("id", postId).maybeSingle();
   if (!post) {
-    return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    return errorJson(ctx, "Post not found", 404);
   }
 
   const { data: existing } = await supabase
     .from("community_post_likes")
     .select("post_id")
     .eq("post_id", postId)
-    .eq("user_id", user.id)
+    .eq("user_id", session.userId)
     .maybeSingle();
 
   if (existing) {
@@ -42,24 +40,24 @@ async function POST_handler(
       .from("community_post_likes")
       .delete()
       .eq("post_id", postId)
-      .eq("user_id", user.id);
+      .eq("user_id", session.userId);
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return errorJson(ctx, error.message, 500);
     }
     mcaLog.event("community.like", { postId, action: "unlike" }, CTX);
-    return NextResponse.json({ liked: false });
+    return NextResponse.json({ success: true, context_id: ctx.contextId, liked: false });
   }
 
   const { error } = await supabase.from("community_post_likes").insert({
     post_id: postId,
-    user_id: user.id,
+    user_id: session.userId,
   });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, error.message, 500);
   }
 
   mcaLog.event("community.like", { postId, action: "like" }, CTX);
-  return NextResponse.json({ liked: true });
+  return NextResponse.json({ success: true, context_id: ctx.contextId, liked: true });
 }
 
 export const POST = defineRoute("POST /api/community/posts/[postId]/like", POST_handler);

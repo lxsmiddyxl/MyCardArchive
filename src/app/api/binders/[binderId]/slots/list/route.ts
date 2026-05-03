@@ -1,11 +1,11 @@
+import { errorJson, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
+import type { BinderSlotsListPayloadDTO } from "@/lib/dto/binder";
 import { getMaxBinderPagesForUser } from "@/lib/binders/page-limits";
 import { PRIVATE_SHORT_CACHE_HEADERS } from "@/lib/server/private-cache-control";
 import { defineRoute } from "@/lib/server/api-route";
 import { withQueryTiming } from "@/lib/server/query-timing";
 import { withSupabaseCall } from "@/lib/server/supabase-call";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
-
 export const dynamic = "force-dynamic";
 
 async function GET_handler(
@@ -13,19 +13,15 @@ async function GET_handler(
   context: { params: Record<string, string> }
 ) {
   return withQueryTiming("GET /api/binders/[binderId]/slots/list", async () => {
+  const ctx = withContextId();
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await validateSession(supabase, ctx);
+    if (!session.ok) return session.response;
 
     const binderId = context.params.binderId?.trim();
     if (!binderId) {
-      return NextResponse.json({ error: "Invalid binder id" }, { status: 400 });
+      return errorJson(ctx, "Invalid binder id", 400);
     }
 
     const { data: binder, error: bErr } = await withSupabaseCall(
@@ -35,15 +31,15 @@ async function GET_handler(
           .from("binders")
           .select("id")
           .eq("id", binderId)
-          .eq("user_id", user.id)
+          .eq("user_id", session.userId)
           .maybeSingle()
     );
 
     if (bErr) {
-      return NextResponse.json({ error: bErr.message }, { status: 500 });
+      return errorJson(ctx, bErr.message, 500);
     }
     if (!binder) {
-      return NextResponse.json({ error: "Binder not found" }, { status: 404 });
+      return errorJson(ctx, "Binder not found", 404);
     }
 
     const maxPages = await getMaxBinderPagesForUser(supabase);
@@ -77,7 +73,7 @@ async function GET_handler(
     );
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return errorJson(ctx, error.message, 500);
     }
 
     const pages: Record<
@@ -144,12 +140,10 @@ async function GET_handler(
       .filter((n) => Number.isFinite(n))
       .sort((a, b) => a - b);
 
-    return NextResponse.json(
-      { pages, maxPages, pageNumbers },
-      { headers: PRIVATE_SHORT_CACHE_HEADERS }
-    );
+    const body: BinderSlotsListPayloadDTO = { pages, maxPages, pageNumbers };
+    return successJson(ctx, body, { headers: PRIVATE_SHORT_CACHE_HEADERS });
   } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return errorJson(ctx, "Server error", 500);
   }
   });
 }

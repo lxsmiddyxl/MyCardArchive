@@ -8,12 +8,18 @@ import {
   LoadingButton,
   ModalBase,
 } from "@/mca-ui";
+import { fetchJson, fetchJsonErrorMessage, useAsyncState } from "@/lib/client";
+import type {
+  DeckImportResultDTO,
+  DeckImportAddedRowDTO,
+  DeckImportUnmatchedRowDTO,
+} from "@/lib/dto/deck-import";
 import { useCallback, useEffect, useState } from "react";
 
 type Zone = "main" | "sideboard" | "commander";
 
-type AddedRow = { name: string; card_id: string; quantity: number };
-type UnmatchedRow = { line: string; quantity: number; reason: string };
+type AddedRow = DeckImportAddedRowDTO;
+type UnmatchedRow = DeckImportUnmatchedRowDTO;
 
 type Props = {
   open: boolean;
@@ -23,12 +29,18 @@ type Props = {
 };
 
 export function ImportDeckModal({ open, deckId, onClose, onChanged }: Props) {
+  const {
+    run: runImport,
+    loading: submitting,
+    error: importError,
+    reset: resetImport,
+  } = useAsyncState<DeckImportResultDTO>();
   const [zone, setZone] = useState<Zone>("main");
   const [pasted, setPasted] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState<AddedRow[] | null>(null);
   const [unmatched, setUnmatched] = useState<UnmatchedRow[] | null>(null);
+  const surfaceError = error ?? importError;
 
   useEffect(() => {
     if (!open) {
@@ -37,9 +49,9 @@ export function ImportDeckModal({ open, deckId, onClose, onChanged }: Props) {
       setError(null);
       setAdded(null);
       setUnmatched(null);
-      setSubmitting(false);
+      resetImport();
     }
-  }, [open]);
+  }, [open, resetImport]);
 
   const handleClose = useCallback(() => {
     if (submitting) return;
@@ -48,26 +60,20 @@ export function ImportDeckModal({ open, deckId, onClose, onChanged }: Props) {
 
   const submit = useCallback(async () => {
     if (!deckId) return;
-    setSubmitting(true);
     setError(null);
     setAdded(null);
     setUnmatched(null);
-    try {
-      const res = await fetch(`/api/decks/${encodeURIComponent(deckId)}/import`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: pasted, zone }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        added?: AddedRow[];
-        unmatched?: UnmatchedRow[];
-      };
-      if (!res.ok) {
-        setError(data.error ?? "Import failed");
-        setSubmitting(false);
-        return;
-      }
+    await runImport(async () => {
+      const r = await fetchJson<DeckImportResultDTO>(
+        `/api/decks/${encodeURIComponent(deckId)}/import`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: pasted, zone }),
+        }
+      );
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      const data = r.data;
       const nextAdded = Array.isArray(data.added) ? data.added : [];
       const nextUnmatched = Array.isArray(data.unmatched) ? data.unmatched : [];
       setAdded(nextAdded);
@@ -75,12 +81,9 @@ export function ImportDeckModal({ open, deckId, onClose, onChanged }: Props) {
       if (nextAdded.length > 0) {
         await onChanged();
       }
-      setSubmitting(false);
-    } catch {
-      setError("Network error");
-      setSubmitting(false);
-    }
-  }, [deckId, pasted, zone, onChanged]);
+      return data;
+    });
+  }, [deckId, pasted, zone, onChanged, runImport]);
 
   const showUnmatched = unmatched && unmatched.length > 0;
   const showAdded = added && added.length > 0;
@@ -108,6 +111,7 @@ export function ImportDeckModal({ open, deckId, onClose, onChanged }: Props) {
         </div>
       }
     >
+      <section aria-live="polite" aria-busy={submitting}>
       <p className="text-sm text-mca-ink-subtle">
         Supports TCGPlayer, Pokémon Showdown, and{" "}
         <span className="whitespace-nowrap">3× Name</span> text lines. This replaces all cards in the
@@ -130,9 +134,9 @@ export function ImportDeckModal({ open, deckId, onClose, onChanged }: Props) {
         </select>
       </div>
 
-      {error ? (
+      {surfaceError ? (
         <InlineError className="my-mca-compact" showIcon>
-          {error}
+          {surfaceError}
         </InlineError>
       ) : null}
 
@@ -170,8 +174,9 @@ export function ImportDeckModal({ open, deckId, onClose, onChanged }: Props) {
         placeholder={
           "Charizard – 3\n4 Pikachu\n3x Mew\n\nLines can be mixed; empty lines and # comments are ok."
         }
-        className="mt-mca-sm h-48 w-full resize-y rounded-mca-control border border-mca-border bg-mca-surface/80 px-mca-compact py-mca-tight font-mono text-xs leading-relaxed text-mca-ink-strong outline-none transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-50 dark:border-mca-border-subtle"
+        className="mca-input mt-mca-sm h-48 w-full resize-y font-mono text-xs leading-relaxed text-mca-body"
       />
+      </section>
     </ModalBase>
   );
 }

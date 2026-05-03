@@ -2,6 +2,7 @@
 
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import type { McaLogContext } from "@/lib/logging/types";
+import { useMobileVirtualOverscan } from "@/lib/ui/use-mobile-virtual-overscan";
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useRef, type MutableRefObject, type ReactNode } from "react";
 import { cn } from "@/lib/ui/cn";
@@ -45,6 +46,7 @@ export function McaVirtualList<T>({
   renderItem,
   telemetry,
 }: McaVirtualListProps<T>) {
+  const effectiveOverscan = useMobileVirtualOverscan(overscan);
   const internalRef = useRef<HTMLDivElement | null>(null);
   const setScrollRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -60,7 +62,7 @@ export function McaVirtualList<T>({
     count: items.length,
     getScrollElement: () => internalRef.current,
     estimateSize: () => estimateSize,
-    overscan,
+    overscan: effectiveOverscan,
   });
 
   const scrollLogTimer = useRef<ReturnType<typeof setTimeout> | undefined>();

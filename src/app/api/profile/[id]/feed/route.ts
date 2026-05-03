@@ -2,6 +2,8 @@ import { loadTopScanMilestonesByUserIds } from "@/lib/badges/load-top-scan-miles
 import { enrichUsersWithFlair } from "@/lib/flair/enrich-user-flair-batch";
 import { presenceSnapshotFromFlair } from "@/lib/presence/flair-presence-fields";
 import { resolveAuthorFromSocial } from "@/lib/profile/resolveAuthor";
+import { loadSocialGraphV4ByUserIds } from "@/lib/social/load-social-graph-v4-batch";
+import { parseSocialGraphV4Narrative, socialGraphV4FeedEchoLine } from "@/lib/social/social-graph-v4";
 import { defineRoute } from "@/lib/server/api-route";
 import { isUuidString } from "@/lib/server/is-uuid";
 import { createClient } from "@/lib/supabase/route";
@@ -28,13 +30,16 @@ async function GET_handler(
 
   const url = new URL(request.url);
   const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") ?? "20", 10)));
+  const before = url.searchParams.get("before")?.trim();
 
-  const { data: rows, error } = await supabase
+  let feedQuery = supabase
     .from("feed_events")
     .select("id, kind, actor_id, subject_id, payload, created_at")
-    .eq("actor_id", profileId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .eq("actor_id", profileId);
+  if (before && before.length > 0) {
+    feedQuery = feedQuery.lt("created_at", before);
+  }
+  const { data: rows, error } = await feedQuery.order("created_at", { ascending: false }).limit(limit);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -129,6 +134,44 @@ async function GET_handler(
     actorPresence = presenceSnapshotFromFlair(row);
   }
 
+  const feedEventIds = list.map((r) => r.id).filter((id): id is string => Boolean(id));
+  const savedIdSet = new Set<string>();
+  if (feedEventIds.length > 0) {
+    const { data: saveRows } = await supabase
+      .from("feed_event_saves")
+      .select("feed_event_id")
+      .eq("user_id", user.id)
+      .in("feed_event_id", feedEventIds);
+    for (const s of saveRows ?? []) {
+      if (s.feed_event_id) savedIdSet.add(s.feed_event_id);
+    }
+  }
+
+  const graphByActor = await loadSocialGraphV4ByUserIds(supabase, [profileId]);
+  const actorSocialGraphEcho =
+    socialGraphV4FeedEchoLine(graphByActor[profileId] ?? parseSocialGraphV4Narrative(null)) ?? null;
+
+  const linesByEventId: Record<string, string> = {};
+  if (list.length > 0) {
+    const p_events = list.map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      subject_id: r.subject_id,
+      created_at: r.created_at,
+    }));
+    const { data: linesJson, error: linesErr } = await supabase.rpc("get_profile_feed_v3_signal_lines", {
+      p_actor_id: profileId,
+      p_events: p_events,
+    });
+    if (!linesErr && linesJson && typeof linesJson === "object" && !Array.isArray(linesJson)) {
+      for (const [k, v] of Object.entries(linesJson as Record<string, unknown>)) {
+        if (typeof v === "string" && v.trim().length > 0) {
+          linesByEventId[k] = v.trim();
+        }
+      }
+    }
+  }
+
   const items = list.map((r) => ({
     ...r,
     actor_name: actorName,
@@ -165,6 +208,9 @@ async function GET_handler(
     actor_persona_text: actorPersonaText,
     actor_clubs_summary: actorClubsSummary,
     actor_presence: actorPresence,
+    actor_social_graph_echo: actorSocialGraphEcho,
+    feed_v3_signal_line: linesByEventId[r.id] ?? null,
+    viewer_has_saved: savedIdSet.has(r.id),
   }));
 
   return NextResponse.json({ items });

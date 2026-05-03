@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage, useAsyncState } from "@/lib/client";
+import type { DeckAddCardResponseDTO } from "@/lib/dto/deck-import";
 import { McaVirtualList } from "@/components/ui/mca-virtual-list";
 import { RemoteCardThumb } from "@/mca-ui/remote-card-thumb";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -139,15 +141,23 @@ export function CardSearchPanel({
   const preview = useCardHoverPreview();
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
-  const [rows, setRows] = useState<SearchCardRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    run: runSearch,
+    data: searchData,
+    loading: searchLoading,
+    error: searchError,
+  } = useAsyncState<SearchCardRow[]>();
+  const { run: runAdd, error: addError } = useAsyncState<unknown>();
   const [setFilter, setSetFilter] = useState("");
   const [rarityFilter, setRarityFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [deckFilter, setDeckFilter] = useState<DeckFilter>("all");
   const [addingId, setAddingId] = useState<string | null>(null);
   const [sets, setSets] = useState<{ id: string; name: string }[]>([]);
+
+  const rows = useMemo(() => searchData ?? [], [searchData]);
+  const loading = searchLoading || (searchData === null && !searchError);
+  const surfaceError = searchError ?? addError;
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(query.trim()), 320);
@@ -196,93 +206,92 @@ export function CardSearchPanel({
     };
   }, []);
 
-  const runSearch = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const supabase = supabaseBrowser();
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData.user?.id;
-    if (!uid) {
-      setLoading(false);
-      setError("Not signed in.");
-      return;
-    }
+  const executeSearch = useCallback(async () => {
+    await runSearch(async () => {
+      const supabase = supabaseBrowser();
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+      if (!uid) {
+        throw new Error("Not signed in.");
+      }
 
-    const safeLike = debounced.replace(/[%_]/g, "");
+      const safeLike = debounced.replace(/[%_]/g, "");
 
-    let res =
-      debounced.length > 0
-        ? await supabase
-            .from("cards")
-            .select(SELECT)
-            .eq("user_id", uid)
-            .textSearch("name_tsv", debounced, {
-              type: "websearch",
-              config: "english",
-            })
-            .limit(80)
-        : await supabase
-            .from("cards")
-            .select(SELECT)
-            .eq("user_id", uid)
-            .order("created_at", { ascending: false })
-            .limit(48);
+      let res =
+        debounced.length > 0
+          ? await supabase
+              .from("cards")
+              .select(SELECT)
+              .eq("user_id", uid)
+              .textSearch("name_tsv", debounced, {
+                type: "websearch",
+                config: "english",
+              })
+              .limit(80)
+          : await supabase
+              .from("cards")
+              .select(SELECT)
+              .eq("user_id", uid)
+              .order("created_at", { ascending: false })
+              .limit(48);
 
-    if (
-      res.error &&
-      (res.error.message.includes("name_tsv") ||
-        res.error.message.includes("does not exist"))
-    ) {
-      res = await supabase
-        .from("cards")
-        .select(SELECT)
-        .eq("user_id", uid)
-        .ilike("name", `%${safeLike}%`)
-        .limit(80);
-    }
+      if (
+        res.error &&
+        (res.error.message.includes("name_tsv") ||
+          res.error.message.includes("does not exist"))
+      ) {
+        res = await supabase
+          .from("cards")
+          .select(SELECT)
+          .eq("user_id", uid)
+          .ilike("name", `%${safeLike}%`)
+          .limit(80);
+      }
 
-    if (res.error) {
-      setError(res.error.message);
-      setRows([]);
-      setLoading(false);
-      return;
-    }
+      if (res.error) {
+        throw new Error(res.error.message);
+      }
 
-    let list = (res.data ?? []) as unknown as SearchCardRow[];
+      let list = (res.data ?? []) as unknown as SearchCardRow[];
 
-    if (setFilter) {
-      list = list.filter(
-        (r) => r.catalog_cards?.set_id === setFilter
-      );
-    }
-    if (rarityFilter) {
-      list = list.filter(
-        (r) =>
-          (r.rarity ?? r.catalog_cards?.rarity ?? "")
-            .toLowerCase()
-            === rarityFilter.toLowerCase()
-      );
-    }
-    if (typeFilter) {
-      list = list.filter(
-        (r) =>
-          (r.catalog_cards?.supertype ?? "").toLowerCase() ===
-          typeFilter.toLowerCase()
-      );
-    }
-    if (deckFilter === "in_deck") {
-      list = list.filter((r) => deckCardIds.has(r.id));
-    } else if (deckFilter === "not_in_deck") {
-      list = list.filter((r) => !deckCardIds.has(r.id));
-    }
+      if (setFilter) {
+        list = list.filter((r) => r.catalog_cards?.set_id === setFilter);
+      }
+      if (rarityFilter) {
+        list = list.filter(
+          (r) =>
+            (r.rarity ?? r.catalog_cards?.rarity ?? "").toLowerCase() ===
+            rarityFilter.toLowerCase()
+        );
+      }
+      if (typeFilter) {
+        list = list.filter(
+          (r) =>
+            (r.catalog_cards?.supertype ?? "").toLowerCase() ===
+            typeFilter.toLowerCase()
+        );
+      }
+      if (deckFilter === "in_deck") {
+        list = list.filter((r) => deckCardIds.has(r.id));
+      } else if (deckFilter === "not_in_deck") {
+        list = list.filter((r) => !deckCardIds.has(r.id));
+      }
 
-    setRows(list);
-    setLoading(false);
-  }, [debounced, deckCardIds, deckFilter, rarityFilter, setFilter, typeFilter]);
+      return list;
+    });
+  }, [
+    debounced,
+    deckCardIds,
+    deckFilter,
+    rarityFilter,
+    runSearch,
+    setFilter,
+    typeFilter,
+  ]);
 
   useEffect(() => {
-    void runSearch();
-  }, [runSearch]);
+    void executeSearch();
+  }, [executeSearch]);
 
   const rarities = useMemo(() => {
     const s = new Set<string>();
@@ -306,27 +315,27 @@ export function CardSearchPanel({
     async (cardId: string) => {
       setAddingId(cardId);
       try {
-        const res = await fetch("/api/decks/add-card", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            deck_id: deckId,
-            card_id: cardId,
-            quantity: 1,
-            section: "main",
-          }),
+        await runAdd(async () => {
+          const r = await fetchJson<DeckAddCardResponseDTO>("/api/decks/add-card", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              deck_id: deckId,
+              card_id: cardId,
+              quantity: 1,
+              section: "main",
+            }),
+          });
+          if (r.kind !== "ok") {
+            throw new Error(fetchJsonErrorMessage(r));
+          }
+          onDeckUpdated();
         });
-        if (!res.ok) {
-          const j = (await res.json().catch(() => ({}))) as { error?: string };
-          setError(j.error ?? "Could not add card.");
-          return;
-        }
-        onDeckUpdated();
       } finally {
         setAddingId(null);
       }
     },
-    [deckId, onDeckUpdated]
+    [deckId, onDeckUpdated, runAdd]
   );
 
   return (
@@ -334,7 +343,7 @@ export function CardSearchPanel({
       className={`flex flex-col rounded-mca-block border border-mca-border bg-mca-surface-elevated/95 shadow-mca-panel dark:border-mca-border-subtle ${className ?? ""}`}
     >
       <div className="border-b border-mca-border p-mca-base dark:border-mca-border-subtle">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-mca-ink-subtle">
+        <h2 className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
           Card search
         </h2>
         <input
@@ -342,7 +351,7 @@ export function CardSearchPanel({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search your collection…"
-          className="mt-mca-compact w-full rounded-mca-control border border-mca-border bg-mca-surface/80 px-mca-compact py-mca-sm text-sm text-mca-ink-strong outline-none transition-all duration-200 ease-mca-standard placeholder:text-mca-ink-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+          className="mca-input mt-mca-compact rounded-mca-control placeholder:text-mca-ink-subtle"
         />
         <div className="mt-mca-base grid gap-mca-compact sm:grid-cols-2">
           <label className="block text-xs font-medium uppercase tracking-wide text-mca-ink-subtle">
@@ -350,7 +359,7 @@ export function CardSearchPanel({
             <select
               value={setFilter}
               onChange={(e) => setSetFilter(e.target.value)}
-              className="mt-mca-micro w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-micro text-xs text-mca-ink-soft transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-micro rounded-mca-control px-mca-sm py-mca-micro text-xs text-mca-ink-soft"
             >
               <option value="">All sets</option>
               {sets.map((s) => (
@@ -365,7 +374,7 @@ export function CardSearchPanel({
             <select
               value={rarityFilter}
               onChange={(e) => setRarityFilter(e.target.value)}
-              className="mt-mca-micro w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-micro text-xs text-mca-ink-soft transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-micro rounded-mca-control px-mca-sm py-mca-micro text-xs text-mca-ink-soft"
             >
               <option value="">All</option>
               {rarities.map((r) => (
@@ -380,7 +389,7 @@ export function CardSearchPanel({
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="mt-mca-micro w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-micro text-xs text-mca-ink-soft transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-micro rounded-mca-control px-mca-sm py-mca-micro text-xs text-mca-ink-soft"
             >
               <option value="">All</option>
               {types.map((t) => (
@@ -397,7 +406,7 @@ export function CardSearchPanel({
               onChange={(e) =>
                 setDeckFilter(e.target.value as DeckFilter)
               }
-              className="mt-mca-micro w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-micro text-xs text-mca-ink-soft transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-micro rounded-mca-control px-mca-sm py-mca-micro text-xs text-mca-ink-soft"
             >
               <option value="all">All owned</option>
               <option value="in_deck">In this deck</option>
@@ -407,10 +416,24 @@ export function CardSearchPanel({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-mca-compact">
-        {error ? (
-          <p className="rounded-mca-block border border-red-900/50 bg-red-950/30 px-mca-compact py-mca-sm text-xs text-red-200">
-            {error}
+      <section
+        className="min-h-0 flex-1 overflow-y-auto p-mca-compact"
+        aria-live="polite"
+        aria-busy={loading || Boolean(addingId)}
+      >
+        <span className="sr-only" aria-live="polite">
+          {loading
+            ? "Searching collection."
+            : rows.length > 0
+              ? `${rows.length} result${rows.length === 1 ? "" : "s"}.`
+              : ""}
+        </span>
+        {surfaceError ? (
+          <p
+            className="rounded-mca-block border border-mca-border px-mca-compact py-mca-sm text-mca-caption text-mca-error-accent"
+            role="alert"
+          >
+            {surfaceError}
           </p>
         ) : null}
         {loading ? (
@@ -450,7 +473,7 @@ export function CardSearchPanel({
             )}
           />
         )}
-      </div>
+      </section>
     </aside>
   );
 }

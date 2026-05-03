@@ -1,11 +1,11 @@
 import { getCardStorageBucketName } from "@/lib/cards/storage-paths";
+import { errorJson, successJson, validateMultipart, validateSession, withContextId } from "@/lib/api/route-helpers";
 import {
   uploadBackImage,
   uploadFrontImage,
 } from "@/lib/storage/cards";
 import { defineRoute } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,56 +16,39 @@ async function POST_handler(
   request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
+  const userId = session.userId;
 
   const cardId = context.params.id?.trim();
   if (!cardId) {
-    return NextResponse.json({ error: "Invalid card id" }, { status: 400 });
+    return errorJson(ctx, "Invalid card id", 400);
   }
 
   const bucket = getCardStorageBucketName();
   if (!bucket) {
-    return NextResponse.json(
-      { error: "Card storage bucket is not configured" },
-      { status: 503 }
-    );
+    return errorJson(ctx, "Card storage bucket is not configured", 503);
   }
 
   const { data: cardRow, error: cardErr } = await supabase
     .from("cards")
     .select("id, user_id")
     .eq("id", cardId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (cardErr) {
-    return NextResponse.json({ error: cardErr.message }, { status: 500 });
+    return errorJson(ctx, cardErr.message, 500);
   }
   if (!cardRow) {
-    return NextResponse.json({ error: "Card not found" }, { status: 404 });
+    return errorJson(ctx, "Card not found", 404);
   }
 
-  const contentType = request.headers.get("content-type") ?? "";
-  if (!contentType.includes("multipart/form-data")) {
-    return NextResponse.json(
-      { error: "Expected multipart/form-data" },
-      { status: 400 }
-    );
-  }
-
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  const multipart = await validateMultipart(request, ctx);
+  if (!multipart.ok) return multipart.response;
+  const formData = multipart.formData;
 
   const front = formData.get("front");
   const back = formData.get("back");
@@ -73,21 +56,14 @@ async function POST_handler(
   const backFile = back instanceof File && back.size > 0 ? back : null;
 
   if (!frontFile && !backFile) {
-    return NextResponse.json(
-      { error: "Provide at least one image (front or back)" },
-      { status: 400 }
-    );
+    return errorJson(ctx, "Provide at least one image (front or back)", 400);
   }
 
   if (frontFile && frontFile.size > MAX_IMAGE_BYTES) {
-    return NextResponse.json({ error: "Front image too large (max 15MB)" }, {
-      status: 400,
-    });
+    return errorJson(ctx, "Front image too large (max 15MB)", 400);
   }
   if (backFile && backFile.size > MAX_IMAGE_BYTES) {
-    return NextResponse.json({ error: "Back image too large (max 15MB)" }, {
-      status: 400,
-    });
+    return errorJson(ctx, "Back image too large (max 15MB)", 400);
   }
 
   const uploaded: {
@@ -104,10 +80,7 @@ async function POST_handler(
       const buf = Buffer.from(ab);
       const result = await uploadFrontImage(supabase, bucket, cardId, buf);
       if (!result.ok) {
-        return NextResponse.json(
-          { error: result.error, userMessage: result.userMessage },
-          { status: 502 }
-        );
+        return errorJson(ctx, result.error, 502, { userMessage: result.userMessage });
       }
       uploaded.image_front_url = result.image_front_url;
       uploaded.image_front_thumb_url = result.image_front_thumb_url;
@@ -119,10 +92,7 @@ async function POST_handler(
       const buf = Buffer.from(ab);
       const result = await uploadBackImage(supabase, bucket, cardId, buf);
       if (!result.ok) {
-        return NextResponse.json(
-          { error: result.error, userMessage: result.userMessage },
-          { status: 502 }
-        );
+        return errorJson(ctx, result.error, 502, { userMessage: result.userMessage });
       }
       uploaded.image_back_url = result.image_back_url;
       uploaded.image_back_thumb_url = result.image_back_thumb_url;
@@ -130,13 +100,14 @@ async function POST_handler(
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Image processing failed";
-    return NextResponse.json(
+    return errorJson(
+      ctx,
+      msg,
+      500,
       {
-        error: msg,
         userMessage:
           "Something went wrong while saving your Pokémon card photos. Try again in a moment.",
-      },
-      { status: 500 }
+      }
     );
   }
 
@@ -151,15 +122,14 @@ async function POST_handler(
       .from("cards")
       .update(updatePayload)
       .eq("id", cardId)
-      .eq("user_id", user.id);
+      .eq("user_id", userId);
 
     if (updErr) {
-      return NextResponse.json({ error: updErr.message }, { status: 500 });
+      return errorJson(ctx, updErr.message, 500);
     }
   }
 
-  return NextResponse.json({
-    success: true,
+  return successJson(ctx, {
     partial: warnings.length > 0,
     warnings: warnings.length > 0 ? warnings : undefined,
     urls: {

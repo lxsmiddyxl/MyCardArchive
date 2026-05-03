@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { normalizePriceData } from "@/lib/pricing/normalize-price";
 import type { CardPriceRow, PriceData } from "@/lib/types/database";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -68,16 +69,15 @@ export function CardPricePanel({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/pricing/${encodeURIComponent(cardId)}`, {
-        method: "POST",
-      });
-      const body = (await res.json()) as ApiPricingResponse & { error?: string };
-
-      if (!res.ok) {
-        setError(body.error ?? `Request failed (${res.status})`);
+      const r = await fetchJson<ApiPricingResponse & { error?: string }>(
+        `/api/pricing/${encodeURIComponent(cardId)}`,
+        { method: "POST" }
+      );
+      if (r.kind !== "ok") {
+        setError(fetchJsonErrorMessage(r));
         return;
       }
-
+      const body = r.data;
       if (body.rows && Array.isArray(body.rows)) {
         setRows(body.rows);
       }
@@ -89,7 +89,11 @@ export function CardPricePanel({
   }, [cardId]);
 
   return (
-    <div className="mt-mca-base space-y-mca-compact border-t border-mca-border/80 pt-mca-base">
+    <section
+      className="mt-mca-base space-y-mca-compact border-t border-mca-border/80 pt-mca-base"
+      aria-live="polite"
+      aria-busy={loading}
+    >
       <div className="flex flex-wrap items-center justify-between gap-mca-sm">
         <h4 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-mca-ink-subtle">
           Market prices
@@ -142,6 +146,6 @@ export function CardPricePanel({
           ))}
         </ul>
       </div>
-    </div>
+    </section>
   );
 }

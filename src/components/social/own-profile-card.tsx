@@ -1,7 +1,12 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage, useAsyncState } from "@/lib/client";
+import type {
+  ProfileDTO,
+  SocialProfilePatchResponseDTO,
+} from "@/lib/dto/social-profile";
+import { requestSocialSurfacesRefresh } from "@/lib/social/social-surfaces-refresh";
 import { TierBadgeInline } from "@/components/tier/tier-badge-inline";
-import type { SocialProfilePayload } from "@/lib/social/types";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import { Button } from "@/mca-ui/button";
 import { Field } from "@/mca-ui/field";
@@ -11,7 +16,7 @@ import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 export type OwnProfileCardProps = {
-  profile: SocialProfilePayload;
+  profile: ProfileDTO;
   publicProfileHref: string;
 };
 
@@ -20,7 +25,7 @@ export const OwnProfileCard = memo(function OwnProfileCard({ profile, publicProf
   const [favoriteSets, setFavoriteSets] = useState(() => profile.favoriteSets ?? []);
   const [savedFlash, setSavedFlash] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { run: runSave, loading: saving } = useAsyncState<SocialProfilePatchResponseDTO>();
 
   useEffect(() => {
     setBio(profile.bio ?? "");
@@ -44,24 +49,22 @@ export const OwnProfileCard = memo(function OwnProfileCard({ profile, publicProf
 
   const onSaveExtras = useCallback(async () => {
     setSaveError(null);
-    setSaving(true);
-    try {
-      const res = await fetch("/api/social/profile", {
+    await runSave(async () => {
+      const r = await fetchJson<SocialProfilePatchResponseDTO>("/api/social/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bio, favoriteSets }),
       });
-      if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
-        setSaveError(j.error ?? "Could not save");
-        return;
+      if (r.kind !== "ok") {
+        setSaveError(fetchJsonErrorMessage(r));
+        throw new Error(fetchJsonErrorMessage(r));
       }
       setSavedFlash(true);
+      requestSocialSurfacesRefresh({ userId: profile.userId });
       window.setTimeout(() => setSavedFlash(false), 2000);
-    } finally {
-      setSaving(false);
-    }
-  }, [bio, favoriteSets]);
+      return r.data;
+    });
+  }, [bio, favoriteSets, profile.userId, runSave]);
 
   const showSocialCounts =
     typeof profile.followerCount === "number" && typeof profile.followingCount === "number";
@@ -110,7 +113,7 @@ export const OwnProfileCard = memo(function OwnProfileCard({ profile, publicProf
             <textarea
               id="profile-bio"
               rows={3}
-              className="w-full rounded-mca-control border border-mca-field-border bg-mca-surface px-mca-sm py-mca-xs text-mca-body text-mca-ink-body outline-none transition-colors duration-200 ease-mca-standard focus-visible:ring-2 focus-visible:ring-mca-focus/60"
+              className="mca-input min-h-[4.5rem] w-full resize-y px-mca-sm py-mca-xs text-sm text-mca-body"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               placeholder="Tell other collectors what you collect…"
@@ -124,7 +127,7 @@ export const OwnProfileCard = memo(function OwnProfileCard({ profile, publicProf
             <textarea
               id="profile-favorites"
               rows={2}
-              className="w-full rounded-mca-control border border-mca-field-border bg-mca-surface px-mca-sm py-mca-xs text-mca-body text-mca-ink-body outline-none transition-colors duration-200 ease-mca-standard focus-visible:ring-2 focus-visible:ring-mca-focus/60"
+              className="mca-input min-h-[3rem] w-full resize-y px-mca-sm py-mca-xs text-sm text-mca-body"
               value={favoriteSets.join(", ")}
               onChange={(e) =>
                 setFavoriteSets(

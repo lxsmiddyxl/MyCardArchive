@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
+import { Button } from "@/mca-ui/button";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -14,28 +16,28 @@ export function CreateBinderForm() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const res = await fetch("/api/binders", {
+    const r = await fetchJson<{ binder: { id: string } }>("/api/binders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, description: description || null }),
     });
-    const json = (await res.json()) as { error?: string; binder?: { id: string } };
     setLoading(false);
-    if (!res.ok) {
-      setError(json.error ?? "Could not create binder.");
+    if (r.kind !== "ok") {
+      setError(fetchJsonErrorMessage(r));
       return;
     }
     setName("");
     setDescription("");
     router.refresh();
-    if (json.binder?.id) {
-      router.push(`/binders/${json.binder.id}`);
+    if (r.data.binder?.id) {
+      router.push(`/binders/${r.data.binder.id}`);
     }
   }
 
   return (
     <form
       onSubmit={handleSubmit}
+      aria-busy={loading}
       className="rounded-mca-sheet border border-mca-border-light bg-white p-mca-lg dark:border-mca-border dark:bg-mca-surface"
     >
       <h2 className="text-sm font-medium uppercase tracking-wide text-mca-ink-subtle">
@@ -54,7 +56,7 @@ export function CreateBinderForm() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
-            className="mt-mca-xs w-full rounded-mca-block border border-mca-border-light-strong bg-white px-mca-compact py-mca-sm text-sm dark:border-mca-field-border dark:bg-mca-surface-elevated dark:text-mca-ink-strong"
+            className="mca-input mt-mca-xs rounded-mca-block"
             placeholder="e.g. Base Set 1999"
           />
         </div>
@@ -69,20 +71,16 @@ export function CreateBinderForm() {
             id="binder-desc"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="mt-mca-xs w-full rounded-mca-block border border-mca-border-light-strong bg-white px-mca-compact py-mca-sm text-sm dark:border-mca-field-border dark:bg-mca-surface-elevated dark:text-mca-ink-strong"
+            className="mca-input mt-mca-xs rounded-mca-block"
           />
         </div>
       </div>
       {error && (
         <p className="mt-mca-compact text-sm text-mca-accent-deep dark:text-mca-accent">{error}</p>
       )}
-      <button
-        type="submit"
-        disabled={loading}
-        className="mt-mca-base rounded-mca-block bg-mca-surface-elevated px-mca-base py-mca-sm text-sm font-medium text-white disabled:opacity-50 dark:bg-mca-surface-paper dark:text-mca-surface-elevated"
-      >
+      <Button type="submit" variant="primary" disabled={loading} className="mt-mca-base w-full sm:w-auto">
         {loading ? "Creating…" : "Create binder"}
-      </button>
+      </Button>
     </form>
   );
 }

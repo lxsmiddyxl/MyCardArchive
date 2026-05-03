@@ -53,6 +53,27 @@ export type Database = {
         }
         Relationships: []
       }
+      archetype_catalog: {
+        Row: {
+          archetype_id: string
+          description: string
+          icon_key: string
+          label: string
+        }
+        Insert: {
+          archetype_id: string
+          description: string
+          icon_key: string
+          label: string
+        }
+        Update: {
+          archetype_id?: string
+          description?: string
+          icon_key?: string
+          label?: string
+        }
+        Relationships: []
+      }
       activity_log: {
         Row: {
           action: string
@@ -243,6 +264,7 @@ export type Database = {
           id: string
           image_large: string | null
           image_small: string | null
+          image_url: string | null
           legal_commander: boolean
           legal_expanded: boolean
           legal_standard: boolean
@@ -306,8 +328,11 @@ export type Database = {
           logo_url: string | null
           name: string
           printed_total: number | null
+          publisher: string | null
           release_date: string | null
+          release_year: number | null
           series: string
+          set_code: string | null
           symbol_url: string | null
           total: number | null
           updated_at: string
@@ -318,8 +343,11 @@ export type Database = {
           logo_url?: string | null
           name: string
           printed_total?: number | null
+          publisher?: string | null
           release_date?: string | null
+          release_year?: number | null
           series?: string
+          set_code?: string | null
           symbol_url?: string | null
           total?: number | null
           updated_at?: string
@@ -330,8 +358,11 @@ export type Database = {
           logo_url?: string | null
           name?: string
           printed_total?: number | null
+          publisher?: string | null
           release_date?: string | null
+          release_year?: number | null
           series?: string
+          set_code?: string | null
           symbol_url?: string | null
           total?: number | null
           updated_at?: string
@@ -747,6 +778,101 @@ export type Database = {
             foreignKeyName: "feed_events_actor_id_fkey"
             columns: ["actor_id"]
             isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_event_saves: {
+        Row: {
+          created_at: string
+          feed_event_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feed_event_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feed_event_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_event_saves_feed_event_id_fkey"
+            columns: ["feed_event_id"]
+            isOneToOne: false
+            referencedRelation: "feed_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_event_saves_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_nods: {
+        Row: {
+          created_at: string
+          from_user_id: string
+          id: string
+          to_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          from_user_id: string
+          id?: string
+          to_user_id: string
+        }
+        Update: {
+          created_at?: string
+          from_user_id?: string
+          id?: string
+          to_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_nods_from_user_id_fkey"
+            columns: ["from_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_nods_to_user_id_fkey"
+            columns: ["to_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_social_graph_v4: {
+        Row: {
+          narrative: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          narrative?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          narrative?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_social_graph_v4_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2207,6 +2333,75 @@ export type Database = {
         }
         Relationships: []
       }
+      user_badge_events: {
+        Row: {
+          id: string
+          user_id: string
+          event_type: string
+          badge_type: string | null
+          badge_key: string | null
+          weight: number
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          event_type: string
+          badge_type?: string | null
+          badge_key?: string | null
+          weight?: number
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          event_type?: string
+          badge_type?: string | null
+          badge_key?: string | null
+          weight?: number
+          metadata?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
+      user_badge_progress: {
+        Row: {
+          user_id: string
+          badge_type: string
+          badge_key: string
+          tier: string
+          qualitative_label: string
+          prestige_step: number | null
+          prestige_steps_total: number | null
+          season_label: string | null
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          badge_type?: string
+          badge_key: string
+          tier?: string
+          qualitative_label?: string
+          prestige_step?: number | null
+          prestige_steps_total?: number | null
+          season_label?: string | null
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          badge_type?: string
+          badge_key?: string
+          tier?: string
+          qualitative_label?: string
+          prestige_step?: number | null
+          prestige_steps_total?: number | null
+          season_label?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_clubs: {
         Row: {
           assigned_at: string
@@ -2233,6 +2428,42 @@ export type Database = {
           },
         ]
       }
+      user_archetypes: {
+        Row: {
+          archetype_id: string
+          confidence_band: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archetype_id: string
+          confidence_band: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archetype_id?: string
+          confidence_band?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_archetypes_archetype_id_fkey"
+            columns: ["archetype_id"]
+            isOneToOne: false
+            referencedRelation: "archetype_catalog"
+            referencedColumns: ["archetype_id"]
+          },
+          {
+            foreignKeyName: "user_archetypes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_persona_cache: {
         Row: {
           persona_text: string
@@ -2252,6 +2483,32 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "user_persona_cache_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_taste_vectors: {
+        Row: {
+          updated_at: string
+          user_id: string
+          vector: Json
+        }
+        Insert: {
+          updated_at?: string
+          user_id: string
+          vector?: Json
+        }
+        Update: {
+          updated_at?: string
+          user_id?: string
+          vector?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_taste_vectors_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "profiles"
@@ -2290,26 +2547,32 @@ export type Database = {
       }
       user_presence: {
         Row: {
+          device_type: string | null
           last_activity: string | null
           last_activity_at: string | null
           last_seen_at: string
           presence_opt_out: boolean
+          presence_state: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          device_type?: string | null
           last_activity?: string | null
           last_activity_at?: string | null
           last_seen_at?: string
           presence_opt_out?: boolean
+          presence_state?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          device_type?: string | null
           last_activity?: string | null
           last_activity_at?: string | null
           last_seen_at?: string
           presence_opt_out?: boolean
+          presence_state?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -2322,6 +2585,223 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_presence_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_presence_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collector_rooms: {
+        Row: {
+          created_at: string
+          expires_at: string
+          room_id: string
+          room_type: string
+          topic_key: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          room_id?: string
+          room_type: string
+          topic_key?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          room_id?: string
+          room_type?: string
+          topic_key?: string | null
+        }
+        Relationships: []
+      }
+      collector_room_members: {
+        Row: {
+          joined_at: string
+          last_seen_at: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          joined_at?: string
+          last_seen_at?: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          joined_at?: string
+          last_seen_at?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collector_room_members_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "collector_rooms"
+            referencedColumns: ["room_id"]
+          },
+          {
+            foreignKeyName: "collector_room_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collector_activity_wave_meta: {
+        Row: {
+          id: number
+          last_refresh_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          last_refresh_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          last_refresh_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      collector_activity_wave: {
+        Row: {
+          active_clubs: number
+          active_collectors: number
+          active_sets: number
+          day_bucket: number
+          hour_bucket: number
+          wave_band: string
+        }
+        Insert: {
+          active_clubs?: number
+          active_collectors?: number
+          active_sets?: number
+          day_bucket: number
+          hour_bucket: number
+          wave_band: string
+        }
+        Update: {
+          active_clubs?: number
+          active_collectors?: number
+          active_sets?: number
+          day_bucket?: number
+          hour_bucket?: number
+          wave_band?: string
+        }
+        Relationships: []
+      }
+      set_activity_wave: {
+        Row: {
+          active_collectors: number
+          day_bucket: number
+          hour_bucket: number
+          set_id: string
+          wave_band: string
+        }
+        Insert: {
+          active_collectors?: number
+          day_bucket: number
+          hour_bucket: number
+          set_id: string
+          wave_band: string
+        }
+        Update: {
+          active_collectors?: number
+          day_bucket?: number
+          hour_bucket?: number
+          set_id?: string
+          wave_band?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "set_activity_wave_set_id_fkey"
+            columns: ["set_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_activity_wave: {
+        Row: {
+          active_collectors: number
+          club_id: string
+          day_bucket: number
+          hour_bucket: number
+          wave_band: string
+        }
+        Insert: {
+          active_collectors?: number
+          club_id: string
+          day_bucket: number
+          hour_bucket: number
+          wave_band: string
+        }
+        Update: {
+          active_collectors?: number
+          club_id?: string
+          day_bucket?: number
+          hour_bucket?: number
+          wave_band?: string
+        }
+        Relationships: []
+      }
+      seasonal_activity_wave: {
+        Row: {
+          active_collectors: number
+          day_bucket: number
+          hour_bucket: number
+          season_id: string
+          wave_band: string
+        }
+        Insert: {
+          active_collectors?: number
+          day_bucket: number
+          hour_bucket: number
+          season_id: string
+          wave_band: string
+        }
+        Update: {
+          active_collectors?: number
+          day_bucket?: number
+          hour_bucket?: number
+          season_id?: string
+          wave_band?: string
+        }
+        Relationships: []
       }
       user_search_index: {
         Row: {
@@ -2535,6 +3015,32 @@ export type Database = {
         }
         Relationships: []
       }
+      user_identity_map: {
+        Row: {
+          identity: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          identity?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          identity?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_identity_map_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_influence_graph: {
         Row: {
           user_id: string
@@ -2673,6 +3179,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      internal_unlimited: {
+        Row: {
+          created_at: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       user_tiers: {
         Row: {
@@ -3107,6 +3631,60 @@ export type Database = {
           updated_at: string | null
         }[]
       }
+      get_archetype_spotlights: {
+        Args: { p_limit?: number }
+        Returns: {
+          archetype_id: string
+          description: string
+          icon_key: string
+          label: string
+          spotlight_note: string
+        }[]
+      }
+      get_user_archetypes: {
+        Args: { p_user_id: string }
+        Returns: {
+          archetype_id: string
+          confidence_band: string
+          description: string
+          icon_key: string
+          label: string
+        }[]
+      }
+      get_users_archetypes_batch: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          archetype_id: string
+          confidence_band: string
+          description: string
+          icon_key: string
+          label: string
+          user_id: string
+        }[]
+      }
+      get_identity_spotlights: {
+        Args: { p_limit?: number }
+        Returns: {
+          blurb: string
+          headline: string
+          spotlight_key: string
+        }[]
+      }
+      get_user_identity_map: {
+        Args: { p_user_id: string }
+        Returns: {
+          identity: Json
+          updated_at: string
+        }[]
+      }
+      get_users_identity_map_batch: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          identity: Json
+          updated_at: string
+          user_id: string
+        }[]
+      }
       get_users_activity_recent_days_batch: {
         Args: { p_days?: number; p_user_ids: string[] }
         Returns: {
@@ -3122,6 +3700,18 @@ export type Database = {
         }[]
       }
       refresh_user_persona: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+      refresh_user_archetypes: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+      refresh_user_taste_vector: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+      refresh_user_identity_map: {
         Args: { p_user_id: string }
         Returns: undefined
       }
@@ -3177,6 +3767,108 @@ export type Database = {
           updated_at: string | null
         }[]
       }
+      refresh_user_presence: {
+        Args: { p_device: string; p_state: string; p_user_id: string }
+        Returns: undefined
+      }
+      log_user_presence_event: {
+        Args: { p_event_type: string; p_metadata: Json; p_user_id: string }
+        Returns: undefined
+      }
+      get_recently_active_collectors: {
+        Args: { p_limit: number }
+        Returns: {
+          spotlight_note: string
+          user_id: string
+        }[]
+      }
+      get_presence_spotlights: {
+        Args: { p_limit: number }
+        Returns: {
+          spotlight_note: string
+          user_id: string
+        }[]
+      }
+      dissolve_expired_rooms: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      refresh_collector_room: {
+        Args: { p_room_type: string; p_topic_key: string; p_user_id: string }
+        Returns: string | null
+      }
+      get_active_rooms_for_user: {
+        Args: { p_user_id: string }
+        Returns: {
+          expires_at: string
+          member_total: number
+          room_id: string
+          room_type: string
+          topic_key: string | null
+        }[]
+      }
+      get_room_members: {
+        Args: { p_room_id: string }
+        Returns: {
+          avatar_url: string | null
+          display_name: string | null
+          user_id: string
+          username: string | null
+        }[]
+      }
+      get_room_spotlights: {
+        Args: { p_limit: number }
+        Returns: {
+          note: string
+        }[]
+      }
+      refresh_activity_waves: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      activity_count_to_wave_band: {
+        Args: { p_count: number | null }
+        Returns: string
+      }
+      activity_ntile_band: {
+        Args: { p_ntile: number | null }
+        Returns: string
+      }
+      get_platform_activity_wave: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          day_bucket: number
+          hour_bucket: number
+          wave_band: string
+        }[]
+      }
+      get_set_activity_wave: {
+        Args: { p_set_id: string }
+        Returns: {
+          hour_bucket: number
+          wave_band: string
+        }[]
+      }
+      get_club_activity_wave: {
+        Args: { p_club_id: string }
+        Returns: {
+          hour_bucket: number
+          wave_band: string
+        }[]
+      }
+      get_seasonal_activity_wave: {
+        Args: { p_season_id: string }
+        Returns: {
+          hour_bucket: number
+          wave_band: string
+        }[]
+      }
+      get_activity_spotlights: {
+        Args: { p_limit: number }
+        Returns: {
+          note: string
+        }[]
+      }
       get_user_grail_cards: {
         Args: { p_user_id: string }
         Returns: {
@@ -3208,6 +3900,41 @@ export type Database = {
       get_search_filter_options: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      search_catalog_cards_v1: {
+        Args: {
+          p_limit?: number
+          p_query: string
+          p_set_id?: string | null
+        }
+        Returns: {
+          id: string
+          set_id: string | null
+          name: string
+          number: string
+          rarity: string | null
+          image_url: string | null
+          set: string | null
+          set_name?: string | null
+        }[]
+      }
+      search_catalog_sets_v1: {
+        Args: {
+          p_limit?: number
+          p_query: string
+        }
+        Returns: {
+          id: string
+          name: string
+          series: string | null
+          set_code: string | null
+          release_year: number | null
+          release_date: string | null
+          total: number | null
+          printed_total: number | null
+          symbol_url: string | null
+          logo_url: string | null
+        }[]
       }
       search_collectors: {
         Args: {
@@ -3352,6 +4079,42 @@ export type Database = {
           occurred_on: string
         }[]
       }
+      get_user_badge_progress: {
+        Args: { p_user_id: string }
+        Returns: {
+          badge_type: string
+          badge_key: string
+          catalog_category: string
+          tier: string
+          qualitative_label: string
+          season_label: string | null
+          prestige_step: number | null
+          prestige_steps_total: number | null
+          display_hint: string | null
+        }[]
+      }
+      get_users_badge_progress_batch: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          user_id: string
+          badge_type: string
+          badge_key: string
+          catalog_category: string
+          tier: string
+          qualitative_label: string
+          season_label: string | null
+          prestige_step: number | null
+          prestige_steps_total: number | null
+          display_hint: string | null
+        }[]
+      }
+      get_badge_spotlights: {
+        Args: { p_category: string; p_limit?: number | null }
+        Returns: {
+          user_id: string
+          spotlight_note: string
+        }[]
+      }
       get_user_trade_reputation: {
         Args: { p_user_id: string }
         Returns: {
@@ -3427,6 +4190,30 @@ export type Database = {
       get_global_feed_v2: {
         Args: { p_limit?: number; p_before?: string | null }
         Returns: Json
+      }
+      get_global_feed_v3: {
+        Args: { p_limit?: number; p_before?: string | null }
+        Returns: Json
+      }
+      get_profile_feed_v3_signal_lines: {
+        Args: { p_actor_id: string; p_events: Json }
+        Returns: Json
+      }
+      get_users_social_graph_v4_batch: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          narrative: Json
+          updated_at: string
+          user_id: string
+        }[]
+      }
+      post_social_nod: {
+        Args: { p_to_user_id: string }
+        Returns: Json
+      }
+      refresh_my_social_graph_v4: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       get_grading_cohort_avg_overall: {
         Args: Record<PropertyKey, never>

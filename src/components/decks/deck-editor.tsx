@@ -1,8 +1,10 @@
 "use client";
 
 import type { DeckRowForAnalytics } from "@/lib/decks/deck-analytics";
+import { fetchJson } from "@/lib/client";
 import type { DeckEditorPayload } from "@/lib/decks/editor-types";
 import { Breadcrumb, NavBackLink } from "@/mca-ui";
+import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { CardHoverPreviewProvider } from "./card-hover-preview";
 import { CardSearchPanel } from "./card-search-panel";
@@ -52,18 +54,20 @@ function EmptyDeckArt() {
 }
 
 export function DeckEditor({ deckId, initial, tierSlug }: Props) {
+  const router = useRouter();
   const [data, setData] = useState<DeckEditorPayload>(initial);
 
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/decks/${encodeURIComponent(deckId)}`);
-    if (!res.ok) return;
-    const j = (await res.json()) as DeckEditorPayload;
+    const r = await fetchJson<DeckEditorPayload>(`/api/decks/${encodeURIComponent(deckId)}`);
+    if (r.kind !== "ok") return;
+    const j = r.data;
     setData({
       deck: j.deck,
       deck_stats: j.deck_stats,
       deck_cards_by_section: j.deck_cards_by_section,
     });
-  }, [deckId]);
+    router.refresh();
+  }, [deckId, router]);
 
   const deckCardIds = useMemo(() => {
     const s = new Set<string>();

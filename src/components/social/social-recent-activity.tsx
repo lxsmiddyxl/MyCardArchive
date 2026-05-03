@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson } from "@/lib/client";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import { Panel } from "@/mca-ui/panel";
 import Link from "next/link";
@@ -20,10 +21,12 @@ export const SocialRecentActivity = memo(function SocialRecentActivity() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/social/recent-activity", { cache: "no-store" });
-        if (!cancelled && res.ok) {
-          const data = (await res.json()) as { activity?: SocialPublicActivityRow[] };
-          setRows(data.activity ?? []);
+        const r = await fetchJson<{ activity: SocialPublicActivityRow[] }>(
+          "/api/social/recent-activity",
+          { cache: "no-store" }
+        );
+        if (!cancelled && r.kind === "ok") {
+          setRows(Array.isArray(r.data.activity) ? r.data.activity : []);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -46,7 +49,11 @@ export const SocialRecentActivity = memo(function SocialRecentActivity() {
   }, [loading, preview.length]);
 
   return (
-    <Panel className="border-mca-border bg-mca-surface/40 p-mca-md transition-all duration-200 ease-mca-standard">
+    <Panel
+      className="border-mca-border bg-mca-surface/40 p-mca-md transition-all duration-200 ease-mca-standard"
+      aria-live="polite"
+      aria-busy={loading}
+    >
       <div className="flex flex-col gap-mca-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">

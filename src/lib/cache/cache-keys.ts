@@ -15,8 +15,9 @@ export function cacheKeyNotificationsList(userId: string): string {
   return `notifications:list:${userId}`;
 }
 
+/** v2: bust in-memory lists cached while SELECT RLS returned zero rows (post–migration 102). */
 export function cacheKeyBindersList(userId: string): string {
-  return `binders:list:${userId}`;
+  return `binders:list:v2:${userId}`;
 }
 
 export function cacheKeyTradeDetail(userId: string, tradeId: string): string {

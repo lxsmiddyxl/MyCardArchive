@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/route";
+import { errorJson, safeParseNumber, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { defineRoute } from "@/lib/server/api-route";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -8,36 +8,32 @@ async function GET_handler(
   request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
+  const userId = session.userId;
 
   const cardId = context.params["id"]?.trim();
   if (!cardId) {
-    return NextResponse.json({ error: "Invalid card id" }, { status: 400 });
+    return errorJson(ctx, "Invalid card id", 400);
   }
 
   const { searchParams } = new URL(request.url);
-  const limitRaw = parseInt(searchParams.get("limit") ?? "30", 10);
-  const limit = Math.min(200, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 30));
+  const limit = safeParseNumber(searchParams.get("limit"), 30, 1, 200);
 
   const { data: owned, error: ownErr } = await supabase
     .from("cards")
     .select("id")
     .eq("id", cardId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (ownErr) {
-    return NextResponse.json({ error: ownErr.message }, { status: 500 });
+    return errorJson(ctx, ownErr.message, 500);
   }
   if (!owned) {
-    return NextResponse.json({ error: "Card not found" }, { status: 404 });
+    return errorJson(ctx, "Card not found", 404);
   }
 
   const { data, error } = await supabase
@@ -48,10 +44,10 @@ async function GET_handler(
     .limit(limit);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, error.message, 500);
   }
 
-  return NextResponse.json({ history: (data ?? []).reverse() });
+  return successJson(ctx, { history: (data ?? []).reverse() });
 }
 
 export const GET = defineRoute("GET /api/cards/[id]/price-history", GET_handler);

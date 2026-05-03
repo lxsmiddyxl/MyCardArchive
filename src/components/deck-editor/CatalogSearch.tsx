@@ -84,7 +84,7 @@ export function CatalogSearch({ catalogCards, value, onChange }: Props) {
             value={queryDraft}
             onChange={(e) => setQueryDraft(e.target.value)}
             placeholder="Search cards..."
-            className="w-full rounded-mca-block border border-mca-border-subtle bg-mca-surface px-mca-compact py-mca-sm pe-9 text-sm text-mca-ink-strong outline-none"
+            className="mca-input w-full rounded-mca-block pe-9"
           />
           {filterPending ? (
             <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
@@ -95,7 +95,7 @@ export function CatalogSearch({ catalogCards, value, onChange }: Props) {
         <select
           value={value.type}
           onChange={(e) => patchFilters({ type: e.target.value })}
-          className="rounded-mca-block border border-mca-border-subtle bg-mca-surface px-mca-sm py-mca-sm text-sm text-mca-ink-soft"
+          className="mca-input rounded-mca-block px-mca-sm py-mca-sm text-sm"
         >
           <option value="">All types</option>
           {types.map((t) => (
@@ -107,7 +107,7 @@ export function CatalogSearch({ catalogCards, value, onChange }: Props) {
         <select
           value={value.rarity}
           onChange={(e) => patchFilters({ rarity: e.target.value })}
-          className="rounded-mca-block border border-mca-border-subtle bg-mca-surface px-mca-sm py-mca-sm text-sm text-mca-ink-soft"
+          className="mca-input rounded-mca-block px-mca-sm py-mca-sm text-sm"
         >
           <option value="">All rarities</option>
           {rarities.map((r) => (
@@ -119,7 +119,7 @@ export function CatalogSearch({ catalogCards, value, onChange }: Props) {
         <select
           value={value.setId}
           onChange={(e) => patchFilters({ setId: e.target.value })}
-          className="rounded-mca-block border border-mca-border-subtle bg-mca-surface px-mca-sm py-mca-sm text-sm text-mca-ink-soft"
+          className="mca-input rounded-mca-block px-mca-sm py-mca-sm text-sm"
         >
           <option value="">All sets</option>
           {sets.map((s) => (

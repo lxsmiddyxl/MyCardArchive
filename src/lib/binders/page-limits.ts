@@ -1,3 +1,4 @@
+import { isCurrentUserInternalUnlimited } from "@/lib/entitlements/internal-unlimited";
 import {
   getUserTier,
   type AppSupabaseClient,
@@ -18,6 +19,9 @@ export async function getMaxBinderPagesForUser(
   client: AppSupabaseClient
 ): Promise<number> {
   try {
+    if (await isCurrentUserInternalUnlimited(client)) {
+      return 1_000_000;
+    }
     const tier = await getUserTier(client);
     return maxBinderPagesForTierSlug(tier?.tier_slug ?? "free");
   } catch {

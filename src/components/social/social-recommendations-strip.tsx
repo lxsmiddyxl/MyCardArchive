@@ -6,10 +6,14 @@ import { TrainerPresenceDot } from "@/components/presence/trainer-presence-dot";
 import { MiniActivityStrip } from "@/components/activity/mini-activity-strip";
 import { InlineSeasonalEvent } from "@/components/seasonal/inline-seasonal-event";
 import { buildInlineIdentityProgressTitle } from "@/lib/social/inline-identity-tooltip";
+import { fetchJson, fetchJsonErrorMessage, useDebouncedSurfaceReload } from "@/lib/client";
+import { SOCIAL_SURFACES_REFRESH_EVENT } from "@/lib/social/social-surfaces-refresh";
+import { Button } from "@/mca-ui/button";
+import { InlineError } from "@/mca-ui/inline-error";
 import { Panel } from "@/mca-ui/panel";
 import Image from "next/image";
 import Link from "next/link";
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 
 type Rec = {
   userId: string;
@@ -43,6 +47,10 @@ type Rec = {
   topFandomBadgeKey?: string | null;
   fandomSummary?: string | null;
   personaText?: string | null;
+  personaV2Label?: string | null;
+  personaV2Summary?: string | null;
+  identityHeadline?: string | null;
+  identitySummary?: string | null;
   activityHeatmapStrip?: number[];
   seasonHighlight?: string | null;
   clubs?: { clubId: string; displayName: string }[];
@@ -50,6 +58,8 @@ type Rec = {
   sharedClubsSummary?: string | null;
   reputationSummary?: string | null;
   influenceSummary?: string | null;
+  badgeHighlight?: string | null;
+  presenceLabel?: string | null;
   presence?: {
     optedOut: boolean;
     lastSeenAt: string | null;
@@ -61,28 +71,63 @@ type Rec = {
 export const SocialRecommendationsStrip = memo(function SocialRecommendationsStrip() {
   const [rows, setRows] = useState<Rec[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadRecs = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const r = await fetchJson<{ recommendations: Rec[] }>("/api/social/recommendations?limit=8", {
+        cache: "no-store",
+      });
+      if (r.kind !== "ok") {
+        setLoadError(fetchJsonErrorMessage(r));
+        setRows([]);
+        return;
+      }
+      setRows(Array.isArray(r.data.recommendations) ? r.data.recommendations : []);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Could not load recommendations.");
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/social/recommendations?limit=8", { cache: "no-store" });
-        const body = (await res.json()) as { recommendations?: Rec[] };
-        if (!cancelled && res.ok) setRows(body.recommendations ?? []);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void loadRecs();
+  }, [loadRecs]);
+
+  const scheduleSocialReload = useDebouncedSurfaceReload(loadRecs, 180);
+
+  useEffect(() => {
+    const onRefresh = () => scheduleSocialReload();
+    window.addEventListener(SOCIAL_SURFACES_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(SOCIAL_SURFACES_REFRESH_EVENT, onRefresh);
+  }, [scheduleSocialReload]);
 
   if (loading) {
     return (
-      <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
-        <p className="text-mca-caption text-mca-ink-muted">Loading recommendations…</p>
-      </Panel>
+      <section aria-label="Recommended trainers" aria-live="polite" aria-busy="true">
+        <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
+          <p className="text-mca-caption text-mca-ink-muted" role="status">
+            Loading recommendations…
+          </p>
+        </Panel>
+      </section>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <section aria-label="Recommended trainers" aria-live="assertive">
+        <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
+          <InlineError>{loadError}</InlineError>
+          <Button type="button" variant="secondary" className="mt-mca-sm text-xs" onClick={() => void loadRecs()}>
+            Try again
+          </Button>
+        </Panel>
+      </section>
     );
   }
 
@@ -114,6 +159,7 @@ export const SocialRecommendationsStrip = memo(function SocialRecommendationsStr
   };
 
   return (
+    <section aria-label="Recommended trainers" aria-live="polite">
     <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
       <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
         Recommended trainers
@@ -165,6 +211,10 @@ export const SocialRecommendationsStrip = memo(function SocialRecommendationsStr
                           : null,
                       reputationSummary: m.reputationSummary,
                       influenceSummary: m.influenceSummary,
+                      badgeHighlight: m.badgeHighlight,
+                      presenceLabel: m.presenceLabel,
+                      personaV2Summary: m.personaV2Summary,
+                      identityMapSummary: m.identitySummary,
                     }
                   )}
                 >
@@ -195,7 +245,7 @@ export const SocialRecommendationsStrip = memo(function SocialRecommendationsStr
                       lastActivityAt={m.presence.lastActivityAt}
                       lastActivityKey={m.presence.lastActivityKey}
                       presenceOptOut={m.presence.optedOut}
-                      className="mt-0.5"
+                      className="mt-mca-trace"
                     />
                   ) : null}
                   <span className="truncate text-mca-body font-medium text-mca-ink-strong">
@@ -210,6 +260,12 @@ export const SocialRecommendationsStrip = memo(function SocialRecommendationsStr
                 ) : null}
                 {m.influenceSummary?.trim() ? (
                   <p className="mt-mca-trace text-[11px] leading-snug text-mca-accent-strong/90">{m.influenceSummary.trim()}</p>
+                ) : null}
+                {m.badgeHighlight?.trim() ? (
+                  <p className="mt-mca-trace text-[11px] leading-snug text-mca-warn/95">{m.badgeHighlight.trim()}</p>
+                ) : null}
+                {m.presenceLabel?.trim() ? (
+                  <p className="mt-mca-trace text-[11px] leading-snug text-mca-ink-subtle">{m.presenceLabel.trim()}</p>
                 ) : null}
                 {m.activityHeatmapStrip && m.activityHeatmapStrip.length > 0 ? (
                   <MiniActivityStrip counts={m.activityHeatmapStrip} className="mt-mca-xs" />
@@ -232,5 +288,6 @@ export const SocialRecommendationsStrip = memo(function SocialRecommendationsStr
         ))}
       </ul>
     </Panel>
+    </section>
   );
 });

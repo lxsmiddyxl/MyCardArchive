@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { fetchJson } from "@/lib/client";
+import type { MarketCatalogPreviewPayloadDTO } from "@/lib/dto/market";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Item = { catalog_card_id: string; qty: number };
 
@@ -31,16 +33,26 @@ export function CatalogOfferPreviews({ itemsOffered, itemsRequested }: { itemsOf
   }, [itemsOffered, itemsRequested]);
 
   const [cards, setCards] = useState<Record<string, CardRow>>({});
+  const [loading, setLoading] = useState(false);
+  const fetchSeq = useRef(0);
 
   useEffect(() => {
     if (ids.length === 0) return;
+    const seq = ++fetchSeq.current;
     let cancelled = false;
+    setLoading(true);
     void (async () => {
-      const res = await fetch(`/api/market/catalog-preview?ids=${encodeURIComponent(ids.join(","))}`, {
-        cache: "no-store",
-      });
-      const body = (await res.json().catch(() => ({}))) as { cards?: Record<string, CardRow> };
-      if (!cancelled && body.cards) setCards(body.cards);
+      const r = await fetchJson<MarketCatalogPreviewPayloadDTO>(
+        `/api/market/catalog-preview?ids=${encodeURIComponent(ids.join(","))}`,
+        { cache: "no-store" }
+      );
+      if (cancelled || seq !== fetchSeq.current) return;
+      if (r.kind !== "ok") {
+        setLoading(false);
+        return;
+      }
+      if (r.data.cards) setCards(r.data.cards);
+      setLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -50,7 +62,11 @@ export function CatalogOfferPreviews({ itemsOffered, itemsRequested }: { itemsOf
   if (ids.length === 0) return null;
 
   return (
-    <div className="mt-mca-sm flex flex-wrap gap-mca-sm">
+    <section
+      className="mt-mca-sm flex flex-wrap gap-mca-sm"
+      aria-live="polite"
+      aria-busy={loading}
+    >
       {ids.map((id) => {
         const c = cards[id];
         return (
@@ -68,6 +84,6 @@ export function CatalogOfferPreviews({ itemsOffered, itemsRequested }: { itemsOf
           </div>
         );
       })}
-    </div>
+    </section>
   );
 }

@@ -1,4 +1,6 @@
+import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { loadTopScanMilestonesByUserIds } from "@/lib/badges/load-top-scan-milestones";
+import type { CommunityCommentDTO } from "@/lib/dto/community-feed";
 import { enrichUsersWithFlair } from "@/lib/flair/enrich-user-flair-batch";
 import { presenceSnapshotFromFlair } from "@/lib/presence/flair-presence-fields";
 import { resolveAuthorFromSocial } from "@/lib/profile/resolveAuthor";
@@ -18,22 +20,19 @@ async function GET_handler(
   _request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   const postId = context.params.postId?.trim();
   if (!postId || !isUuidString(postId)) {
-    return NextResponse.json({ error: "Invalid post id" }, { status: 400 });
+    return errorJson(ctx, "Invalid post id", 400);
   }
 
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const { data: post } = await supabase.from("community_posts").select("id, author_id").eq("id", postId).maybeSingle();
   if (!post) {
-    return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    return errorJson(ctx, "Post not found", 404);
   }
 
   const { data: comments, error } = await supabase
@@ -43,12 +42,12 @@ async function GET_handler(
     .order("created_at", { ascending: true });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, error.message, 500);
   }
 
   const rows = (comments ?? []).filter((c) => {
     if (!c.hidden) return true;
-    return c.author_id === user.id || post.author_id === user.id;
+    return c.author_id === session.userId || post.author_id === session.userId;
   });
   const authorIds = [...new Set(rows.map((c) => c.author_id))];
   const { data: profiles } = await supabase
@@ -122,51 +121,58 @@ async function GET_handler(
     author_top_fandom_badge_key: fx?.topFandomBadgeKey ?? null,
     author_fandom_summary: fx?.fandomSummary ?? null,
     author_persona_text: fx?.personaText ?? null,
+    author_persona_v2_label: fx?.personaV2Label ?? null,
+    author_persona_v2_summary: fx?.personaV2Summary ?? null,
+    author_identity_headline: fx?.identityHeadline ?? null,
+    author_identity_summary: fx?.identitySummary ?? null,
     author_clubs_summary: fx?.clubsSummary ?? null,
     author_reputation_summary: fx?.reputationSummary ?? null,
     author_influence_summary: fx?.influenceSummary ?? null,
+    author_badge_highlight: fx?.badgeHighlight ?? null,
+    author_presence_label: fx?.presenceLabel ?? null,
     author_presence: presenceSnapshotFromFlair(fx),
   };
   });
 
-  return NextResponse.json({ comments: enriched });
+  return NextResponse.json({
+    success: true,
+    context_id: ctx.contextId,
+    comments: enriched as (CommunityCommentDTO & Record<string, unknown>)[],
+  });
 }
 
 async function POST_handler(
   request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   const postId = context.params.postId?.trim();
   if (!postId || !isUuidString(postId)) {
-    return NextResponse.json({ error: "Invalid post id" }, { status: 400 });
+    return errorJson(ctx, "Invalid post id", 400);
   }
 
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   let body: { body?: string; parent_comment_id?: string | null } = {};
   try {
     body = (await request.json()) as { body?: string; parent_comment_id?: string | null };
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return errorJson(ctx, "Invalid JSON", 400);
   }
 
   const text = typeof body.body === "string" ? body.body.trim() : "";
   if (!text) {
-    return NextResponse.json({ error: "body required" }, { status: 400 });
+    return errorJson(ctx, "body required", 400);
   }
   if (text.length > MAX_COMMENT) {
-    return NextResponse.json({ error: `body too long (max ${MAX_COMMENT})` }, { status: 400 });
+    return errorJson(ctx, `body too long (max ${MAX_COMMENT})`, 400);
   }
 
   const { data: post } = await supabase.from("community_posts").select("id").eq("id", postId).maybeSingle();
   if (!post) {
-    return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    return errorJson(ctx, "Post not found", 404);
   }
 
   let parentId: string | null = null;
@@ -180,26 +186,26 @@ async function POST_handler(
       .eq("post_id", postId)
       .maybeSingle();
     if (!parentRow) {
-      return NextResponse.json({ error: "Invalid parent comment" }, { status: 400 });
+      return errorJson(ctx, "Invalid parent comment", 400);
     }
     parentId = pid;
   }
 
   const { data, error } = await supabase
     .from("community_post_comments")
-    .insert({ post_id: postId, author_id: user.id, body: text, parent_comment_id: parentId })
+    .insert({ post_id: postId, author_id: session.userId, body: text, parent_comment_id: parentId })
     .select("id, body, created_at, author_id, parent_comment_id, hidden")
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, error.message, 500);
   }
 
   mcaLog.event("community.comment", { postId, commentId: data.id, len: text.length }, CTX);
   if (parentId) {
     mcaLog.event("community.thread", { postId, commentId: data.id, parentCommentId: parentId }, CTX);
   }
-  return NextResponse.json({ comment: data });
+  return NextResponse.json({ success: true, context_id: ctx.contextId, comment: data as CommunityCommentDTO });
 }
 
 export const GET = defineRoute("GET /api/community/posts/[postId]/comments", GET_handler);

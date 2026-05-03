@@ -23,12 +23,26 @@ export function buildInlineIdentityProgressTitle(
     reputationSummary?: string | null;
     /** Qualitative influence line (no numeric scores). */
     influenceSummary?: string | null;
+    /** Phase 24 — combined badge progression highlight (no scores). */
+    badgeHighlight?: string | null;
+    /** Phase 25 — qualitative presence line. */
+    presenceLabel?: string | null;
+    /** Phase 28 — one-line archetype / persona v2 (qualitative, no raw vectors). */
+    personaV2Summary?: string | null;
+    /** Phase 29 — fused identity map summary (qualitative only). */
+    identityMapSummary?: string | null;
   }
 ): string | undefined {
   const personaLine = extra?.personaText?.trim();
-  const parts = [personaLine, journey?.trim(), collection?.trim()].filter((x): x is string =>
-    Boolean(x)
-  );
+  const personaV2Line = extra?.personaV2Summary?.trim();
+  const identityMapLine = extra?.identityMapSummary?.trim();
+  const parts = [
+    personaLine,
+    personaV2Line,
+    identityMapLine,
+    journey?.trim(),
+    collection?.trim(),
+  ].filter((x): x is string => Boolean(x));
   if (tradeBadgeKey?.trim() && tradeSummary?.trim()) {
     parts.push(tradeSummary.trim());
   }
@@ -72,6 +86,14 @@ export function buildInlineIdentityProgressTitle(
   const infl = extra?.influenceSummary?.trim();
   if (infl) {
     parts.push(infl);
+  }
+  const bh = extra?.badgeHighlight?.trim();
+  if (bh) {
+    parts.push(bh);
+  }
+  const pl = extra?.presenceLabel?.trim();
+  if (pl) {
+    parts.push(pl);
   }
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }

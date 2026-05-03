@@ -1,6 +1,7 @@
 "use client";
 
 import type { InventoryCardItem } from "@/components/cards/inventory-types";
+import type { TradeCardsListPayloadDTO } from "@/lib/dto/trades";
 import { MatchSuggestionsInline } from "@/components/matching/match-suggestions-inline";
 import { TradeCardRow } from "@/components/trading/trade-card-row";
 import { TradeOfferPanel } from "@/components/trading/trade-offer-panel";
@@ -15,6 +16,7 @@ import {
   NavBackLink,
   Panel,
 } from "@/mca-ui";
+import { fetchJson, fetchJsonErrorMessage, useAsyncState } from "@/lib/client";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import { postCreateTrade } from "@/lib/trading/client-api";
 import { computeTradeSummary } from "@/lib/trading";
@@ -22,6 +24,8 @@ import type { TradeCardLine } from "@/lib/trading/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+type CardsListPayload = TradeCardsListPayloadDTO<InventoryCardItem>;
 
 function toLine(c: InventoryCardItem, side: "a" | "b", idx: number): TradeCardLine {
   return {
@@ -57,78 +61,61 @@ export function TradeNewClient({
   const [counterpartyId, setCounterpartyId] = useState(
     () => initialCounterpartyId?.trim() ?? ""
   );
-  const [ownCards, setOwnCards] = useState<InventoryCardItem[]>([]);
-  const [peerCards, setPeerCards] = useState<InventoryCardItem[]>([]);
-  const [loadingOwn, setLoadingOwn] = useState(true);
-  const [loadingPeer, setLoadingPeer] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [peerError, setPeerError] = useState<string | null>(null);
+  const {
+    run: runOwnInventory,
+    data: ownCardsData,
+    loading: loadingOwnInventory,
+    error: ownInventoryError,
+  } = useAsyncState<InventoryCardItem[]>();
+  const {
+    run: runPeerInventory,
+    data: peerCardsData,
+    loading: loadingPeer,
+    error: peerError,
+    setData: setPeerCardsData,
+  } = useAsyncState<InventoryCardItem[]>();
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [ownBootstrapped, setOwnBootstrapped] = useState(false);
+
+  const ownCards = useMemo(() => ownCardsData ?? [], [ownCardsData]);
+  const peerCards = useMemo(() => peerCardsData ?? [], [peerCardsData]);
   const [yours, setYours] = useState<TradeCardLine[]>([]);
   const [theirs, setTheirs] = useState<TradeCardLine[]>([]);
   const [sendBusy, setSendBusy] = useState(false);
   const [draftBusy, setDraftBusy] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoadingOwn(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/cards/list", {
-          cache: "no-store",
-          credentials: "include",
-        });
-        const body = (await res.json().catch(() => ({}))) as {
-          cards?: InventoryCardItem[];
-          error?: string;
-        };
-        if (!res.ok) throw new Error(body.error ?? "Failed to load cards");
-        if (!cancelled) setOwnCards(Array.isArray(body.cards) ? body.cards : []);
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load cards");
-      } finally {
-        if (!cancelled) setLoadingOwn(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void runOwnInventory(async () => {
+      const r = await fetchJson<CardsListPayload>("/api/cards/list", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      return Array.isArray(r.data.cards) ? r.data.cards : [];
+    }).finally(() => setOwnBootstrapped(true));
+  }, [runOwnInventory]);
 
   const loadPeerCards = useCallback(
     async (explicitId?: string) => {
-      const id = (explicitId ?? counterpartyId).trim();
-      if (!isUuid(id)) {
-        setPeerError("Enter a valid counterparty user id (UUID).");
-        setPeerCards([]);
-        return;
-      }
-      if (id === currentUserId) {
-        setPeerError("Choose someone else’s user id for the counterparty.");
-        setPeerCards([]);
-        return;
-      }
-      setLoadingPeer(true);
-      setPeerError(null);
-      try {
-        const res = await fetch(
+      await runPeerInventory(async () => {
+        const id = (explicitId ?? counterpartyId).trim();
+        if (!isUuid(id)) {
+          setPeerCardsData([]);
+          throw new Error("Enter a valid counterparty user id (UUID).");
+        }
+        if (id === currentUserId) {
+          setPeerCardsData([]);
+          throw new Error("Choose someone else’s user id for the counterparty.");
+        }
+        const r = await fetchJson<CardsListPayload>(
           `/api/trades/counterparty-cards?counterpartyId=${encodeURIComponent(id)}`,
           { cache: "no-store", credentials: "include" }
         );
-        const body = (await res.json().catch(() => ({}))) as {
-          cards?: InventoryCardItem[];
-          error?: string;
-        };
-        if (!res.ok) throw new Error(body.error ?? "Could not load peer inventory");
-        setPeerCards(Array.isArray(body.cards) ? body.cards : []);
-      } catch (e) {
-        setPeerCards([]);
-        setPeerError(e instanceof Error ? e.message : "Could not load peer inventory");
-      } finally {
-        setLoadingPeer(false);
-      }
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        return Array.isArray(r.data.cards) ? r.data.cards : [];
+      });
     },
-    [counterpartyId, currentUserId]
+    [counterpartyId, currentUserId, runPeerInventory, setPeerCardsData]
   );
 
   const loadPeerCardsRef = useRef(loadPeerCards);
@@ -180,10 +167,10 @@ export function TradeNewClient({
       } else {
         setDraftBusy(true);
       }
-      setError(null);
+      setSubmitError(null);
       const cp = counterpartyId.trim();
       if (!isUuid(cp) || cp === currentUserId) {
-        setError("Enter a valid counterparty user id.");
+        setSubmitError("Enter a valid counterparty user id.");
         if (sendNow) setSendBusy(false);
         else setDraftBusy(false);
         return;
@@ -214,7 +201,7 @@ export function TradeNewClient({
         );
         router.push(`/trades/${encodeURIComponent(tid)}`);
       } catch (e) {
-        setError(e instanceof Error ? e.message : sendNow ? "Could not send trade" : "Could not save draft");
+        setSubmitError(e instanceof Error ? e.message : sendNow ? "Could not send trade" : "Could not save draft");
       } finally {
         setSendBusy(false);
         setDraftBusy(false);
@@ -241,6 +228,7 @@ export function TradeNewClient({
       </div>
 
       <Panel className="border-mca-border bg-mca-surface/40 p-mca-md">
+        <section aria-live="polite" aria-busy={loadingPeer}>
         <Field
           id="counterparty-id"
           label="Counterparty user id"
@@ -261,6 +249,7 @@ export function TradeNewClient({
           </Button>
         </div>
         {peerError ? <p className="mt-mca-sm text-mca-body text-mca-error-text-muted">{peerError}</p> : null}
+        </section>
       </Panel>
 
       <MatchSuggestionsInline
@@ -277,7 +266,10 @@ export function TradeNewClient({
 
       <TradeSummaryPanel yours={summaryYours} theirs={summaryTheirs} combined={summaryCombined} />
 
-      {error ? <InlineError>{error}</InlineError> : null}
+      {ownInventoryError ? (
+        <InlineError>{ownInventoryError}</InlineError>
+      ) : null}
+      {submitError ? <InlineError>{submitError}</InlineError> : null}
 
       <div className="grid gap-mca-lg lg:grid-cols-2">
         <TradeOfferPanel title="Your offer" subtitle="Cards you send from your collection">
@@ -319,10 +311,11 @@ export function TradeNewClient({
       </div>
 
       <Panel className="border-mca-border bg-mca-surface/40 p-mca-md">
+        <section aria-live="polite" aria-busy={(!ownBootstrapped || loadingOwnInventory) || loadingPeer}>
         <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
           Add cards
         </p>
-        {loadingOwn ? (
+        {!ownBootstrapped || loadingOwnInventory ? (
           <div className="mt-mca-md flex items-center gap-mca-sm text-mca-body text-mca-ink-muted">
             <LoadingSpinner className="size-5 text-mca-accent" />
             Loading your cards…
@@ -380,6 +373,7 @@ export function TradeNewClient({
             </Field>
           </div>
         )}
+        </section>
       </Panel>
 
       <div className="flex flex-wrap gap-mca-md">

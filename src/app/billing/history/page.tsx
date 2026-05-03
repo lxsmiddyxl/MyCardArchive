@@ -1,5 +1,6 @@
 import { BillingActions } from "@/components/billing-actions";
 import { NavBackLink } from "@/mca-ui";
+import { isCurrentUserInternalUnlimited } from "@/lib/entitlements/internal-unlimited";
 import { isStripeConfigured } from "@/lib/stripe/server";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -33,6 +34,8 @@ export default async function BillingHistoryPage() {
     redirect("/login?next=/billing/history");
   }
 
+  const suppressCommercialUi = await isCurrentUserInternalUnlimited(supabase);
+
   const { data: cust } = await supabase
     .from("stripe_customers")
     .select("user_id")
@@ -50,7 +53,7 @@ export default async function BillingHistoryPage() {
 
   return (
     <div className="space-y-mca-xl pt-mca-sm">
-      <NavBackLink href="/tier">← Plan &amp; billing</NavBackLink>
+      <NavBackLink href="/billing">← Billing</NavBackLink>
       <header className="space-y-mca-sm">
         <p className="text-xs font-semibold uppercase tracking-wide text-mca-ink-subtle">
           Billing
@@ -81,6 +84,7 @@ export default async function BillingHistoryPage() {
             currentTierSlug={tierRow?.tier_slug ?? "free"}
             hasStripeCustomer={hasStripeCustomer}
             billingEnabled={billingEnabled}
+            suppressCommercialUi={suppressCommercialUi}
           />
         </div>
       </section>

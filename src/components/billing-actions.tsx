@@ -13,6 +13,8 @@ type Props = {
   currentTierSlug: string;
   hasStripeCustomer: boolean;
   billingEnabled: boolean;
+  /** Internal unlimited — hide checkout / upgrade; optional portal for legacy subscriptions. */
+  suppressCommercialUi?: boolean;
 };
 
 function tierLabel(t: PaidTierSlug): string {
@@ -23,6 +25,7 @@ export function BillingActions({
   currentTierSlug,
   hasStripeCustomer,
   billingEnabled,
+  suppressCommercialUi = false,
 }: Props) {
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -87,6 +90,51 @@ export function BillingActions({
         </code>
         , price IDs, etc.).
       </p>
+    );
+  }
+
+  if (suppressCommercialUi) {
+    return (
+      <div className="space-y-mca-sm">
+        <p className="text-sm text-mca-ink-muted">
+          Full platform access is enabled for your account. Paid upgrades and scan packs are hidden here.
+        </p>
+        {hasStripeCustomer ? (
+          <>
+            <ModalBase
+              isOpen={confirmPortal}
+              onClose={() => setConfirmPortal(false)}
+              title="Open billing portal?"
+              panelClassName="max-w-md"
+            >
+              <p className="text-sm leading-relaxed text-mca-ink-muted">
+                Stripe hosts invoices, payment methods, plan changes, and cancellation.
+              </p>
+              <div className="mt-mca-lg flex flex-wrap justify-end gap-mca-sm">
+                <Button type="button" variant="secondary" onClick={() => setConfirmPortal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  disabled={loading !== null}
+                  onClick={() => void openPortal()}
+                >
+                  {loading === "portal" ? "Opening…" : "Open portal"}
+                </Button>
+              </div>
+            </ModalBase>
+            <button
+              type="button"
+              disabled={loading !== null}
+              onClick={() => setConfirmPortal(true)}
+              className="rounded-mca-control border border-mca-field-border bg-mca-chrome/80 px-mca-base py-mca-sm text-sm font-medium text-mca-ink-strong transition-all duration-200 ease-mca-standard hover:border-mca-border-interactive hover:bg-mca-chrome/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Manage billing
+            </button>
+          </>
+        ) : null}
+      </div>
     );
   }
 

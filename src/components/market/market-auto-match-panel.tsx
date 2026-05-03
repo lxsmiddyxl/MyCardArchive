@@ -1,57 +1,64 @@
 "use client";
 
+import {
+  fetchJson,
+  fetchJsonErrorMessage,
+  useAsyncState,
+  useDebouncedSurfaceReload,
+} from "@/lib/client";
+import type {
+  MarketAutoMatchLoop3DTO,
+  MarketAutoMatchPayloadDTO,
+  MarketAutoMatchReciprocalDTO,
+} from "@/lib/dto/market";
+import { MARKET_SURFACES_REFRESH_EVENT } from "@/lib/market/market-surfaces-refresh";
 import { Panel } from "@/mca-ui/panel";
 import { useCallback, useEffect, useState } from "react";
 
-type Reciprocal = {
-  other_user_id: string;
-  you_receive_catalog_id: string;
-  you_send_catalog_id: string;
-};
-
-type Loop3 = {
-  u1: string;
-  u2: string;
-  u3: string;
-  edge_12_catalog_id: string;
-  edge_23_catalog_id: string;
-  edge_31_catalog_id: string;
+type AutoMatchView = {
+  reciprocal: MarketAutoMatchReciprocalDTO[];
+  loops: MarketAutoMatchLoop3DTO[];
 };
 
 export function MarketAutoMatchPanel() {
-  const [reciprocal, setReciprocal] = useState<Reciprocal[]>([]);
-  const [loops, setLoops] = useState<Loop3[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [bootstrapped, setBootstrapped] = useState(false);
+  const { run, data, loading, error } = useAsyncState<AutoMatchView>();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/market/auto-match", { cache: "no-store" });
-      const body = (await res.json().catch(() => ({}))) as {
-        matches?: { reciprocal?: Reciprocal[]; loops_3?: Loop3[] };
-        error?: string;
+  const load = useCallback(() => {
+    return run(async () => {
+      const r = await fetchJson<MarketAutoMatchPayloadDTO>("/api/market/auto-match", {
+        cache: "no-store",
+      });
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+      const m = r.data.matches ?? {};
+      return {
+        reciprocal: Array.isArray(m.reciprocal) ? m.reciprocal : [],
+        loops: Array.isArray(m.loops_3) ? m.loops_3 : [],
       };
-      if (!res.ok) throw new Error(body.error ?? "Failed to load matches");
-      const m = body.matches ?? {};
-      setReciprocal(Array.isArray(m.reciprocal) ? m.reciprocal : []);
-      setLoops(Array.isArray(m.loops_3) ? m.loops_3 : []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    });
+  }, [run]);
 
   useEffect(() => {
-    void load();
+    void load().finally(() => setBootstrapped(true));
   }, [load]);
 
-  if (loading) {
+  const scheduleMarketReload = useDebouncedSurfaceReload(load, 180);
+
+  useEffect(() => {
+    const onRefresh = () => scheduleMarketReload();
+    window.addEventListener(MARKET_SURFACES_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(MARKET_SURFACES_REFRESH_EVENT, onRefresh);
+  }, [scheduleMarketReload]);
+
+  const reciprocal = data?.reciprocal ?? [];
+  const loops = data?.loops ?? [];
+
+  if (!bootstrapped) {
     return (
       <Panel className="border-mca-border bg-mca-surface/35 p-mca-md">
-        <p className="text-mca-caption text-mca-ink-muted">Loading auto-match…</p>
+        <section aria-live="polite" aria-busy>
+          <p className="text-mca-caption text-mca-ink-muted">Loading auto-match…</p>
+        </section>
       </Panel>
     );
   }
@@ -68,6 +75,7 @@ export function MarketAutoMatchPanel() {
 
   return (
     <Panel className="border-mca-border bg-mca-surface-elevated/40 p-mca-md">
+      <section aria-live="polite" aria-busy={loading}>
       <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
         Auto-match suggestions
       </p>
@@ -106,6 +114,7 @@ export function MarketAutoMatchPanel() {
           </ul>
         </div>
       ) : null}
+      </section>
     </Panel>
   );
 }

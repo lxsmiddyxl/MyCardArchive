@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson } from "@/lib/client";
 import { Panel } from "@/mca-ui/panel";
 import { useCallback, useEffect, useState } from "react";
 
@@ -29,8 +30,8 @@ export function McaPerfOverlay() {
   const fetchDiag = useCallback(async () => {
     if (!enabled) return;
     try {
-      const res = await fetch("/api/health/diagnostics", { cache: "no-store" });
-      setDiag((await res.json()) as DiagJson);
+      const r = await fetchJson<DiagJson>("/api/health/diagnostics", { cache: "no-store" });
+      setDiag(r.kind === "ok" ? (r.data as DiagJson) : null);
     } catch {
       setDiag(null);
     }

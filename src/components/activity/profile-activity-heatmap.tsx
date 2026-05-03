@@ -35,7 +35,7 @@ export const ProfileActivityHeatmap = memo(function ProfileActivityHeatmap({
         </p>
       </div>
       <div
-        className="grid w-full max-w-full gap-0.5 motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-mca-standard"
+        className="grid w-full max-w-full gap-mca-trace motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-mca-standard"
         style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}
       >
         {counts.map((c, i) => {

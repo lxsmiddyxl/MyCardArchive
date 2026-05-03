@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson, fetchJsonErrorMessage, type FetchJsonResult } from "@/lib/client";
 import type { DeckCardEmbedded, DeckCardsBySection } from "@/lib/decks/editor-types";
 import { McaIcons } from "@/lib/icons/mca-icons";
 import { Icon } from "@/mca-ui/icon";
@@ -64,17 +65,14 @@ export function DeckLayout({
   }, [deckCardsBySection]);
 
   const mutate = useCallback(
-    async (fn: () => Promise<Response>) => {
+    async (fn: () => Promise<FetchJsonResult<Record<string, unknown>>>) => {
       const id = `${Date.now()}`;
       setBusy(id);
       setMutationError(null);
       try {
-        const res = await fn();
-        if (!res.ok) {
-          const j = (await res.json().catch(() => ({}))) as {
-            error?: string;
-          };
-          setMutationError(j.error ?? res.statusText ?? "Request failed");
+        const r = await fn();
+        if (r.kind !== "ok") {
+          setMutationError(fetchJsonErrorMessage(r));
           return;
         }
         onDeckUpdated();
@@ -87,7 +85,7 @@ export function DeckLayout({
 
   const addOne = (cardId: string, section: string) => {
     void mutate(() =>
-      fetch("/api/decks/add-card", {
+      fetchJson("/api/decks/add-card", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -102,7 +100,7 @@ export function DeckLayout({
 
   const removeOne = (cardId: string, section: string) => {
     void mutate(() =>
-      fetch("/api/decks/remove-card", {
+      fetchJson("/api/decks/remove-card", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deck_id: deckId, card_id: cardId, section }),
@@ -140,7 +138,7 @@ export function DeckLayout({
     }
     if (parsed.section === targetSection) return;
     void mutate(() =>
-      fetch("/api/decks/move-card", {
+      fetchJson("/api/decks/move-card", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -155,6 +153,8 @@ export function DeckLayout({
 
   return (
     <section
+      aria-live="polite"
+      aria-busy={busy !== null}
       className={`flex min-h-[50vh] flex-col rounded-mca-block border border-mca-border bg-mca-surface-elevated/95 shadow-mca-panel dark:border-mca-border-subtle ${className ?? ""}`}
     >
       <div className="border-b border-mca-border px-mca-base py-mca-compact dark:border-mca-border-subtle">
@@ -167,7 +167,10 @@ export function DeckLayout({
       </div>
 
       {mutationError ? (
-        <div className="border-b border-mca-border px-mca-base py-mca-sm dark:border-mca-border-subtle">
+        <div
+          className="border-b border-mca-border px-mca-base py-mca-sm dark:border-mca-border-subtle"
+          aria-live="assertive"
+        >
           <InlineError>{mutationError}</InlineError>
         </div>
       ) : null}

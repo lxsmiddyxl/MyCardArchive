@@ -2,6 +2,7 @@ import {
   CardForm,
   type CardFormInitialValues,
 } from "@/components/cards/card-form";
+import type { NormalizedCard } from "@/lib/ai/normalize-card";
 import { createClient } from "@/lib/supabase/server";
 import type { AutoMatchResult } from "@/lib/types/auto-match";
 import type { BinderRow } from "@/lib/types/database";
@@ -20,21 +21,43 @@ function firstParam(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-function parseScanRaw(raw: string): AutoMatchResult | null {
+function parseScanPayload(raw: string): {
+  auto_match: AutoMatchResult | null;
+  normalized: NormalizedCard | null;
+} {
   try {
-    const parsed = JSON.parse(raw) as { auto_match?: AutoMatchResult };
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      parsed.auto_match &&
-      typeof parsed.auto_match === "object"
-    ) {
-      return parsed.auto_match;
+    const parsed = JSON.parse(raw) as {
+      version?: number;
+      auto_match?: AutoMatchResult;
+      fused_auto_match?: AutoMatchResult;
+      normalized?: NormalizedCard;
+      card?: NormalizedCard;
+    };
+    if (!parsed || typeof parsed !== "object") {
+      return { auto_match: null, normalized: null };
     }
+    const auto =
+      parsed.auto_match && typeof parsed.auto_match === "object"
+        ? parsed.auto_match
+        : parsed.fused_auto_match && typeof parsed.fused_auto_match === "object"
+          ? parsed.fused_auto_match
+          : null;
+    const normalizedCandidate =
+      parsed.normalized && typeof parsed.normalized === "object"
+        ? parsed.normalized
+        : parsed.card && typeof parsed.card === "object"
+          ? parsed.card
+        : null;
+    const norm =
+      normalizedCandidate &&
+      (typeof normalizedCandidate.name === "string" ||
+        typeof normalizedCandidate.number === "string")
+        ? normalizedCandidate
+        : null;
+    return { auto_match: auto, normalized: norm };
   } catch {
-    /* ignore */
+    return { auto_match: null, normalized: null };
   }
-  return null;
 }
 
 function bestMatchToInitial(
@@ -46,6 +69,7 @@ function bestMatchToInitial(
     rarity: bm.rarity ?? "",
     image_url: bm.image_url,
     catalog_card_id: bm.catalog_card_id?.trim() || undefined,
+    set_name: bm.set_name?.trim() || undefined,
   };
 }
 
@@ -145,6 +169,7 @@ async function AddCardPageInner({ params, searchParams }: PageProps) {
   const imageUrlQ = firstParam(searchParams.image_url);
   const scanEventIdQ = firstParam(searchParams.scan_event_id);
   const catalogIdQ = firstParam(searchParams.catalog_card_id);
+  const setNameQ = firstParam(searchParams.set_name);
 
   const scanEventId =
     scanEventIdQ && scanEventIdQ.trim().length > 0
@@ -162,7 +187,9 @@ async function AddCardPageInner({ params, searchParams }: PageProps) {
       .maybeSingle();
 
     if (ev?.raw_text) {
-      const auto = parseScanRaw(ev.raw_text);
+      const { auto_match: auto, normalized: normFromPayload } = parseScanPayload(
+        ev.raw_text
+      );
       const bm = auto?.best_match;
 
       if (bm?.catalog_card_id && bm.catalog_card_id.trim().length > 0) {
@@ -181,6 +208,20 @@ async function AddCardPageInner({ params, searchParams }: PageProps) {
 
       if (!initialValues && bm && bm.card_name.trim().length > 0) {
         initialValues = bestMatchToInitial(bm);
+      }
+
+      if (!initialValues && normFromPayload) {
+        const n = normFromPayload;
+        const hasName = Boolean(n.name?.trim());
+        const hasNum = Boolean(String(n.number ?? "").trim());
+        if (hasName || hasNum) {
+          initialValues = {
+            name: n.name?.trim() ?? "",
+            number: typeof n.number === "string" ? n.number : "",
+            rarity: typeof n.rarity === "string" ? n.rarity : "",
+            image_url: n.image_url ?? null,
+          };
+        }
       }
     }
   }
@@ -203,13 +244,15 @@ async function AddCardPageInner({ params, searchParams }: PageProps) {
     (nameQ !== undefined ||
       numberQ !== undefined ||
       rarityQ !== undefined ||
-      imageUrlQ !== undefined)
+      imageUrlQ !== undefined ||
+      setNameQ !== undefined)
   ) {
     initialValues = {
       ...(nameQ !== undefined ? { name: nameQ } : {}),
       ...(numberQ !== undefined ? { number: numberQ } : {}),
       ...(rarityQ !== undefined ? { rarity: rarityQ } : {}),
       ...(imageUrlQ !== undefined ? { image_url: imageUrlQ } : {}),
+      ...(setNameQ !== undefined ? { set_name: setNameQ } : {}),
     };
   }
 

@@ -21,6 +21,9 @@ import type { ReputationDimensionId } from "@/lib/reputation/reputation-catalog"
 import type { ReputationScores } from "@/lib/reputation/reputation-summary";
 import type { InfluenceDimensionId } from "@/lib/influence/influence-catalog";
 import type { InfluenceScores } from "@/lib/influence/influence-summary";
+import type { BadgeV2ProgressRow } from "@/lib/badges/badge-catalog";
+import type { ArchetypeFitRow } from "@/lib/persona/persona-v2";
+import type { IdentityArchetypeBlendEntry } from "@/lib/identity/collector-identity-map";
 
 export type PlayIdentityPayload = {
   favoriteFormatId: string | null;
@@ -95,6 +98,15 @@ export type SocialInfluenceBlock = {
   recentEvents: { label: string; occurredOn: string }[];
 };
 
+/** Phase 24 — badge progression snapshot (qualitative; no public event log). */
+export type SocialBadgeProgressPayload = {
+  rows: BadgeV2ProgressRow[];
+  topBadges: string[];
+  seasonalBadges: string[];
+  prestigeBadges: string[];
+  badgeHighlight: string | null;
+};
+
 export type SocialProfileVisibility = "self" | "public" | "stub";
 
 export type SocialProfilePayload = {
@@ -134,8 +146,21 @@ export type SocialProfilePayload = {
   tierSlug?: string | null;
   /** One-line synthesized persona (`user_persona_cache` / `refresh_user_persona`). */
   personaText?: string | null;
+  /** Phase 28 — qualitative persona headline from archetype fits (no raw vectors). */
+  personaV2Label?: string | null;
+  personaV2Summary?: string | null;
+  topArchetypes?: ArchetypeFitRow[];
+  /** Phase 29 — fused identity map (qualitative only). */
+  identityHeadline?: string | null;
+  identitySummary?: string | null;
+  identityTraits?: string[];
+  identityClusters?: string[];
+  identitySignals?: string[];
+  identityArchetypeBlend?: IdentityArchetypeBlendEntry[];
   /** Last-seen + coarse activity (rounded in UI — ISO strings for client derivation only). */
   presence?: SocialPresenceSnapshot | null;
+  /** Server-derived qualitative presence line (no exact timestamps). */
+  presenceLabel?: string | null;
   /** Earned badges (tier, tenure, scan milestones) from `user_badges`. */
   badges?: UserBadgeRow[];
   /** Cached reputation score (posts, comments, likes received, scans). */
@@ -179,6 +204,10 @@ export type SocialProfilePayload = {
     handle: string | null;
     avatarUrl: string | null;
     personaText: string | null;
+    personaV2Label?: string | null;
+    personaV2Summary?: string | null;
+    identityHeadline?: string | null;
+    identitySummary?: string | null;
     presence?: SocialPresenceSnapshot | null;
     /** Last 30 UTC days of aggregate activity counts (mini strip). */
     activityHeatmapStrip?: number[];
@@ -208,6 +237,8 @@ export type SocialProfilePayload = {
   reputation?: SocialReputationBlock | null;
   /** Multi-dimensional influence graph + safe event labels (no raw logs). */
   influence?: SocialInfluenceBlock | null;
+  /** Tiered / seasonal / prestige badge progression (descriptive only). */
+  badgesV2?: SocialBadgeProgressPayload | null;
 };
 
 /** @deprecated Prefer server-backed `social_public_profiles` via profile payload. */

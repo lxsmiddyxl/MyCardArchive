@@ -6,7 +6,7 @@ import { BinderShelfCard } from "@/components/binders/binder-shelf-card";
 import { TierFeatureGateBadge } from "@/components/tier/tier-feature-gate-badge";
 import {
   getBinderCount,
-  getUserTier,
+  getEffectiveUserTier,
 } from "@/lib/tier/check-limits";
 import { isBusinessTier } from "@/lib/tier/scan-tier-policy";
 import { createClient } from "@/lib/supabase/server";
@@ -34,16 +34,22 @@ function formatCreatedAt(iso: string) {
 
 export default async function BindersPage() {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: { id: string } | null = null;
+  try {
+    const {
+      data: { user: u },
+    } = await supabase.auth.getUser();
+    user = u;
+  } catch {
+    redirect("/login?next=/binders");
+  }
 
   if (!user) {
     redirect("/login?next=/binders");
   }
 
   const [tier, binderCount, bindersResult] = await Promise.all([
-    getUserTier(supabase),
+    getEffectiveUserTier(supabase),
     getBinderCount(supabase),
     supabase
       .from("binders")
@@ -56,8 +62,11 @@ export default async function BindersPage() {
 
   const binders = (bindersRaw ?? []) as BinderListRow[];
 
+  /** Align with `assertCanCreateBinder`: unlimited when `binder_limit <= 0`. */
   const atBinderLimit =
-    tier != null && binderCount >= tier.binder_limit;
+    tier != null &&
+    tier.binder_limit > 0 &&
+    binderCount >= tier.binder_limit;
 
   const canExportCsv = tier != null && isBusinessTier(tier);
 

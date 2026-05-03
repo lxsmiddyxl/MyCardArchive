@@ -1,135 +1,145 @@
 "use client";
 
+import {
+  fetchJson,
+  fetchJsonErrorMessage,
+  scheduleCoalescedRouterRefresh,
+  useAsyncState,
+  useDebouncedSurfaceReload,
+} from "@/lib/client";
+import type {
+  MarketAlertPrefsDTO,
+  MarketWatchlistRowDTO,
+} from "@/lib/dto/market";
 import { Button } from "@/mca-ui/button";
 import { Field } from "@/mca-ui/field";
+import {
+  MARKET_SURFACES_REFRESH_EVENT,
+  requestMarketSurfacesRefresh,
+} from "@/lib/market/market-surfaces-refresh";
 import { Panel } from "@/mca-ui/panel";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-type CatalogRef = {
-  id: string;
-  name: string;
-  number: string;
-  set_id: string;
-} | null;
-
-type WatchRow = {
-  catalog_card_id: string;
-  created_at: string;
-  catalog_cards?: CatalogRef | CatalogRef[];
-};
-
-type Prefs = {
-  alert_ft_available: boolean;
-  alert_trade_overlap: boolean;
-  updated_at: string | null;
+type WatchlistView = {
+  items: MarketWatchlistRowDTO[];
+  prefs: MarketAlertPrefsDTO | null;
 };
 
 export function MarketWatchlistPanel() {
-  const [items, setItems] = useState<WatchRow[]>([]);
-  const [prefs, setPrefs] = useState<Prefs | null>(null);
+  const router = useRouter();
   const [addInput, setAddInput] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [bootstrapped, setBootstrapped] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [wRes, pRes] = await Promise.all([
-        fetch("/api/market/watchlist", { cache: "no-store" }),
-        fetch("/api/market/alert-prefs", { cache: "no-store" }),
+  const { run, data, loading, error: loadError, setData } = useAsyncState<WatchlistView>();
+  const {
+    run: runAction,
+    loading: actionBusy,
+    error: actionError,
+  } = useAsyncState<null>();
+
+  const load = useCallback(() => {
+    return run(async () => {
+      const [w, p] = await Promise.all([
+        fetchJson<{ items?: MarketWatchlistRowDTO[] }>("/api/market/watchlist", {
+          cache: "no-store",
+        }),
+        fetchJson<{ prefs?: MarketAlertPrefsDTO }>("/api/market/alert-prefs", {
+          cache: "no-store",
+        }),
       ]);
-      const wBody = (await wRes.json().catch(() => ({}))) as {
-        items?: WatchRow[];
-        error?: string;
+      if (w.kind !== "ok") throw new Error(fetchJsonErrorMessage(w));
+      if (p.kind !== "ok") throw new Error(fetchJsonErrorMessage(p));
+      return {
+        items: Array.isArray(w.data.items) ? w.data.items : [],
+        prefs: p.data.prefs ?? null,
       };
-      const pBody = (await pRes.json().catch(() => ({}))) as {
-        prefs?: Prefs;
-        error?: string;
-      };
-      if (!wRes.ok) throw new Error(wBody.error ?? "Failed to load watchlist");
-      if (!pRes.ok) throw new Error(pBody.error ?? "Failed to load alert preferences");
-      setItems(Array.isArray(wBody.items) ? wBody.items : []);
-      if (pBody.prefs) setPrefs(pBody.prefs);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    });
+  }, [run]);
 
   useEffect(() => {
-    void load();
+    void load().finally(() => setBootstrapped(true));
   }, [load]);
+
+  const scheduleMarketReload = useDebouncedSurfaceReload(load, 180);
+
+  useEffect(() => {
+    const onRefresh = () => scheduleMarketReload();
+    window.addEventListener(MARKET_SURFACES_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(MARKET_SURFACES_REFRESH_EVENT, onRefresh);
+  }, [scheduleMarketReload]);
+
+  const items = data?.items ?? [];
+  const prefs = data?.prefs ?? null;
+  const error = loadError ?? actionError;
+  const busy = actionBusy;
 
   const onTogglePref = useCallback(
     async (key: "alert_ft_available" | "alert_trade_overlap", next: boolean) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/market/alert-prefs", {
+      await runAction(async () => {
+        const r = await fetchJson<{ prefs?: MarketAlertPrefsDTO }>("/api/market/alert-prefs", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ [key]: next }),
         });
-        const body = (await res.json().catch(() => ({}))) as { prefs?: Prefs; error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Could not save preferences");
-        if (body.prefs) setPrefs(body.prefs);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not save");
-      } finally {
-        setBusy(false);
-      }
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        if (r.data.prefs) {
+          setData((d) => (d ? { ...d, prefs: r.data.prefs! } : d));
+        }
+        requestMarketSurfacesRefresh();
+        scheduleCoalescedRouterRefresh(router);
+        return null;
+      });
     },
-    []
+    [runAction, setData, router]
   );
 
   const onAdd = useCallback(async () => {
     const id = addInput.trim();
     if (!id) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/market/watchlist", {
+    await runAction(async () => {
+      const r = await fetchJson("/api/market/watchlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ catalog_card_id: id }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Could not add");
+      if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
       setAddInput("");
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not add");
-    } finally {
-      setBusy(false);
-    }
-  }, [addInput, load]);
+      requestMarketSurfacesRefresh();
+      scheduleCoalescedRouterRefresh(router);
+      return null;
+    });
+  }, [runAction, addInput, load, router]);
 
   const onRemove = useCallback(
     async (catalogCardId: string) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const res = await fetch(
-          `/api/market/watchlist?catalog_card_id=${encodeURIComponent(catalogCardId)}`,
-          { method: "DELETE" }
-        );
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Could not remove");
-        await load();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not remove");
-      } finally {
-        setBusy(false);
-      }
+      const prev = data;
+      setData((d) =>
+        d ? { ...d, items: d.items.filter((x) => x.catalog_card_id !== catalogCardId) } : d
+      );
+      await runAction(async () => {
+        try {
+          const r = await fetchJson(
+            `/api/market/watchlist?catalog_card_id=${encodeURIComponent(catalogCardId)}`,
+            { method: "DELETE" }
+          );
+          if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+          await load();
+          requestMarketSurfacesRefresh();
+          scheduleCoalescedRouterRefresh(router);
+          return null;
+        } catch (e) {
+          setData(prev ?? null);
+          throw e;
+        }
+      });
     },
-    [load]
+    [runAction, load, router, data, setData]
   );
 
   const catalogLabel = useMemo(() => {
-    return (row: WatchRow) => {
+    return (row: MarketWatchlistRowDTO) => {
       const c = row.catalog_cards;
       const card = Array.isArray(c) ? c[0] : c;
       if (card?.name) {
@@ -139,16 +149,18 @@ export function MarketWatchlistPanel() {
     };
   }, []);
 
-  if (loading) {
+  if (!bootstrapped) {
     return (
       <Panel className="border-mca-border bg-mca-surface/40 p-mca-md">
-        <p className="text-mca-caption text-mca-ink-muted">Loading watchlist…</p>
+        <section aria-live="polite" aria-busy>
+          <p className="text-mca-caption text-mca-ink-muted">Loading watchlist…</p>
+        </section>
       </Panel>
     );
   }
 
   return (
-    <div className="space-y-mca-lg">
+    <section className="space-y-mca-lg" aria-live="polite" aria-busy={busy}>
       <Panel className="border-mca-border bg-mca-surface/40 p-mca-md">
         <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
           Alert preferences
@@ -162,7 +174,7 @@ export function MarketWatchlistPanel() {
             <label className="flex cursor-pointer items-start gap-mca-sm text-mca-body text-mca-ink-body">
               <input
                 type="checkbox"
-                className="mt-mca-xs h-4 w-4 shrink-0 rounded border-mca-border text-mca-accent-strong focus:ring-mca-focus/60"
+                className="mt-mca-xs h-4 w-4 shrink-0 rounded-mca-control border border-mca-border text-mca-accent-strong transition-all duration-200 ease-mca-standard focus:ring-mca-focus/60"
                 checked={prefs.alert_ft_available}
                 disabled={busy}
                 onChange={(e) => void onTogglePref("alert_ft_available", e.target.checked)}
@@ -177,7 +189,7 @@ export function MarketWatchlistPanel() {
             <label className="flex cursor-pointer items-start gap-mca-sm text-mca-body text-mca-ink-body">
               <input
                 type="checkbox"
-                className="mt-mca-xs h-4 w-4 shrink-0 rounded border-mca-border text-mca-accent-strong focus:ring-mca-focus/60"
+                className="mt-mca-xs h-4 w-4 shrink-0 rounded-mca-control border border-mca-border text-mca-accent-strong transition-all duration-200 ease-mca-standard focus:ring-mca-focus/60"
                 checked={prefs.alert_trade_overlap}
                 disabled={busy}
                 onChange={(e) => void onTogglePref("alert_trade_overlap", e.target.checked)}
@@ -209,7 +221,7 @@ export function MarketWatchlistPanel() {
               onChange={(e) => setAddInput(e.target.value)}
               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
               autoComplete="off"
-              className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-compact py-mca-sm font-mono text-sm text-mca-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 dark:border-mca-border-subtle"
+              className="mca-input mt-mca-sm rounded-mca-control font-mono text-sm"
             />
           </Field>
           <Button
@@ -240,7 +252,7 @@ export function MarketWatchlistPanel() {
               >
                 <div className="min-w-0">
                   <p className="truncate font-mono text-mca-caption text-mca-ink-body">{catalogLabel(row)}</p>
-                  <p className="truncate font-mono text-[10px] text-mca-ink-muted">{row.catalog_card_id}</p>
+                  <p className="truncate font-mono text-mca-caption text-mca-ink-muted">{row.catalog_card_id}</p>
                 </div>
                 <Button
                   type="button"
@@ -256,6 +268,6 @@ export function MarketWatchlistPanel() {
           </ul>
         )}
       </Panel>
-    </div>
+    </section>
   );
 }

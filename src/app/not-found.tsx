@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Page not found",
+  robots: { index: false, follow: false },
+};
 
 export default function NotFound() {
   return (
@@ -7,12 +13,26 @@ export default function NotFound() {
       <p className="mt-mca-compact max-w-md text-sm text-mca-ink-muted">
         That page does not exist or you do not have access.
       </p>
-      <Link
-        href="/feed"
-        className="mt-mca-xl rounded-mca-control border border-mca-border-subtle bg-mca-surface-elevated/80 px-mca-base py-mca-tight text-sm font-medium text-mca-ink-soft transition-all duration-200 ease-mca-standard hover:bg-mca-chrome/60 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 active:scale-[0.97]"
-      >
-        Back to feed
-      </Link>
+      <div className="mt-mca-xl flex flex-col items-center gap-mca-compact sm:flex-row">
+        <Link
+          href="/feed"
+          className="inline-flex min-h-[2.75rem] items-center justify-center rounded-mca-control bg-mca-accent-strong/90 px-mca-base py-mca-sm text-sm font-semibold text-mca-on-accent transition-all duration-200 ease-mca-standard hover:bg-mca-accent/95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 active:scale-[0.98]"
+        >
+          Back to feed
+        </Link>
+        <Link
+          href="/support"
+          className="inline-flex min-h-[2.75rem] items-center justify-center rounded-mca-control border border-mca-field-border bg-mca-surface-elevated/60 px-mca-base py-mca-sm text-sm font-medium text-mca-ink-soft transition-all duration-200 ease-mca-standard hover:bg-mca-chrome/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60"
+        >
+          Support
+        </Link>
+        <Link
+          href="/legal/terms"
+          className="text-sm font-medium text-mca-accent/90 underline-offset-2 transition-colors duration-200 ease-mca-standard hover:underline"
+        >
+          Terms
+        </Link>
+      </div>
     </div>
   );
 }

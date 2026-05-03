@@ -8,6 +8,7 @@ import {
   LoadingButton,
   ModalBase,
 } from "@/mca-ui";
+import { fetchText, useAsyncState } from "@/lib/client";
 import { useCallback, useEffect, useState } from "react";
 
 export type DeckExportFormat = "tcgplayer" | "showdown" | "txt";
@@ -20,43 +21,38 @@ type Props = {
 
 export function ExportDeckModal({ open, deckId, onClose }: Props) {
   const [format, setFormat] = useState<DeckExportFormat>("tcgplayer");
-  const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    run: runExport,
+    data: exportText,
+    loading: exportLoading,
+    error: exportError,
+    reset: resetExport,
+  } = useAsyncState<string>();
+  const {
+    run: runCopy,
+    loading: copyBusy,
+    error: copyError,
+    reset: resetCopy,
+  } = useAsyncState<void>();
   const [copyOk, setCopyOk] = useState(false);
-  const [copyBusy, setCopyBusy] = useState(false);
+
+  const text = exportText ?? "";
+  const loading = exportLoading;
+  const surfaceError = exportError ?? copyError;
 
   const loadExport = useCallback(async () => {
     if (!deckId) return;
-    setLoading(true);
-    setError(null);
-    setCopyOk(false);
-    try {
-      const res = await fetch(
+    await runExport(async () => {
+      const r = await fetchText(
         `/api/decks/${encodeURIComponent(deckId)}/export?format=${encodeURIComponent(format)}`,
         { cache: "no-store" }
       );
-      const bodyText = await res.text();
-      if (!res.ok) {
-        let msg = bodyText;
-        try {
-          const j = JSON.parse(bodyText) as { error?: string };
-          if (j.error) msg = j.error;
-        } catch {
-          /* plain text */
-        }
-        setError(msg || "Export failed");
-        setText("");
-        return;
+      if (r.kind !== "ok") {
+        throw new Error(r.message || "Export failed");
       }
-      setText(bodyText);
-    } catch {
-      setError("Network error");
-      setText("");
-    } finally {
-      setLoading(false);
-    }
-  }, [deckId, format]);
+      return r.text;
+    });
+  }, [deckId, format, runExport]);
 
   useEffect(() => {
     if (!open || !deckId) return;
@@ -66,34 +62,26 @@ export function ExportDeckModal({ open, deckId, onClose }: Props) {
   useEffect(() => {
     if (!open) {
       setFormat("tcgplayer");
-      setText("");
-      setError(null);
       setCopyOk(false);
-      setLoading(false);
-      setCopyBusy(false);
+      resetExport();
+      resetCopy();
     }
-  }, [open]);
+  }, [open, resetExport, resetCopy]);
 
   const handleClose = useCallback(() => {
     if (loading || copyBusy) return;
-    setError(null);
     onClose();
   }, [loading, copyBusy, onClose]);
 
   const copy = useCallback(async () => {
     if (!text) return;
-    setCopyBusy(true);
-    setError(null);
-    try {
+    setCopyOk(false);
+    await runCopy(async () => {
       await navigator.clipboard.writeText(text);
       setCopyOk(true);
       window.setTimeout(() => setCopyOk(false), 2000);
-    } catch {
-      setError("Could not copy to clipboard");
-    } finally {
-      setCopyBusy(false);
-    }
-  }, [text]);
+    });
+  }, [text, runCopy]);
 
   return (
     <ModalBase
@@ -125,46 +113,48 @@ export function ExportDeckModal({ open, deckId, onClose }: Props) {
         </div>
       }
     >
-      <p className="text-sm text-mca-ink-subtle">
-        Main deck, side deck, and Brawl are separated by blank lines.
-      </p>
-      <div className="mt-mca-base">
-        <label htmlFor="export-format" className="text-sm font-medium text-mca-ink-body">
-          Format
+      <section aria-live="polite" aria-busy={loading}>
+        <p className="text-mca-body text-mca-ink-subtle">
+          Main deck, side deck, and Brawl are separated by blank lines.
+        </p>
+        <div className="mt-mca-base">
+          <label htmlFor="export-format" className="text-mca-body font-medium text-mca-ink-body">
+            Format
+          </label>
+          <select
+            id="export-format"
+            value={format}
+            disabled={loading || copyBusy}
+            onChange={(e) => setFormat(e.target.value as DeckExportFormat)}
+            className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface/80 px-mca-compact py-mca-tight text-mca-body text-mca-ink-strong outline-none transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-50 dark:border-mca-border-subtle"
+          >
+            <option value="tcgplayer">TCGPlayer (Name – qty)</option>
+            <option value="showdown">Pokémon Showdown (qty Name)</option>
+            <option value="txt">Simple (qty× Name)</option>
+          </select>
+        </div>
+
+        {surfaceError ? (
+          <InlineError className="my-mca-compact" showIcon>
+            {surfaceError}
+          </InlineError>
+        ) : null}
+        {copyOk && !surfaceError ? (
+          <InlineSuccess className="my-mca-compact" showIcon>
+            Copied to clipboard.
+          </InlineSuccess>
+        ) : null}
+
+        <label htmlFor="export-text" className="mt-mca-lg block text-mca-body font-medium text-mca-ink-body">
+          List
         </label>
-        <select
-          id="export-format"
-          value={format}
-          disabled={loading || copyBusy}
-          onChange={(e) => setFormat(e.target.value as DeckExportFormat)}
-          className="mt-mca-sm w-full rounded-mca-control border border-mca-border bg-mca-surface/80 px-mca-compact py-mca-tight text-sm text-mca-ink-strong outline-none transition-all duration-200 ease-mca-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 disabled:opacity-50 dark:border-mca-border-subtle"
-        >
-          <option value="tcgplayer">TCGPlayer (Name – qty)</option>
-          <option value="showdown">Pokémon Showdown (qty Name)</option>
-          <option value="txt">Simple (qty× Name)</option>
-        </select>
-      </div>
-
-      {error ? (
-        <InlineError className="my-mca-compact" showIcon>
-          {error}
-        </InlineError>
-      ) : null}
-      {copyOk && !error ? (
-        <InlineSuccess className="my-mca-compact" showIcon>
-          Copied to clipboard.
-        </InlineSuccess>
-      ) : null}
-
-      <label htmlFor="export-text" className="mt-mca-lg block text-sm font-medium text-mca-ink-body">
-        List
-      </label>
-      <textarea
-        id="export-text"
-        readOnly
-        value={loading ? "Loading…" : text}
-        className="mt-mca-sm h-56 w-full resize-y rounded-mca-control border border-mca-border bg-mca-surface/80 px-mca-compact py-mca-tight font-mono text-xs leading-relaxed text-mca-ink-strong outline-none transition-all dark:border-mca-border-subtle"
-      />
+        <textarea
+          id="export-text"
+          readOnly
+          value={loading ? "Loading…" : text}
+          className="mca-input mt-mca-sm h-56 w-full resize-y font-mono text-mca-caption leading-relaxed text-mca-body"
+        />
+      </section>
     </ModalBase>
   );
 }

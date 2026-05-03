@@ -5,6 +5,7 @@ import { getInfluenceDimensionById } from "@/lib/influence/influence-catalog";
 import { getReputationDimensionById } from "@/lib/reputation/reputation-catalog";
 import { InlineUserFlair } from "@/components/flair/inline-user-flair";
 import { TrainerPresenceDot } from "@/components/presence/trainer-presence-dot";
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import type { CollectorSearchFilters } from "@/lib/search/search-filters";
 import {
   emptyFilters,
@@ -39,6 +40,10 @@ export type SearchResultRow = {
   rankScore: number;
   similarityScore: number | null;
   personaText: string | null;
+  personaV2Label?: string | null;
+  personaV2Summary?: string | null;
+  identityHeadline?: string | null;
+  identitySummary?: string | null;
   displayName: string | null;
   username: string | null;
   avatarUrl: string | null;
@@ -52,6 +57,8 @@ export type SearchResultRow = {
   reputationDimensionChips?: string[];
   influenceSummary?: string | null;
   influenceDimensionChips?: string[];
+  badgeHighlight?: string | null;
+  presenceLabel?: string | null;
 };
 
 export function CollectorsSearchClient() {
@@ -77,9 +84,8 @@ export function CollectorsSearchClient() {
   useEffect(() => {
     void (async () => {
       try {
-        const res = await fetch("/api/search/options", { cache: "no-store" });
-        const body = (await res.json()) as OptionsPayload & { error?: string };
-        if (res.ok) setOptions(body);
+        const r = await fetchJson<OptionsPayload>("/api/search/options", { cache: "no-store" });
+        if (r.kind === "ok") setOptions(r.data as OptionsPayload);
       } catch {
         setOptions(null);
       }
@@ -110,10 +116,12 @@ export function CollectorsSearchClient() {
           encoded !== "{}"
             ? `filters=${encodeURIComponent(encoded)}&limit=36&offset=0`
             : `limit=36&offset=0`;
-        const res = await fetch(`/api/search/collectors?${qs}`, { cache: "no-store" });
-        const body = (await res.json()) as { results?: SearchResultRow[]; error?: string };
-        if (!res.ok) throw new Error(body.error ?? "Search failed");
-        if (!cancelled) setResults(body.results ?? []);
+        const r = await fetchJson<{ results: SearchResultRow[] }>(
+          `/api/search/collectors?${qs}`,
+          { cache: "no-store" }
+        );
+        if (r.kind !== "ok") throw new Error(fetchJsonErrorMessage(r));
+        if (!cancelled) setResults(Array.isArray(r.data.results) ? r.data.results : []);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Search failed");
       } finally {
@@ -155,7 +163,7 @@ export function CollectorsSearchClient() {
             <Field id="search-filter-persona" label="Persona keywords">
               <input
                 id="search-filter-persona"
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.personaQuery ?? ""}
                 onChange={(e) => sel("personaQuery", e.target.value)}
                 placeholder="Try play style, era, favorite Pokémon…"
@@ -164,7 +172,7 @@ export function CollectorsSearchClient() {
             <Field id="search-filter-play-format" label="Play format">
               <select
                 id="search-filter-play-format"
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.playFormatId ?? ""}
                 onChange={(e) => sel("playFormatId", e.target.value)}
               >
@@ -179,7 +187,7 @@ export function CollectorsSearchClient() {
             <Field id="search-filter-archetype" label="Archetype">
               <select
                 id="search-filter-archetype"
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.playArchetypeId ?? ""}
                 onChange={(e) => sel("playArchetypeId", e.target.value)}
               >
@@ -194,7 +202,7 @@ export function CollectorsSearchClient() {
             <Field id="search-filter-fandom-era" label="Fandom era">
               <select
                 id="search-filter-fandom-era"
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.fandomEraId ?? ""}
                 onChange={(e) => sel("fandomEraId", e.target.value)}
               >
@@ -209,7 +217,7 @@ export function CollectorsSearchClient() {
             <Field id="search-filter-club" label="Club">
               <select
                 id="search-filter-club"
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.clubIds?.[0] ?? ""}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -232,7 +240,7 @@ export function CollectorsSearchClient() {
             <Field id="search-filter-presence" label="Presence">
               <select
                 id="search-filter-presence"
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.presenceState ?? ""}
                 onChange={(e) => sel("presenceState", e.target.value)}
               >
@@ -250,7 +258,7 @@ export function CollectorsSearchClient() {
                 type="number"
                 min={1}
                 max={365}
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.activeWithinDaysMax ?? ""}
                 onChange={(e) =>
                   sel(
@@ -266,7 +274,7 @@ export function CollectorsSearchClient() {
                 id="search-filter-min-events-7d"
                 type="number"
                 min={0}
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.minEventsLast7Days ?? ""}
                 onChange={(e) =>
                   sel(
@@ -279,7 +287,7 @@ export function CollectorsSearchClient() {
             <Field id="search-filter-value-band" label="Value band (min)">
               <select
                 id="search-filter-value-band"
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.valueBandMin ?? ""}
                 onChange={(e) =>
                   sel(
@@ -299,7 +307,7 @@ export function CollectorsSearchClient() {
             <Field id="search-filter-trade-tier" label="Trade tier (min)">
               <select
                 id="search-filter-trade-tier"
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.tradeTierMin ?? ""}
                 onChange={(e) =>
                   sel(
@@ -319,7 +327,7 @@ export function CollectorsSearchClient() {
             <Field id="search-filter-rarity-profile" label="Rarity profile">
               <select
                 id="search-filter-rarity-profile"
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.rarityProfile ?? ""}
                 onChange={(e) => sel("rarityProfile", e.target.value)}
               >
@@ -334,7 +342,7 @@ export function CollectorsSearchClient() {
             <Field id="search-filter-journey" label="Journey completed">
               <select
                 id="search-filter-journey"
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.completedJourneyIds?.[0] ?? ""}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -357,7 +365,7 @@ export function CollectorsSearchClient() {
             <Field id="search-filter-seasonal" label="Seasonal badge">
               <select
                 id="search-filter-seasonal"
-                className="w-full rounded-mca-control border border-mca-border bg-mca-surface px-mca-sm py-mca-xs text-mca-caption"
+                className="mca-input w-full rounded-mca-control px-mca-sm py-mca-xs text-mca-caption"
                 value={filters.seasonalEventIds?.[0] ?? ""}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -384,7 +392,12 @@ export function CollectorsSearchClient() {
         </Panel>
       </aside>
 
-      <section className="min-w-0 flex-1 space-y-mca-md">
+      <section
+        className="min-w-0 flex-1 space-y-mca-md"
+        aria-label="Collector search results"
+        aria-live="polite"
+        aria-busy={loading}
+      >
         <Panel className="border-mca-border bg-mca-surface/40 p-mca-md">
           <h2 className="text-lg font-semibold text-mca-ink-strong">Results</h2>
           <p className="mt-mca-xs text-mca-caption text-mca-ink-muted">
@@ -397,13 +410,15 @@ export function CollectorsSearchClient() {
             </p>
           ) : null}
           {loading ? (
-            <p className="mt-mca-md text-mca-body text-mca-ink-muted">Searching…</p>
+            <p className="mt-mca-md text-mca-body text-mca-ink-muted" role="status">
+              Searching…
+            </p>
           ) : results.length === 0 ? (
             <p className="mt-mca-md text-mca-body text-mca-ink-muted">
               No collectors match yet — broaden filters or check back after profiles sync.
             </p>
           ) : (
-            <ul className="mt-mca-md grid gap-mca-md sm:grid-cols-2">
+            <ul className="mt-mca-md grid gap-mca-md sm:grid-cols-2" role="list">
               {results.map((r) => (
                 <li key={r.userId}>
                   <Panel className="h-full border border-mca-border/80 bg-mca-surface-elevated/40 p-mca-md">
@@ -454,11 +469,32 @@ export function CollectorsSearchClient() {
                             {r.personaText.trim()}
                           </p>
                         ) : null}
+                        {r.identityHeadline?.trim() ? (
+                          <p className="mt-mca-trace line-clamp-2 text-[11px] font-medium text-mca-ink-strong">
+                            {r.identityHeadline.trim()}
+                          </p>
+                        ) : null}
+                        {r.identitySummary?.trim() ? (
+                          <p className="mt-mca-trace line-clamp-2 text-[11px] text-mca-ink-body">
+                            {r.identitySummary.trim()}
+                          </p>
+                        ) : null}
+                        {r.personaV2Summary?.trim() ? (
+                          <p className="mt-mca-trace line-clamp-2 text-[11px] text-mca-ink-body">
+                            {r.personaV2Summary.trim()}
+                          </p>
+                        ) : null}
                         {r.reputationSummary?.trim() ? (
                           <p className="mt-mca-trace text-[11px] text-mca-ink-body">{r.reputationSummary.trim()}</p>
                         ) : null}
                         {r.influenceSummary?.trim() ? (
                           <p className="mt-mca-trace text-[11px] text-mca-accent-strong/90">{r.influenceSummary.trim()}</p>
+                        ) : null}
+                        {r.badgeHighlight?.trim() ? (
+                          <p className="mt-mca-trace text-[11px] text-mca-warn/95">{r.badgeHighlight.trim()}</p>
+                        ) : null}
+                        {r.presenceLabel?.trim() ? (
+                          <p className="mt-mca-trace text-[11px] text-mca-ink-subtle">{r.presenceLabel.trim()}</p>
                         ) : null}
                         {r.reputationDimensionChips && r.reputationDimensionChips.length > 0 ? (
                           <div className="mt-mca-xs flex flex-wrap gap-mca-xs">
@@ -468,7 +504,7 @@ export function CollectorsSearchClient() {
                               return (
                                 <span
                                   key={id}
-                                  className="inline-flex items-center gap-mca-micro rounded-full border border-mca-border/60 bg-mca-surface/50 px-mca-xs py-0.5 text-[10px] font-medium text-mca-ink-muted"
+                                  className="inline-flex items-center gap-mca-micro rounded-full border border-mca-border/60 bg-mca-surface/50 px-mca-xs py-mca-trace text-[10px] font-medium text-mca-ink-muted"
                                 >
                                   <span aria-hidden>{d.icon}</span>
                                   {d.displayName}
@@ -485,7 +521,7 @@ export function CollectorsSearchClient() {
                               return (
                                 <span
                                   key={id}
-                                  className="inline-flex items-center gap-mca-micro rounded-full border border-mca-accent/40 bg-mca-accent/10 px-mca-xs py-0.5 text-[10px] font-medium text-mca-ink-body"
+                                  className="inline-flex items-center gap-mca-micro rounded-full border border-mca-accent/40 bg-mca-accent/10 px-mca-xs py-mca-trace text-[10px] font-medium text-mca-ink-body"
                                 >
                                   <span aria-hidden>{d.icon}</span>
                                   {d.displayName}

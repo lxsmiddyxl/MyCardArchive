@@ -39,6 +39,14 @@ export default async function CatalogIndexPage() {
           POST <span className="font-mono text-xs">/api/catalog/sync/sets</span>{" "}
           (service role required on the server).
         </p>
+        <p className="pt-mca-sm">
+          <Link
+            href="/catalog/cards/search"
+            className="text-sm font-semibold text-mca-accent-strong/90 transition duration-200 ease-mca-standard hover:text-mca-accent"
+          >
+            Search cards in the catalog →
+          </Link>
+        </p>
       </header>
 
       {error ? (
@@ -86,9 +94,12 @@ export default async function CatalogIndexPage() {
                   <h2 className="font-semibold text-mca-ink-strong">{s.name}</h2>
                   <p className="mt-mca-xs text-xs text-mca-ink-subtle">
                     {s.series}
-                    {s.release_date
+                    {s.set_code ? ` · ${s.set_code}` : null}
+                    {s.release_year != null ? ` · ${s.release_year}` : null}
+                    {s.release_date && s.release_year == null
                       ? ` · ${s.release_date}`
                       : null}
+                    {s.publisher ? ` · ${s.publisher}` : null}
                   </p>
                   <p className="mt-mca-xs font-mono text-[10px] text-mca-hint">
                     {s.id}

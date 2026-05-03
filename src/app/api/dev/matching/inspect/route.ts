@@ -1,11 +1,12 @@
 import { enrichUserMatchPhase2 } from "@/lib/matching/scoring";
 import type { UserMatch } from "@/lib/matching/types";
+import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 /** Dev-only: Phase 2 scoring breakdown (no DB). */
-export async function GET() {
+async function GET_handler(): Promise<Response> {
   if (process.env.NODE_ENV !== "development") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -32,3 +33,5 @@ export async function GET() {
     sampleEnriched: enriched,
   });
 }
+
+export const GET = defineRouteNoArgs("GET /api/dev/matching/inspect", GET_handler);

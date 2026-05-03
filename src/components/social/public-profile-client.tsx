@@ -1,5 +1,7 @@
 "use client";
 
+import { ProfileIdentityMapPanel } from "@/components/profile/profile-identity-map-panel";
+import { ProfilePersonaV2Panel } from "@/components/profile/profile-persona-v2-panel";
 import { ProfileReputationPanel } from "@/components/reputation/profile-reputation-panel";
 import { ProfileInfluencePanel } from "@/components/influence/profile-influence-panel";
 import { CollectorTimeline } from "@/components/activity/collector-timeline";
@@ -9,20 +11,25 @@ import { MiniActivityStrip } from "@/components/activity/mini-activity-strip";
 import { ProfileActivityHeatmap } from "@/components/activity/profile-activity-heatmap";
 import { UserBadge } from "@/components/badges/user-badge";
 import { UserBadgeList } from "@/components/badges/user-badge-list";
+import { ProfileBadgesPanel } from "@/components/badges/profile-badges-panel";
 import { UserFlairList } from "@/components/flair/user-flair-list";
 import { CollectionMasteryCard } from "@/components/collection/collection-mastery-card";
 import { JourneyList } from "@/components/journeys/journey-list";
-import { GlobalFeedClient } from "@/components/feed/global-feed-client";
-import { ProfilePresenceLine } from "@/components/presence/profile-presence-line";
+import { ProfileFeedClient } from "@/components/feed/global-feed-client";
+import { ProfilePresenceIndicator } from "@/components/presence/profile-presence-indicator";
 import { TrainerPresenceDot } from "@/components/presence/trainer-presence-dot";
-import { ProfileSubjectPresence } from "@/components/social/profile-subject-presence";
 import { TierEmblem } from "@/components/tier/tier-emblem";
-import type { SocialProfilePayload } from "@/lib/social/types";
+import type {
+  FollowMutationDTO,
+  FollowMutationResponseDTO,
+  ProfileDTO,
+} from "@/lib/dto/social-profile";
 import { getFandomOptionById, type FandomValueKind } from "@/lib/fandom/fandom-catalog";
 import { formatUsdApproxFromCents, rarityProfileFromCounts } from "@/lib/value/value-identity-helpers";
 import { getArchetypeById } from "@/lib/play/archetype-catalog";
 import { getFormatById } from "@/lib/play/formats-catalog";
 import { positiveRatioFromCounts } from "@/lib/trade/trade-reputation-helpers";
+import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import { resolveAuthorName } from "@/lib/profile/resolveAuthor";
 import { safeTrainerAccent } from "@/lib/profile/trainer-accent";
@@ -32,15 +39,18 @@ import {
   resolveTierAuraKey,
   tierProfileHeaderAccentClass,
 } from "@/lib/tier/tier-emblem-meta";
+import { requestSocialSurfacesRefresh } from "@/lib/social/social-surfaces-refresh";
 import { cn } from "@/lib/ui/cn";
 import { Button } from "@/mca-ui/button";
+import { InlineError } from "@/mca-ui/inline-error";
 import { Panel } from "@/mca-ui/panel";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 export type PublicProfileClientProps = {
-  initial: SocialProfilePayload;
+  initial: ProfileDTO;
   viewerId: string | null;
 };
 
@@ -48,16 +58,28 @@ export const PublicProfileClient = memo(function PublicProfileClient({
   initial,
   viewerId,
 }: PublicProfileClientProps) {
-  const [profile, setProfile] = useState<SocialProfilePayload>(initial);
+  const router = useRouter();
+  const [profile, setProfile] = useState<ProfileDTO>(initial);
   const [followLoading, setFollowLoading] = useState(false);
   const [following, setFollowing] = useState(() => initial.viewerFollowsTarget ?? false);
+  const [followError, setFollowError] = useState<string | null>(null);
+  const [profileFeedReloadKey, setProfileFeedReloadKey] = useState(0);
+  const [socialGraphRefresh, setSocialGraphRefresh] = useState<"idle" | "loading" | "ok" | "error">("idle");
 
   const accent = safeTrainerAccent(profile.favoriteColor ?? undefined);
 
   useEffect(() => {
     setProfile(initial);
     setFollowing(initial.viewerFollowsTarget ?? false);
+    setFollowError(null);
   }, [initial]);
+
+  useEffect(() => {
+    if (socialGraphRefresh !== "ok" && socialGraphRefresh !== "error") return;
+    const ms = socialGraphRefresh === "ok" ? 4200 : 5200;
+    const t = window.setTimeout(() => setSocialGraphRefresh("idle"), ms);
+    return () => window.clearTimeout(t);
+  }, [socialGraphRefresh]);
 
   useEffect(() => {
     mcaLog.event(
@@ -74,44 +96,80 @@ export const PublicProfileClient = memo(function PublicProfileClient({
       const now = Date.now();
       if (now - presenceTouchAt.current < 90_000) return;
       presenceTouchAt.current = now;
-      void fetch("/api/social/presence/touch", {
+      void fetchJson("/api/social/presence/touch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activity: "browsing_sets" }),
+        body: JSON.stringify({
+          activity: "browsing_sets",
+          roomType: "profile_room",
+          topicKey: profile.userId,
+        }),
       });
     };
     ping();
     const id = window.setInterval(ping, 90_000);
     return () => window.clearInterval(id);
-  }, [viewerId]);
+  }, [viewerId, profile.userId]);
 
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/social/profile/${encodeURIComponent(initial.userId)}`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return;
-    const data = (await res.json()) as { profile?: SocialProfilePayload };
-    if (data.profile) setProfile(data.profile);
+    const r = await fetchJson<{ profile?: ProfileDTO }>(
+      `/api/social/profile/${encodeURIComponent(initial.userId)}`,
+      { cache: "no-store" }
+    );
+    if (r.kind !== "ok") return;
+    if (r.data.profile) setProfile(r.data.profile);
   }, [initial.userId]);
 
-  const onFollow = useCallback(async () => {
-    if (!viewerId || viewerId === profile.userId) return;
-    setFollowLoading(true);
-    const nextFollow = !following;
+  const onRefreshMySocialGraphV4 = useCallback(async () => {
+    if (!viewerId) return;
+    setSocialGraphRefresh("loading");
     try {
-      const res = await fetch(nextFollow ? "/api/social/follow" : "/api/social/unfollow", {
+      const r = await fetchJson<Record<string, unknown>>("/api/social/my-social-graph-v4/refresh", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetUserId: profile.userId }),
       });
-      if (res.ok) {
-        setFollowing(nextFollow);
-        await refresh();
+      if (r.kind !== "ok") {
+        setSocialGraphRefresh("error");
+        return;
       }
+      setSocialGraphRefresh("ok");
+      setProfileFeedReloadKey((k) => k + 1);
+    } catch {
+      setSocialGraphRefresh("error");
+    }
+  }, [viewerId]);
+
+  const onFollow = useCallback(async () => {
+    if (!viewerId || viewerId === profile.userId || followLoading) return;
+    const prevFollowing = following;
+    const nextFollow = !following;
+    const body: FollowMutationDTO = { targetUserId: profile.userId };
+    setFollowLoading(true);
+    setFollowError(null);
+    setFollowing(nextFollow);
+    try {
+      const r = await fetchJson<FollowMutationResponseDTO>(
+        nextFollow ? "/api/social/follow" : "/api/social/unfollow",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }
+      );
+      if (r.kind !== "ok") {
+        setFollowing(prevFollowing);
+        setFollowError(fetchJsonErrorMessage(r));
+        return;
+      }
+      requestSocialSurfacesRefresh({ userId: profile.userId });
+      await refresh();
+      router.refresh();
+    } catch {
+      setFollowing(prevFollowing);
+      setFollowError("Could not update follow.");
     } finally {
       setFollowLoading(false);
     }
-  }, [viewerId, profile.userId, following, refresh]);
+  }, [viewerId, profile.userId, following, followLoading, refresh, router]);
 
   const stats = profile.stats;
   const isSelf = viewerId === profile.userId;
@@ -201,7 +259,6 @@ export const PublicProfileClient = memo(function PublicProfileClient({
                 <h1 className="text-balance text-3xl font-bold tracking-tight text-mca-ink-strong md:text-4xl">
                   {headline}
                 </h1>
-                <ProfileSubjectPresence subjectUserId={profile.userId} presence={profile.presence ?? null} />
               </div>
               {displayName && handle ? (
                 <p className="mt-mca-xs font-mono text-sm text-mca-ink-muted">@{handle}</p>
@@ -213,8 +270,24 @@ export const PublicProfileClient = memo(function PublicProfileClient({
                   {profile.personaText.trim()}
                 </p>
               ) : null}
-              {profile.visibility !== "stub" && profile.presence ? (
-                <ProfilePresenceLine presence={profile.presence} />
+              <ProfilePersonaV2Panel
+                personaV2Label={profile.personaV2Label ?? null}
+                personaV2Summary={profile.personaV2Summary ?? null}
+                topArchetypes={profile.topArchetypes ?? []}
+              />
+              <ProfileIdentityMapPanel
+                identityHeadline={profile.identityHeadline ?? null}
+                identitySummary={profile.identitySummary ?? null}
+                identityTraits={profile.identityTraits ?? []}
+                identityClusters={profile.identityClusters ?? []}
+                identitySignals={profile.identitySignals ?? []}
+                identityArchetypeBlend={profile.identityArchetypeBlend ?? []}
+              />
+              {profile.visibility !== "stub" && (profile.presence || profile.presenceLabel) ? (
+                <ProfilePresenceIndicator
+                  presence={profile.presence ?? null}
+                  presenceLabel={profile.presenceLabel ?? null}
+                />
               ) : null}
               {profile.visibility !== "stub" && profile.similarCollectors && profile.similarCollectors.length > 0 ? (
                 <div className="mt-mca-md w-full max-w-2xl text-left">
@@ -265,6 +338,16 @@ export const PublicProfileClient = memo(function PublicProfileClient({
                             {s.personaText?.trim() ? (
                               <p className="line-clamp-2 text-[11px] leading-snug text-mca-ink-subtle">
                                 {s.personaText.trim()}
+                              </p>
+                            ) : null}
+                            {s.personaV2Summary?.trim() ? (
+                              <p className="line-clamp-2 text-[11px] leading-snug text-mca-ink-body">
+                                {s.personaV2Summary.trim()}
+                              </p>
+                            ) : null}
+                            {s.identitySummary?.trim() ? (
+                              <p className="line-clamp-2 text-[11px] leading-snug text-mca-ink-subtle">
+                                {s.identitySummary.trim()}
                               </p>
                             ) : null}
                             <p className="text-mca-caption text-mca-ink-muted tabular-nums">
@@ -330,6 +413,9 @@ export const PublicProfileClient = memo(function PublicProfileClient({
             </Link>
           </div>
         </div>
+        {!isSelf && viewerId && followError ? (
+          <InlineError className="relative z-[1] mt-mca-sm text-sm">{followError}</InlineError>
+        ) : null}
 
         {profile.visibility !== "stub" && counts ? (
           <div
@@ -415,6 +501,7 @@ export const PublicProfileClient = memo(function PublicProfileClient({
 
           {profile.reputation ? <ProfileReputationPanel block={profile.reputation} /> : null}
           {profile.influence ? <ProfileInfluencePanel block={profile.influence} /> : null}
+          {profile.badgesV2 ? <ProfileBadgesPanel block={profile.badgesV2} /> : null}
 
           {profile.activityHeatmap && profile.activityHeatmap.counts.length > 0 ? (
             <Panel className="rounded-mca-card border-mca-border bg-mca-surface-elevated/50 p-mca-md shadow-mca-card">
@@ -921,11 +1008,43 @@ export const PublicProfileClient = memo(function PublicProfileClient({
 
           <section className="space-y-mca-md">
             <div className="h-px w-full bg-gradient-to-r from-transparent via-mca-border to-transparent" />
-            <h2 className="text-xl font-semibold text-mca-ink-strong">Trainer activity</h2>
-            <p className="text-mca-caption text-mca-ink-muted">
-              Recent actions from the global feed for this trainer.
-            </p>
-            <GlobalFeedClient
+            <div className="flex flex-wrap items-end justify-between gap-mca-md">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-xl font-semibold text-mca-ink-strong">Trainer activity</h2>
+                <p className="mt-mca-xs text-mca-caption text-mca-ink-muted">
+                  Recent actions from the global feed for this trainer — with qualitative context when you are signed
+                  in.
+                </p>
+              </div>
+              {viewerId ? (
+                <div className="flex shrink-0 flex-col items-end gap-mca-xs">
+                  <Button
+                    type="button"
+                    variant="tertiary"
+                    className="text-xs"
+                    disabled={socialGraphRefresh === "loading"}
+                    aria-busy={socialGraphRefresh === "loading"}
+                    aria-label="Refresh your social map snapshot used on feeds and profiles"
+                    onClick={() => void onRefreshMySocialGraphV4()}
+                  >
+                    {socialGraphRefresh === "loading" ? "Refreshing map…" : "Refresh my social map"}
+                  </Button>
+                  {socialGraphRefresh === "ok" ? (
+                    <p className="text-mca-caption text-mca-hint" role="status" aria-live="polite">
+                      Map updated — feed lines will catch up on the next load.
+                    </p>
+                  ) : null}
+                  {socialGraphRefresh === "error" ? (
+                    <p className="text-mca-caption text-mca-error-accent" role="alert">
+                      Could not refresh your map. Try again in a moment.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            <ProfileFeedClient
+              currentUserId={viewerId ?? undefined}
+              reloadKey={profileFeedReloadKey}
               feedUrl={`/api/profile/${encodeURIComponent(profile.userId)}/feed?limit=20`}
               variant="profile"
               disableOfflineCache
@@ -937,7 +1056,7 @@ export const PublicProfileClient = memo(function PublicProfileClient({
   );
 });
 
-function StatChip({
+const StatChip = memo(function StatChip({
   label,
   value,
   accent,
@@ -969,4 +1088,4 @@ function StatChip({
       {profileStats ? <div className="mca-profile-stat-meter" aria-hidden /> : null}
     </div>
   );
-}
+});

@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   title: "Community",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function CommunityPage() {
   const supabase = createClient();
   const {

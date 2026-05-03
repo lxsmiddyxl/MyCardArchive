@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson } from "@/lib/client";
 import { Panel } from "@/mca-ui/panel";
 import { useCallback, useEffect, useState } from "react";
 
@@ -34,11 +35,15 @@ export function McaRegionOverlay() {
     if (!enabled) return;
     try {
       const [rRegion, rSnap] = await Promise.all([
-        fetch("/api/health/region", { cache: "no-store" }),
-        fetch("/api/internal/recovery/snapshot", { cache: "no-store" }),
+        fetchJson<RegionHealthJson>("/api/health/region", { cache: "no-store" }),
+        fetchJson<Snapshot>("/api/internal/recovery/snapshot", { cache: "no-store" }),
       ]);
-      setRegion((await rRegion.json()) as RegionHealthJson);
-      setSnap((await rSnap.json()) as Snapshot);
+      setRegion(
+        rRegion.kind === "ok"
+          ? (rRegion.data as RegionHealthJson)
+          : { primary: { ok: false, latencyMs: 0 }, secondary: { ok: false, latencyMs: 0 } }
+      );
+      setSnap(rSnap.kind === "ok" ? (rSnap.data as Snapshot) : { ok: false });
     } catch {
       setRegion({ primary: { ok: false, latencyMs: 0 }, secondary: { ok: false, latencyMs: 0 } });
     }

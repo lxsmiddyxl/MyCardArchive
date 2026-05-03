@@ -1,3 +1,6 @@
+import { ClubActivityWave } from "@/components/activity-waves/club-activity-wave";
+import { CollectorRoomSurface } from "@/components/collector-rooms/collector-room-surface";
+import { CollectorRoomsPanel } from "@/components/collector-rooms/collector-rooms-panel";
 import { CollectorQuickSearch } from "@/components/search/collector-quick-search";
 import { MiniActivityStrip } from "@/components/activity/mini-activity-strip";
 import { TrainerPresenceDot } from "@/components/presence/trainer-presence-dot";
@@ -116,6 +119,11 @@ export default async function ClubDetailPage({ params }: { params: { clubId: str
       <div className="max-w-xl">
         <CollectorQuickSearch defaultClubId={clubId} />
       </div>
+
+      <CollectorRoomSurface roomType="club_room" topicKey={clubId} />
+      <CollectorRoomsPanel contextRoomType="club_room" contextTopicKey={clubId} />
+
+      <ClubActivityWave clubId={clubId} />
 
       <section>
         <h2 className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">

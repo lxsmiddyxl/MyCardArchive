@@ -3,21 +3,29 @@ import {
   ACTIVITY_IDLE_AFTER_MS,
   deriveActivityState,
   derivePresenceState,
+  PRESENCE_ONLINE_MS,
+  PRESENCE_RECENT_MS,
 } from "@/lib/presence/presence-types";
 
-/** Rounded relative time for privacy — never exposes exact clock. */
-export function formatRelativePresenceShort(nowMs: number, lastSeenAtIso: string | null | undefined): string {
-  if (!lastSeenAtIso?.trim()) return "Unknown";
+/**
+ * Qualitative windows only — no minute/hour stamps (Phase 25 privacy bar).
+ */
+export function qualitativePresenceWindow(nowMs: number, lastSeenAtIso: string | null | undefined): string {
+  if (!lastSeenAtIso?.trim()) return "Away";
   const t = Date.parse(lastSeenAtIso);
-  if (!Number.isFinite(t)) return "Unknown";
-  const sec = Math.max(0, Math.floor((nowMs - t) / 1000));
-  if (sec < 60) return "Active just now";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `Active ${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 48) return `Active ${hr}h ago`;
-  const day = Math.floor(hr / 24);
-  return `Active ${day}d ago`;
+  if (!Number.isFinite(t)) return "Away";
+  const delta = nowMs - t;
+  if (delta <= PRESENCE_ONLINE_MS) return "Active now";
+  if (delta <= PRESENCE_RECENT_MS) return "Active recently";
+  const seenDay = new Date(t).toISOString().slice(0, 10);
+  const todayDay = new Date(nowMs).toISOString().slice(0, 10);
+  if (seenDay === todayDay) return "Active today";
+  return "Away";
+}
+
+/** @deprecated Prefer qualitativePresenceWindow — bucket labels without precise deltas. */
+export function formatRelativePresenceShort(nowMs: number, lastSeenAtIso: string | null | undefined): string {
+  return qualitativePresenceWindow(nowMs, lastSeenAtIso);
 }
 
 export function activityVerbLabel(activity: ActivityState): string | null {
@@ -48,15 +56,14 @@ export function presenceLampTitle(args: {
   lastSeenAtIso: string | null | undefined;
 }): string {
   const verb = activityVerbLabel(args.activity);
+  const win = qualitativePresenceWindow(args.nowMs, args.lastSeenAtIso);
   if (args.presenceState === "online") {
-    return verb ? `${verb} · Online now` : "Online now";
+    return verb ? `${verb} · ${win}` : win;
   }
   if (args.presenceState === "recently_active") {
-    const rel = formatRelativePresenceShort(args.nowMs, args.lastSeenAtIso);
-    return verb ? `${verb} · ${rel}` : rel;
+    return verb ? `${verb} · ${win}` : win;
   }
-  const rel = formatRelativePresenceShort(args.nowMs, args.lastSeenAtIso);
-  return verb ? `${verb} · Appears offline · ${rel}` : `Offline · ${rel}`;
+  return verb ? `${verb} · ${win}` : win;
 }
 
 /** Single line under profile persona — rounded language only. */
@@ -69,13 +76,30 @@ export function formatProfilePresenceLine(args: {
   const presence = derivePresenceState(args.nowMs, args.lastSeenAtIso);
   const activity = deriveActivityState(args.nowMs, args.storedActivity, args.lastActivityAtIso);
   const verb = activityVerbLabel(activity);
-  const rel = formatRelativePresenceShort(args.nowMs, args.lastSeenAtIso);
+  const win = qualitativePresenceWindow(args.nowMs, args.lastSeenAtIso);
 
   if (presence === "online") {
-    return verb ? `${verb} · Online now` : "Online now";
+    return verb ? `${verb} · ${win}` : win;
   }
   if (presence === "recently_active") {
-    return verb ? `${verb} · ${rel}` : rel;
+    return verb ? `${verb} · ${win}` : win;
   }
-  return verb ? `Away · ${verb} · ${rel}` : `Away · ${rel}`;
+  return verb ? `Away · ${verb}` : win;
+}
+
+/** One-line enrichment / API — qualitative only. */
+export function buildPresenceQualitativeLabel(args: {
+  nowMs: number;
+  presenceOptOut: boolean;
+  lastSeenAtIso: string | null | undefined;
+  presenceState: PresenceState;
+  activityState: ActivityState;
+}): string | null {
+  if (args.presenceOptOut) return "Presence hidden";
+  const verb = activityVerbLabel(args.activityState);
+  const win = qualitativePresenceWindow(args.nowMs, args.lastSeenAtIso);
+  if (verb && args.presenceState !== "offline") {
+    return `${verb} · ${win}`;
+  }
+  return win;
 }

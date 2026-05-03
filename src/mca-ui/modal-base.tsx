@@ -181,7 +181,10 @@ export function ModalBase({
     align === "end" ? "items-end justify-center sm:items-center" : "items-center justify-center";
 
   return (
-    <div className={`fixed inset-0 flex p-mca-md ${alignClass} ${zClassName}`} role="presentation">
+    <div
+      className={`fixed inset-0 flex p-mca-md pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] ${alignClass} ${zClassName}`}
+      role="presentation"
+    >
       <button
         type="button"
         tabIndex={-1}
@@ -203,7 +206,7 @@ export function ModalBase({
         aria-describedby={descriptionId}
         tabIndex={-1}
         onKeyDown={onKeyDownTrap}
-        className={`relative z-10 flex max-h-[90vh] w-full flex-col overflow-hidden rounded-mca-card border border-mca-border bg-mca-surface-elevated/95 shadow-mca-card outline-none transition-all duration-200 ${MODAL_MOTION_EASE} ${
+        className={`mca-modal-max-h relative z-10 flex w-full flex-col overflow-hidden rounded-mca-card border border-mca-border bg-mca-surface-elevated/95 shadow-mca-card outline-none transition-all duration-200 ${MODAL_MOTION_EASE} ${
           animIn ? "scale-100 opacity-100" : "scale-[0.97] opacity-0"
         } ${panelClassName}`}
         onMouseDown={(e) => e.stopPropagation()}

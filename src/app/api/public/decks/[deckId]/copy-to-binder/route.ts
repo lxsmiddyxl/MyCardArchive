@@ -1,5 +1,5 @@
 import { updateHaveListIndex } from "@/lib/matching/index-maintenance";
-import { getCardCount, getUserTier } from "@/lib/tier/check-limits";
+import { getCardCount, getEffectiveUserTier } from "@/lib/tier/check-limits";
 import { createClient } from "@/lib/supabase/route";
 import { defineRoute } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
@@ -132,7 +132,7 @@ async function POST_handler(
   }
 
   const count = await getCardCount(supabase);
-  const tier = await getUserTier(supabase);
+  const tier = await getEffectiveUserTier(supabase);
   if (tier && tier.card_limit > 0 && count + inserts.length > tier.card_limit) {
     return NextResponse.json(
       {

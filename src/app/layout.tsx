@@ -1,7 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { DebugAuthBanner } from "@/components/dev/debug-auth-banner";
 import { AchievementToastProvider } from "@/components/achievement-toast-provider";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { TopNav } from "@/components/layout/top-nav";
 import { MobileAppShell } from "@/components/mobile/mobile-app-shell";
 import { InstallAppCta } from "@/components/pwa/install-app-cta";
@@ -16,9 +16,17 @@ import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
 import "@/styles/achievements.css";
 
+/**
+ * Opt-in dev chrome (realtime panel, health overlay, auth debug strip). Default off so `next dev`
+ * stays minimal — set `NEXT_PUBLIC_MCA_DEV_UI=1` in `.env.local` when you need MCA tooling.
+ */
+const MCA_DEV_UI =
+  process.env.NODE_ENV === "development" &&
+  process.env.NEXT_PUBLIC_MCA_DEV_UI === "1";
+
 /** Dev-only chunk: production build resolves to a no-op stub so the overlay module is not bundled. */
 const RealtimeDevtools: ComponentType =
-  process.env.NODE_ENV === "development"
+  MCA_DEV_UI
     ? dynamic(
         () => import("@/components/dev/realtime-devtools").then((m) => m.RealtimeDevtools),
         { ssr: false }
@@ -27,10 +35,20 @@ const RealtimeDevtools: ComponentType =
         return null;
       };
 
+const DebugAuthBannerSlot: ComponentType =
+  MCA_DEV_UI
+    ? dynamic(
+        () =>
+          import("@/components/dev/debug-auth-banner").then((m) => m.DebugAuthBanner),
+        { ssr: false }
+      )
+    : function DebugAuthBannerStub() {
+        return null;
+      };
+
 /** Dev / optional staging: health overlay; production without NEXT_PUBLIC_STABILITY_MODE resolves to a stub. */
 const McaHealthOverlay: ComponentType =
-  process.env.NODE_ENV === "development" ||
-  process.env.NEXT_PUBLIC_STABILITY_MODE === "1"
+  MCA_DEV_UI || process.env.NEXT_PUBLIC_STABILITY_MODE === "1"
     ? dynamic(
         () =>
           import("@/components/devtools/mca-health-overlay").then((m) => m.McaHealthOverlay),
@@ -141,9 +159,9 @@ export default async function RootLayout({
   return (
     <html lang="en" className="dark bg-mca-surface">
       <body
-        className={`${inter.className} min-h-screen !bg-mca-surface !text-mca-ink-strong antialiased`}
+        className={`${inter.className} flex min-h-screen min-h-[100dvh] flex-col !bg-mca-surface !text-mca-ink-strong antialiased`}
       >
-        <DebugAuthBanner />
+        <DebugAuthBannerSlot />
         <AchievementToastProvider>
           <PwaRegister />
           <InstallAppCta />
@@ -155,9 +173,10 @@ export default async function RootLayout({
             </div>
           </header>
           <RealtimeStatusBanner />
-          <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-6xl px-mca-base py-mca-md max-md:pb-mca-stage sm:px-mca-lg md:pb-mca-md">
+          <main className="mca-main-min-h mx-auto max-w-6xl min-w-0 flex-1 overflow-x-hidden px-mca-base py-mca-md max-md:pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-mca-lg md:pb-mca-md">
             <MobileAppShell>{children}</MobileAppShell>
           </main>
+          <SiteFooter />
           <RealtimeDevtools />
           <McaHealthOverlay />
           <McaRecoveryOverlay />

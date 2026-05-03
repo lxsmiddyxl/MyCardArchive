@@ -1,5 +1,6 @@
 import { BINDER_SLOTS_PER_PAGE } from "@/lib/binders/constants";
 import { getMaxBinderPagesForUser } from "@/lib/binders/page-limits";
+import { errorJson, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { createClient } from "@/lib/supabase/route";
 import { defineRoute } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
@@ -10,33 +11,30 @@ async function POST_handler(
   _request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await validateSession(supabase, ctx);
+    if (!session.ok) return session.response;
+    const userId = session.userId;
 
     const binderId = context.params.binderId?.trim();
     if (!binderId) {
-      return NextResponse.json({ error: "Invalid binder id" }, { status: 400 });
+      return errorJson(ctx, "Invalid binder id", 400);
     }
 
     const { data: binder, error: bErr } = await supabase
       .from("binders")
       .select("id")
       .eq("id", binderId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle();
 
     if (bErr) {
-      return NextResponse.json({ error: bErr.message }, { status: 500 });
+      return errorJson(ctx, bErr.message, 500);
     }
     if (!binder) {
-      return NextResponse.json({ error: "Binder not found" }, { status: 404 });
+      return errorJson(ctx, "Binder not found", 404);
     }
 
     const maxPages = await getMaxBinderPagesForUser(supabase);
@@ -54,12 +52,7 @@ async function POST_handler(
     const newPage = currentMax + 1;
 
     if (newPage >= maxPages) {
-      return NextResponse.json(
-        {
-          error: `Page limit reached (${maxPages} pages for your plan).`,
-        },
-        { status: 403 }
-      );
+      return errorJson(ctx, `Page limit reached (${maxPages} pages for your plan).`, 403);
     }
 
     const rows = Array.from({ length: BINDER_SLOTS_PER_PAGE }, (_, slot_index) => ({
@@ -74,12 +67,16 @@ async function POST_handler(
     });
 
     if (upErr) {
-      return NextResponse.json({ error: upErr.message }, { status: 500 });
+      return errorJson(ctx, upErr.message, 500);
     }
 
-    return NextResponse.json({ ok: true, page_number: newPage });
+    return successJson(ctx, {
+      ok: true,
+      page_number: newPage,
+      duration_ms: Date.now() - ctx.startedAt,
+    });
   } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return errorJson(ctx, "Server error", 500);
   }
 }
 

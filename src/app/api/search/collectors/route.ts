@@ -37,6 +37,14 @@ async function GET_handler(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (user) {
+    void supabase.rpc("refresh_user_presence", {
+      p_user_id: user.id,
+      p_state: "online",
+      p_device: "web",
+    });
+  }
+
   const url = new URL(request.url);
   const filtersRaw = url.searchParams.get("filters");
   const filters = parseFiltersFromQuery(filtersRaw);
@@ -124,6 +132,12 @@ async function GET_handler(request: Request) {
       reputationSummary: fx?.reputationSummary ?? null,
       reputationDimensionChips: fx?.reputationDimensionChips ?? [],
       influenceSummary: fx?.influenceSummary ?? null,
+      badgeHighlight: fx?.badgeHighlight ?? null,
+      presenceLabel: fx?.presenceLabel ?? null,
+      personaV2Label: fx?.personaV2Label ?? null,
+      personaV2Summary: fx?.personaV2Summary ?? null,
+      identityHeadline: fx?.identityHeadline ?? null,
+      identitySummary: fx?.identitySummary ?? null,
       influenceDimensionChips: fx?.influenceDimensionChips ?? [],
       indexedPresenceState: row.presence_state ?? null,
       activeWithinDays: row.active_within_days,

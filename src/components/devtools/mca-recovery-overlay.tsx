@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJson } from "@/lib/client";
 import { Panel } from "@/mca-ui/panel";
 import { useCallback, useEffect, useState } from "react";
 
@@ -29,11 +30,11 @@ export function McaRecoveryOverlay() {
     if (!enabled) return;
     try {
       const [rSnap, rDiag] = await Promise.all([
-        fetch("/api/internal/recovery/snapshot", { cache: "no-store" }),
-        fetch("/api/health/diagnostics", { cache: "no-store" }),
+        fetchJson<Snapshot>("/api/internal/recovery/snapshot", { cache: "no-store" }),
+        fetchJson<DiagJson>("/api/health/diagnostics", { cache: "no-store" }),
       ]);
-      setSnap((await rSnap.json()) as Snapshot);
-      setDiag((await rDiag.json()) as DiagJson);
+      setSnap(rSnap.kind === "ok" ? (rSnap.data as Snapshot) : null);
+      setDiag(rDiag.kind === "ok" ? (rDiag.data as DiagJson) : null);
     } catch {
       setSnap({ ok: false });
     }

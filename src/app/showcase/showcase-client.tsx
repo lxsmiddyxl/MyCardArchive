@@ -109,7 +109,7 @@ export function ShowcaseClient() {
           <label className="block space-y-mca-xs">
             <span className="text-mca-caption font-medium text-mca-ink-body">Title</span>
             <input
-              className="w-full rounded-mca-control border border-mca-field-border bg-mca-surface px-mca-md py-mca-sm text-sm"
+              className="mca-input w-full px-mca-md text-sm text-mca-body"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -117,7 +117,7 @@ export function ShowcaseClient() {
           <label className="block space-y-mca-xs">
             <span className="text-mca-caption font-medium text-mca-ink-body">Description</span>
             <textarea
-              className="min-h-[4rem] w-full rounded-mca-control border border-mca-field-border bg-mca-surface px-mca-md py-mca-sm text-sm"
+              className="mca-input min-h-[4rem] w-full resize-y px-mca-md text-sm text-mca-body"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />

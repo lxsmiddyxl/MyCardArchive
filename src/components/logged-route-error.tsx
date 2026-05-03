@@ -2,7 +2,7 @@
 
 import { AppErrorFallback } from "@/components/app-error-fallback";
 import { mcaLog } from "@/lib/logging/mca-log-client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 type Props = {
   title: string;
@@ -16,7 +16,11 @@ type Props = {
  * App Router `error.tsx` shell: logs once per error via Phase 46 `mcaLog`, then shows {@link AppErrorFallback}.
  */
 export function LoggedRouteError({ title, surfaceName, error, reset }: Props) {
+  const loggedRef = useRef<string | null>(null);
   useEffect(() => {
+    const key = `${surfaceName}:${error.digest ?? ""}:${error.message}`;
+    if (loggedRef.current === key) return;
+    loggedRef.current = key;
     mcaLog.error(
       "route.segment.error",
       { message: error.message, digest: error.digest },

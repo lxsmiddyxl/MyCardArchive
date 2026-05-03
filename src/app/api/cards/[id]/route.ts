@@ -1,3 +1,5 @@
+import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
+import type { CardSummaryDTO } from "@/lib/dto/catalog";
 import { mcaLog } from "@/lib/logging/mca-log-server";
 import { defineRoute } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/server";
@@ -9,19 +11,15 @@ async function PATCH_handler(
   request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   const params = context.params;
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const id = params["id"]?.trim();
   if (!id) {
-    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    return errorJson(ctx, "Invalid id", 400);
   }
 
   let body: {
@@ -37,7 +35,7 @@ async function PATCH_handler(
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return errorJson(ctx, "Invalid JSON", 400);
   }
 
   const patch: Record<string, unknown> = {};
@@ -45,7 +43,7 @@ async function PATCH_handler(
   if (typeof body.name === "string") {
     const trimmed = body.name.trim();
     if (!trimmed) {
-      return NextResponse.json({ error: "name cannot be empty" }, { status: 400 });
+      return errorJson(ctx, "name cannot be empty", 400);
     }
     patch.name = trimmed;
   }
@@ -80,25 +78,23 @@ async function PATCH_handler(
       .from("cards")
       .select("catalog_card_id, for_trade, looking_for")
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", session.userId)
       .maybeSingle();
 
     if (curErr) {
-      return NextResponse.json({ error: curErr.message }, { status: 500 });
+      return errorJson(ctx, curErr.message, 500);
     }
     if (!cur) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return errorJson(ctx, "Not found", 404);
     }
 
     const nextFt = typeof patch.for_trade === "boolean" ? patch.for_trade : cur.for_trade;
     const nextLf = typeof patch.looking_for === "boolean" ? patch.looking_for : cur.looking_for;
     if ((nextFt || nextLf) && !cur.catalog_card_id) {
-      return NextResponse.json(
-        {
-          error:
-            "Link this card to a catalog card before marking For trade or Looking for (marketplace matches use catalog identity).",
-        },
-        { status: 400 }
+      return errorJson(
+        ctx,
+        "Link this card to a catalog card before marking For trade or Looking for (marketplace matches use catalog identity).",
+        400
       );
     }
   }
@@ -108,41 +104,38 @@ async function PATCH_handler(
       .from("binders")
       .select("id")
       .eq("id", body.binder_id.trim())
-      .eq("user_id", user.id)
+      .eq("user_id", session.userId)
       .maybeSingle();
 
     if (binderError) {
-      return NextResponse.json({ error: binderError.message }, { status: 500 });
+      return errorJson(ctx, binderError.message, 500);
     }
 
     if (!binder) {
-      return NextResponse.json({ error: "Binder not found" }, { status: 400 });
+      return errorJson(ctx, "Binder not found", 400);
     }
 
     patch.binder_id = body.binder_id.trim();
   }
 
   if (Object.keys(patch).length === 0) {
-    return NextResponse.json(
-      { error: "No valid fields to update" },
-      { status: 400 }
-    );
+    return errorJson(ctx, "No valid fields to update", 400);
   }
 
   const { data, error } = await supabase
     .from("cards")
     .update(patch)
     .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("user_id", session.userId)
     .select("*")
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, error.message, 500);
   }
 
   if (!data) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return errorJson(ctx, "Not found", 404);
   }
 
   if ("for_trade" in patch || "looking_for" in patch) {
@@ -158,45 +151,41 @@ async function PATCH_handler(
     );
   }
 
-  return NextResponse.json({ card: data });
+  return NextResponse.json({ success: true, context_id: ctx.contextId, card: data as CardSummaryDTO });
 }
 
 async function DELETE_handler(
   _request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   const params = context.params;
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const id = params["id"]?.trim();
   if (!id) {
-    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    return errorJson(ctx, "Invalid id", 400);
   }
 
   const { data, error } = await supabase
     .from("cards")
     .delete()
     .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("user_id", session.userId)
     .select("id")
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, error.message, 500);
   }
 
   if (!data) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return errorJson(ctx, "Not found", 404);
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ success: true, context_id: ctx.contextId, ok: true });
 }
 
 export const PATCH = defineRoute("PATCH /api/cards/[id]", PATCH_handler);

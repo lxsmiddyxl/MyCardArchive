@@ -1,4 +1,5 @@
 import { BINDER_PAGE_SWAP_TEMP } from "@/lib/binders/constants";
+import { errorJson, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { createClient } from "@/lib/supabase/route";
 import { defineRoute } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
@@ -9,40 +10,37 @@ async function POST_handler(
   request: Request,
   context: { params: Record<string, string> }
 ) {
+  const ctx = withContextId();
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await validateSession(supabase, ctx);
+    if (!session.ok) return session.response;
+    const userId = session.userId;
 
     const binderId = context.params["binderId"]?.trim();
     if (!binderId) {
-      return NextResponse.json({ error: "Invalid binder id" }, { status: 400 });
+      return errorJson(ctx, "Invalid binder id", 400);
     }
 
     const { data: binder, error: bErr } = await supabase
       .from("binders")
       .select("id")
       .eq("id", binderId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle();
 
     if (bErr) {
-      return NextResponse.json({ error: bErr.message }, { status: 500 });
+      return errorJson(ctx, bErr.message, 500);
     }
     if (!binder) {
-      return NextResponse.json({ error: "Binder not found" }, { status: 404 });
+      return errorJson(ctx, "Binder not found", 404);
     }
 
     let body: { page_a?: number; page_b?: number };
     try {
       body = (await request.json()) as typeof body;
     } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return errorJson(ctx, "Invalid JSON", 400);
     }
 
     const a =
@@ -55,14 +53,11 @@ async function POST_handler(
         : NaN;
 
     if (!Number.isFinite(a) || !Number.isFinite(b)) {
-      return NextResponse.json(
-        { error: "page_a and page_b must be non-negative integers" },
-        { status: 400 }
-      );
+      return errorJson(ctx, "page_a and page_b must be non-negative integers", 400);
     }
 
     if (a === b) {
-      return NextResponse.json({ ok: true, message: "No-op" });
+      return successJson(ctx, { ok: true, message: "No-op" });
     }
 
     const { data: maxRow } = await supabase
@@ -77,11 +72,11 @@ async function POST_handler(
       typeof maxRow?.page_number === "number" ? maxRow.page_number : 0;
 
     if (a > maxSeen && b > maxSeen) {
-      return NextResponse.json({ error: "Nothing to reorder" }, { status: 400 });
+      return errorJson(ctx, "Nothing to reorder", 400);
     }
 
     if (a >= BINDER_PAGE_SWAP_TEMP - 2 || b >= BINDER_PAGE_SWAP_TEMP - 2) {
-      return NextResponse.json({ error: "Invalid page index" }, { status: 400 });
+      return errorJson(ctx, "Invalid page index", 400);
     }
 
     const temp = BINDER_PAGE_SWAP_TEMP;
@@ -93,7 +88,7 @@ async function POST_handler(
       .eq("page_number", a);
 
     if (e1) {
-      return NextResponse.json({ error: e1.message }, { status: 500 });
+      return errorJson(ctx, e1.message, 500);
     }
 
     const { error: e2 } = await supabase
@@ -108,7 +103,7 @@ async function POST_handler(
         .update({ page_number: a })
         .eq("binder_id", binderId)
         .eq("page_number", temp);
-      return NextResponse.json({ error: e2.message }, { status: 500 });
+      return errorJson(ctx, e2.message, 500);
     }
 
     const { error: e3 } = await supabase
@@ -118,12 +113,12 @@ async function POST_handler(
       .eq("page_number", temp);
 
     if (e3) {
-      return NextResponse.json({ error: e3.message }, { status: 500 });
+      return errorJson(ctx, e3.message, 500);
     }
 
-    return NextResponse.json({ ok: true });
+    return successJson(ctx, { ok: true, duration_ms: Date.now() - ctx.startedAt });
   } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return errorJson(ctx, "Server error", 500);
   }
 }
 

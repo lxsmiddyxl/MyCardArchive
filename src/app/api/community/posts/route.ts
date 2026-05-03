@@ -1,4 +1,6 @@
+import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { loadTopScanMilestonesByUserIds } from "@/lib/badges/load-top-scan-milestones";
+import type { CommunityPostDTO } from "@/lib/dto/catalog";
 import { enrichUsersWithFlair } from "@/lib/flair/enrich-user-flair-batch";
 import { presenceSnapshotFromFlair } from "@/lib/presence/flair-presence-fields";
 import { resolveAuthorFromSocial } from "@/lib/profile/resolveAuthor";
@@ -15,34 +17,34 @@ export const dynamic = "force-dynamic";
 const MAX_BODY = 8000;
 
 async function GET_handler(request: Request) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const url = new URL(request.url);
   const limit = Math.min(40, Math.max(1, parseInt(url.searchParams.get("limit") ?? "24", 10)));
+  const offset = Math.min(10_000, Math.max(0, parseInt(url.searchParams.get("offset") ?? "0", 10)));
   const authorFilter = url.searchParams.get("author_id")?.trim();
   if (authorFilter && !isUuidString(authorFilter)) {
-    return NextResponse.json({ error: "Invalid author_id" }, { status: 400 });
+    return errorJson(ctx, "Invalid author_id", 400);
   }
 
   let q = supabase.from("community_posts").select("id, body, created_at, updated_at, author_id");
   if (authorFilter) {
     q = q.eq("author_id", authorFilter);
   }
-  const { data: posts, error } = await q.order("created_at", { ascending: false }).limit(limit);
+  const { data: posts, error } = await q
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, error.message, 500);
   }
 
   const rows = posts ?? [];
   if (rows.length === 0) {
-    return NextResponse.json({ posts: [] });
+    return NextResponse.json({ success: true, context_id: ctx.contextId, posts: [] });
   }
 
   const authorIds = [...new Set(rows.map((p) => p.author_id))];
@@ -94,7 +96,7 @@ async function GET_handler(request: Request) {
   const likedByMe = new Set<string>();
   for (const row of likesRes.data ?? []) {
     likeCount[row.post_id] = (likeCount[row.post_id] ?? 0) + 1;
-    if (row.user_id === user.id) likedByMe.add(row.post_id);
+    if (row.user_id === session.userId) likedByMe.add(row.post_id);
   }
 
   const commentCount: Record<string, number> = {};
@@ -108,7 +110,7 @@ async function GET_handler(request: Request) {
     if (!reactionCounts[row.post_id]) reactionCounts[row.post_id] = {};
     const rc = reactionCounts[row.post_id];
     if (rc) rc[row.reaction] = (rc[row.reaction] ?? 0) + 1;
-    if (row.user_id === user.id) {
+    if (row.user_id === session.userId) {
       if (!viewerReactionsByPost[row.post_id]) viewerReactionsByPost[row.post_id] = [];
       viewerReactionsByPost[row.post_id]?.push(row.reaction);
     }
@@ -151,9 +153,15 @@ async function GET_handler(request: Request) {
     author_top_fandom_badge_key: fx?.topFandomBadgeKey ?? null,
     author_fandom_summary: fx?.fandomSummary ?? null,
     author_persona_text: fx?.personaText ?? null,
+    author_persona_v2_label: fx?.personaV2Label ?? null,
+    author_persona_v2_summary: fx?.personaV2Summary ?? null,
+    author_identity_headline: fx?.identityHeadline ?? null,
+    author_identity_summary: fx?.identitySummary ?? null,
     author_clubs_summary: fx?.clubsSummary ?? null,
     author_reputation_summary: fx?.reputationSummary ?? null,
     author_influence_summary: fx?.influenceSummary ?? null,
+    author_badge_highlight: fx?.badgeHighlight ?? null,
+    author_presence_label: fx?.presenceLabel ?? null,
     author_presence: presenceSnapshotFromFlair(fx),
     like_count: likeCount[p.id] ?? 0,
     comment_count: commentCount[p.id] ?? 0,
@@ -163,45 +171,46 @@ async function GET_handler(request: Request) {
   };
   });
 
-  return NextResponse.json({ posts: enriched });
+  return NextResponse.json({
+    success: true,
+    context_id: ctx.contextId,
+    posts: enriched as (CommunityPostDTO & Record<string, unknown>)[],
+  });
 }
 
 async function POST_handler(request: Request) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   let body: { body?: string } = {};
   try {
     body = (await request.json()) as { body?: string };
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return errorJson(ctx, "Invalid JSON", 400);
   }
 
   const text = typeof body.body === "string" ? body.body.trim() : "";
   if (!text) {
-    return NextResponse.json({ error: "body required" }, { status: 400 });
+    return errorJson(ctx, "body required", 400);
   }
   if (text.length > MAX_BODY) {
-    return NextResponse.json({ error: `body too long (max ${MAX_BODY})` }, { status: 400 });
+    return errorJson(ctx, `body too long (max ${MAX_BODY})`, 400);
   }
 
   const { data, error } = await supabase
     .from("community_posts")
-    .insert({ author_id: user.id, body: text })
+    .insert({ author_id: session.userId, body: text })
     .select("id, body, created_at, updated_at, author_id")
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, error.message, 500);
   }
 
   mcaLog.event("community.post", { postId: data.id, len: text.length }, CTX);
-  return NextResponse.json({ post: data });
+  return NextResponse.json({ success: true, context_id: ctx.contextId, post: data as CommunityPostDTO });
 }
 
 export const GET = defineRouteSimple("GET /api/community/posts", GET_handler);

@@ -7,7 +7,7 @@ import { Icon } from "@/mca-ui/icon";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import { useLongPress } from "@/lib/ui/use-long-press";
 import { useCallback } from "@/lib/perf/memo";
-import type { DragEvent, KeyboardEvent } from "react";
+import type { DragEvent, KeyboardEvent, ReactNode } from "react";
 import { memo, useState } from "react";
 
 const DRAG_MIME = "application/x-mycardarchive-binder-slot";
@@ -27,6 +27,10 @@ export type BinderSlotCellProps = {
   card: SlotCardLite | null;
   busy: boolean;
   isDragOver: boolean;
+  /** Optional `role="gridcell"` id for binder keyboard navigation (`aria-activedescendant`). */
+  gridCellId?: string;
+  /** Highlights the slot that has active-descendant focus in the binder grid. */
+  isGridActive?: boolean;
   onOpenDetail: (cardId: string) => void;
   onOpenPicker: (page: number, slot: number) => void;
   onMove: (
@@ -45,6 +49,8 @@ function BinderSlotCellInner({
   card,
   busy,
   isDragOver,
+  gridCellId,
+  isGridActive,
   onOpenDetail,
   onOpenPicker,
   onMove,
@@ -162,7 +168,12 @@ function BinderSlotCellInner({
     { durationMs: 520 }
   );
 
-  const cellClassName = `group relative flex aspect-[3/4] flex-col overflow-hidden rounded-mca-block border shadow-mca-panel transition-[transform,box-shadow,border-color,background-color] duration-200 ease-mca-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 active:scale-[0.98] motion-reduce:transition-none dark:border-mca-border-subtle ${
+  const gridRing =
+    gridCellId && isGridActive
+      ? "ring-2 ring-mca-focus/70 ring-offset-2 ring-offset-mca-surface "
+      : "";
+
+  const cellClassName = `${gridRing}group relative flex aspect-[3/4] flex-col overflow-hidden rounded-mca-block border shadow-mca-panel transition-[transform,box-shadow,border-color,background-color] duration-200 ease-mca-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 active:scale-[0.98] motion-reduce:transition-none dark:border-mca-border-subtle ${
     isDragOver
       ? "z-10 border-mca-success/70 bg-mca-success-bold/15 shadow-mca-card shadow-mca-success-surface/20 ring-2 ring-mca-success/50"
       : dragging
@@ -173,7 +184,7 @@ function BinderSlotCellInner({
   const cellInner = (
     <div
       role="button"
-      tabIndex={0}
+      tabIndex={gridCellId ? -1 : 0}
       className={cellClassName}
       onClick={onClick}
       onKeyDown={onKeyDown}
@@ -238,8 +249,17 @@ function BinderSlotCellInner({
     </div>
   );
 
+  const withGrid = (node: ReactNode) =>
+    gridCellId ? (
+      <div id={gridCellId} role="gridcell" className="min-h-0 min-w-0">
+        {node}
+      </div>
+    ) : (
+      node
+    );
+
   if (hasCard && card) {
-    return (
+    return withGrid(
       <SwipeRevealActions
         surface="binder-slot"
         revealWidth={92}
@@ -268,7 +288,7 @@ function BinderSlotCellInner({
     );
   }
 
-  return cellInner;
+  return withGrid(cellInner);
 }
 
 function propsEqual(prev: BinderSlotCellProps, next: BinderSlotCellProps): boolean {
@@ -278,6 +298,8 @@ function propsEqual(prev: BinderSlotCellProps, next: BinderSlotCellProps): boole
     prev.cardId === next.cardId &&
     prev.busy === next.busy &&
     prev.isDragOver === next.isDragOver &&
+    prev.gridCellId === next.gridCellId &&
+    prev.isGridActive === next.isGridActive &&
     prev.card?.id === next.card?.id &&
     prev.card?.name === next.card?.name &&
     prev.card?.image_url === next.card?.image_url &&

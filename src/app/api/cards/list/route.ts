@@ -1,4 +1,6 @@
-import { defineRouteSimple } from "@/lib/server/api-route";
+import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
+import type { CardSummaryDTO } from "@/lib/dto/catalog";
+import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
 import { NextResponse } from "next/server";
 
@@ -34,28 +36,29 @@ function firstRelation<T>(value: T | T[] | null): T | null {
 }
 
 async function GET_handler() {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const { data: cardsData, error: cardsError } = await supabase
     .from("cards")
     .select(
       "id, binder_id, name, number, rarity, image_url, created_at, catalog_card_id, binders(id, name), catalog_cards(supertype, set_id, catalog_sets(name))"
     )
-    .eq("user_id", user.id)
+    .eq("user_id", session.userId)
     .order("created_at", { ascending: false });
 
   if (cardsError) {
-    return NextResponse.json({ error: cardsError.message }, { status: 500 });
+    return errorJson(ctx, cardsError.message, 500);
   }
 
-  const cards = ((cardsData as CardRow[] | null) ?? []).map((row) => {
+  const cards: (CardSummaryDTO & {
+    binder_name: string | null;
+    image_front_thumb_url: string | null;
+    set: string | null;
+    type: string | null;
+  })[] = ((cardsData as CardRow[] | null) ?? []).map((row) => {
     const binder = firstRelation(row.binders);
     const catalog = firstRelation(row.catalog_cards);
     const catalogSet = firstRelation(catalog?.catalog_sets ?? null);
@@ -75,7 +78,7 @@ async function GET_handler() {
     };
   });
 
-  return NextResponse.json({ cards });
+  return NextResponse.json({ success: true, context_id: ctx.contextId, cards });
 }
 
-export const GET = defineRouteSimple("GET /api/cards/list", GET_handler);
+export const GET = defineRouteNoArgs("GET /api/cards/list", GET_handler);
