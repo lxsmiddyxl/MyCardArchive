@@ -213,4 +213,22 @@ authTest.describe("RLS surfaces (authenticated)", () => {
     const data = readApiData<{ cells?: unknown[] }>(body) ?? body;
     authExpect(Array.isArray(data.cells)).toBe(true);
   });
+
+  authTest("GET /api/decks/list returns MCA success envelope", async ({ authenticatedPage: page }) => {
+    const res = await page.request.get("/api/decks/list");
+    authExpect(res.ok()).toBeTruthy();
+    const body = (await res.json()) as Record<string, unknown>;
+    authExpect(isApiSuccess(body)).toBe(true);
+    const data = readApiData<{ decks?: unknown[] }>(body) ?? body;
+    authExpect(Array.isArray(data.decks)).toBe(true);
+  });
+
+  authTest("GET /api/trades/list returns MCA success envelope", async ({ authenticatedPage: page }) => {
+    const res = await page.request.get("/api/trades/list");
+    authExpect(res.ok()).toBeTruthy();
+    const body = (await res.json()) as Record<string, unknown>;
+    authExpect(isApiSuccess(body)).toBe(true);
+    const data = readApiData<{ trades?: unknown[] }>(body) ?? body;
+    authExpect(Array.isArray(data.trades)).toBe(true);
+  });
 });

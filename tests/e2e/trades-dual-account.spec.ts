@@ -28,6 +28,16 @@ function tradeIdFromCreateBody(body: unknown): string | undefined {
   return undefined;
 }
 
+function bindersFromListBody(body: unknown): { id: string }[] | undefined {
+  const data = readApiData<{ binders?: { id: string }[] }>(body);
+  if (data && Array.isArray(data.binders)) return data.binders;
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    const b = body as { binders?: { id: string }[] };
+    if (Array.isArray(b.binders)) return b.binders;
+  }
+  return undefined;
+}
+
 /** UUID-shaped id unlikely to exist as a trade row for the signed-in user. */
 const FOREIGN_TRADE_ID = "00000000-0000-4000-8000-000000000042";
 
@@ -57,6 +67,34 @@ test.describe("Trades — creator & counterparty", () => {
         true,
         "Set E2E_TEST_EMAIL, E2E_TEST_PASSWORD, E2E_COUNTERPARTY_EMAIL, and E2E_COUNTERPARTY_PASSWORD."
       );
+    }
+  });
+
+  test("binder lists have no cross-account id overlap (RLS)", async ({ page }, testInfo) => {
+    const emailA = process.env.E2E_TEST_EMAIL!.trim();
+    const passwordA = process.env.E2E_TEST_PASSWORD!.trim();
+    const emailB = process.env.E2E_COUNTERPARTY_EMAIL!.trim();
+    const passwordB = process.env.E2E_COUNTERPARTY_PASSWORD!.trim();
+
+    await loginAsUser(page, emailA, passwordA);
+    const resA = await page.request.get("/api/binders");
+    expect(resA.ok()).toBeTruthy();
+    const idsA = new Set((bindersFromListBody(await resA.json()) ?? []).map((b) => b.id));
+
+    await clearBrowserSession(page);
+    await loginAsUser(page, emailB, passwordB);
+    const resB = await page.request.get("/api/binders");
+    expect(resB.ok()).toBeTruthy();
+    const idsB = new Set((bindersFromListBody(await resB.json()) ?? []).map((b) => b.id));
+
+    if (idsA.size === 0 || idsB.size === 0) {
+      testInfo.skip(true, "Need at least one binder on each account for overlap check.");
+    }
+    for (const id of idsA) {
+      expect(idsB.has(id)).toBe(false);
+    }
+    for (const id of idsB) {
+      expect(idsA.has(id)).toBe(false);
     }
   });
 
