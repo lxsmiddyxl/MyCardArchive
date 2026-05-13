@@ -1,4 +1,6 @@
 import { ApiErrorCode } from "@/lib/api/api-error-codes";
+import { parseRequestBodyZod } from "@/lib/api/request-body-schema";
+import { bindersPostBodySchema } from "@/lib/api/schemas/post-bodies";
 import {
   errorJson,
   safePublicDbMessage,
@@ -85,17 +87,21 @@ async function POST_handler(request: Request) {
   if (!session.ok) return session.response;
   // insert.user_id: session.userId — satisfies with check (auth.uid() = user_id).
 
-  let body: { name?: string; description?: string | null };
+  let raw: unknown;
   try {
-    body = await request.json();
+    raw = await request.json();
   } catch {
     return errorJson(ctx, "Invalid JSON", 400, { code: ApiErrorCode.PAYLOAD_INVALID });
   }
 
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  if (!name) {
-    return errorJson(ctx, "name is required", 400, { code: ApiErrorCode.BAD_REQUEST });
+  const parsed = parseRequestBodyZod(raw, bindersPostBodySchema);
+  if (!parsed.ok) {
+    return errorJson(ctx, parsed.message, 400, { code: ApiErrorCode.BAD_REQUEST });
   }
+  const { name, description: descField } = parsed.data as {
+    name: string;
+    description?: string | null;
+  };
 
   try {
     await assertCanCreateBinder(supabase);
@@ -108,11 +114,7 @@ async function POST_handler(request: Request) {
   }
 
   const description =
-    typeof body.description === "string"
-      ? body.description.trim() || null
-      : body.description === null
-        ? null
-        : undefined;
+    typeof descField === "string" ? descField.trim() || null : descField === null ? null : undefined;
 
   const insert: {
     user_id: string;

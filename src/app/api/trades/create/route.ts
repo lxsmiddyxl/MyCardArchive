@@ -1,10 +1,11 @@
 import { ApiErrorCode } from "@/lib/api/api-error-codes";
+import { parseRequestBodyZod } from "@/lib/api/request-body-schema";
+import { tradesCreateBodySchema } from "@/lib/api/schemas/post-bodies";
 import { errorJson, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { emitAfterTradeCreate } from "@/lib/notifications/trade-events";
 import { createTradeDraft, getTradeById } from "@/lib/trading/db";
 import { tradeDbErrorStatus } from "@/lib/trading/http";
 import { computeTradeSummary } from "@/lib/trading";
-import type { TradeLineInput } from "@/lib/trading/types";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
 import { logger } from "@/lib/telemetry/logger";
@@ -12,50 +13,29 @@ import { logTradeCreated } from "@/lib/telemetry/trade-lifecycle";
 
 export const dynamic = "force-dynamic";
 
-function parseLines(raw: unknown): TradeLineInput[] {
-  if (!Array.isArray(raw)) return [];
-  const out: TradeLineInput[] = [];
-  for (const row of raw) {
-    if (!row || typeof row !== "object") continue;
-    const o = row as Record<string, unknown>;
-    const cardId = typeof o.cardId === "string" ? o.cardId.trim() : "";
-    const q = typeof o.quantity === "number" && o.quantity >= 1 ? o.quantity : 1;
-    if (!cardId) continue;
-    out.push({ cardId, quantity: q });
-  }
-  return out;
-}
-
 async function POST_handler(request: Request) {
   const ctx = withContextId();
   const supabase = createClient();
   const session = await validateSession(supabase, ctx);
   if (!session.ok) return session.response;
 
-  let body: Record<string, unknown>;
+  let raw: unknown;
   try {
-    body = (await request.json()) as Record<string, unknown>;
+    raw = await request.json();
   } catch {
     return errorJson(ctx, "Invalid JSON", 400, { code: ApiErrorCode.PAYLOAD_INVALID });
   }
 
-  const counterpartyId =
-    typeof body.counterpartyId === "string" ? body.counterpartyId.trim() : "";
-  if (!counterpartyId) {
-    return errorJson(ctx, "counterpartyId is required", 400, { code: ApiErrorCode.BAD_REQUEST });
+  const parsed = parseRequestBodyZod(raw, tradesCreateBodySchema);
+  if (!parsed.ok) {
+    return errorJson(ctx, parsed.message, 400, { code: ApiErrorCode.BAD_REQUEST });
   }
-
-  const offerLines =
-    parseLines(body.offerLines).length > 0
-      ? parseLines(body.offerLines)
-      : parseLines(body.offerSideA);
-  const requestLines =
-    parseLines(body.requestLines).length > 0
-      ? parseLines(body.requestLines)
-      : parseLines(body.offerSideB);
-
-  const sendNow = Boolean(body.sendNow);
-
+  const { counterpartyId, offerLines, requestLines, sendNow } = parsed.data as {
+    counterpartyId: string;
+    offerLines: { cardId: string; quantity: number }[];
+    requestLines: { cardId: string; quantity: number }[];
+    sendNow: boolean;
+  };
   const started = Date.now();
   const result = await createTradeDraft(supabase, {
     creatorId: session.userId,

@@ -1,4 +1,6 @@
 import { ApiErrorCode } from "@/lib/api/api-error-codes";
+import { parseRequestBodyZod } from "@/lib/api/request-body-schema";
+import { decksCreateBodySchema } from "@/lib/api/schemas/post-bodies";
 import {
   errorJson,
   safePublicDbMessage,
@@ -13,36 +15,28 @@ import { createClient } from "@/lib/supabase/route";
 
 export const dynamic = "force-dynamic";
 
-type Body = {
-  name?: string;
-  description?: string;
-  format?: string;
-};
-
 async function POST_handler(request: Request) {
   const ctx = withContextId();
   const supabase = createClient();
   const session = await validateSession(supabase, ctx);
   if (!session.ok) return session.response;
 
-  let body: Body;
+  let raw: unknown;
   try {
-    body = (await request.json()) as Body;
+    raw = await request.json();
   } catch {
     return errorJson(ctx, "Invalid JSON", 400, { code: ApiErrorCode.PAYLOAD_INVALID });
   }
 
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  if (!name) {
-    return errorJson(ctx, "name is required", 400, { code: ApiErrorCode.BAD_REQUEST });
+  const parsed = parseRequestBodyZod(raw, decksCreateBodySchema);
+  if (!parsed.ok) {
+    return errorJson(ctx, parsed.message, 400, { code: ApiErrorCode.BAD_REQUEST });
   }
-
-  const description =
-    typeof body.description === "string" ? body.description : "";
-  const format =
-    typeof body.format === "string" && body.format.trim()
-      ? body.format.trim()
-      : "standard";
+  const { name, description, format } = parsed.data as {
+    name: string;
+    description: string;
+    format: string;
+  };
 
   try {
     await assertCanCreateDeck(supabase, session.userId);
