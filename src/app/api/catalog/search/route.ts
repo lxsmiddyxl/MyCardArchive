@@ -1,9 +1,9 @@
-import { errorJson, withContextId } from "@/lib/api/route-helpers";
+import { ApiErrorCode } from "@/lib/api/api-error-codes";
+import { errorJson, safePublicDbMessage, successJson, withContextId } from "@/lib/api/route-helpers";
 import { createClient } from "@/lib/supabase/server";
 import type { CatalogCardHit } from "@/lib/dto/catalog";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import type { Database } from "@/lib/supabase/types";
-import { NextResponse } from "next/server";
 
 function escapeIlike(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
@@ -84,7 +84,7 @@ async function GET_handler(request: Request) {
   const limit = Math.min(40, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 24));
 
   if (query.length < 1) {
-    return errorJson(ctx, "q query is required", 400, { results: [] });
+    return errorJson(ctx, "q query is required", 400, { code: ApiErrorCode.BAD_REQUEST, results: [] });
   }
 
   const supabase = createClient();
@@ -99,7 +99,7 @@ async function GET_handler(request: Request) {
     const arr = Array.isArray(rpcData)
       ? (rpcData as Database["public"]["Functions"]["search_catalog_cards_v1"]["Returns"])
       : [];
-    return NextResponse.json({ success: true, results: normalizeRpcHits(arr) });
+    return successJson(ctx, { results: normalizeRpcHits(arr) });
   }
 
   let qb = supabase
@@ -115,7 +115,10 @@ async function GET_handler(request: Request) {
   const { data, error } = await qb;
 
   if (error) {
-    return errorJson(ctx, error.message, 500, { results: [] });
+    return errorJson(ctx, safePublicDbMessage(error.message), 500, {
+      code: ApiErrorCode.SUPABASE_QUERY,
+      results: [],
+    });
   }
 
   const results = (data ?? []).map((row) => {
@@ -134,7 +137,7 @@ async function GET_handler(request: Request) {
   });
 
   results.sort((a, b) => fallbackRank(b, query) - fallbackRank(a, query));
-  return NextResponse.json({ success: true, results });
+  return successJson(ctx, { results });
 }
 
 export const GET = defineRouteSimple("GET /api/catalog/search", GET_handler);

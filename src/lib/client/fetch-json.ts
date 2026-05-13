@@ -1,7 +1,7 @@
 /**
  * Typed JSON fetch aligned with MCA route envelopes:
- * success: `{ success: true, context_id?, ...payload }`
- * error: `{ success: false, error, context_id? }` (often with non-2xx status).
+ * - Phase 28: `{ ok: true, context_id?, data: T }` / `{ ok: false, error: { code, message }, context_id? }`
+ * - Legacy: `{ success: true, ...payload }` / `{ success: false, error: string }`
  */
 
 export type McaApiSuccessBody<T extends Record<string, unknown> = Record<string, unknown>> = {
@@ -30,7 +30,7 @@ export type FetchJsonErr =
       contextId?: string;
       /** From `errorJson(..., extra)` (e.g. image upload user-facing copy). */
       userMessage?: string;
-      /** Application-specific machine codes sometimes attached to failure payloads. */
+      /** Application-specific machine codes (Phase 28 nested `error.code`). */
       code?: string;
       /** Some routes (e.g. auth) return `{ ok: false, reason: "..." }`. */
       reason?: string;
@@ -47,11 +47,38 @@ function asRecord(parsed: unknown): Record<string, unknown> {
   return {};
 }
 
+function extractErrorMessageAndCode(body: Record<string, unknown>): { message: string; code?: string } {
+  if (body.ok === false && body.error && typeof body.error === "object" && body.error !== null) {
+    const e = body.error as Record<string, unknown>;
+    const message = typeof e.message === "string" ? e.message : "Request failed";
+    const code = typeof e.code === "string" ? e.code : undefined;
+    return { message, code };
+  }
+  if (body.success === false && typeof body.error === "string") {
+    return { message: body.error };
+  }
+  if (typeof body.error === "string") {
+    return { message: body.error };
+  }
+  return { message: "Request failed" };
+}
+
 function normalizeSuccess<T extends Record<string, unknown>>(body: Record<string, unknown>): McaApiSuccessBody<T> {
+  if (body.ok === true && body.data && typeof body.data === "object" && !Array.isArray(body.data)) {
+    const data = body.data as Record<string, unknown>;
+    const ctx = typeof body.context_id === "string" ? body.context_id : undefined;
+    return { success: true, context_id: ctx, ...data } as McaApiSuccessBody<T>;
+  }
   if (body.success === true) {
     return body as McaApiSuccessBody<T>;
   }
   return { ...body, success: true } as McaApiSuccessBody<T>;
+}
+
+function logicalFailure(body: Record<string, unknown>): boolean {
+  if (body.ok === false) return true;
+  if (body.success === false) return true;
+  return false;
 }
 
 /**
@@ -71,31 +98,27 @@ export async function readResponseJson<T extends Record<string, unknown> = Recor
   const body = asRecord(parsed);
 
   if (!res.ok) {
-    const err =
-      body.success === false && typeof body.error === "string"
-        ? body.error
-        : typeof body.error === "string"
-          ? body.error
-          : res.statusText || `Request failed (${res.status})`;
+    const { message: err, code } = extractErrorMessageAndCode(body);
+    return {
+      kind: "error",
+      status: res.status,
+      error: err.trim() || res.statusText || `Request failed (${res.status})`,
+      contextId: typeof body.context_id === "string" ? body.context_id : undefined,
+      userMessage: typeof body.userMessage === "string" ? body.userMessage : undefined,
+      code: code ?? (typeof body.code === "string" ? body.code : undefined),
+      reason: typeof body.reason === "string" ? body.reason : undefined,
+    };
+  }
+
+  if (logicalFailure(body)) {
+    const { message: err, code } = extractErrorMessageAndCode(body);
     return {
       kind: "error",
       status: res.status,
       error: err,
       contextId: typeof body.context_id === "string" ? body.context_id : undefined,
       userMessage: typeof body.userMessage === "string" ? body.userMessage : undefined,
-      code: typeof body.code === "string" ? body.code : undefined,
-      reason: typeof body.reason === "string" ? body.reason : undefined,
-    };
-  }
-
-  if (body.success === false && typeof body.error === "string") {
-    return {
-      kind: "error",
-      status: res.status,
-      error: body.error,
-      contextId: typeof body.context_id === "string" ? body.context_id : undefined,
-      userMessage: typeof body.userMessage === "string" ? body.userMessage : undefined,
-      code: typeof body.code === "string" ? body.code : undefined,
+      code,
       reason: typeof body.reason === "string" ? body.reason : undefined,
     };
   }
@@ -134,8 +157,10 @@ export async function fetchText(input: RequestInfo | URL, init?: RequestInit): P
     if (!res.ok) {
       let msg = text;
       try {
-        const j = JSON.parse(text) as { error?: string };
-        if (typeof j.error === "string" && j.error.trim()) msg = j.error;
+        const j = JSON.parse(text) as Record<string, unknown>;
+        const nested = extractErrorMessageAndCode(j);
+        if (nested.message.trim()) msg = nested.message;
+        else if (typeof j.error === "string" && j.error.trim()) msg = j.error;
       } catch {
         /* plain text error body */
       }

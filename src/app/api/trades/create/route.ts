@@ -1,3 +1,5 @@
+import { ApiErrorCode } from "@/lib/api/api-error-codes";
+import { errorJson, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { emitAfterTradeCreate } from "@/lib/notifications/trade-events";
 import { createTradeDraft, getTradeById } from "@/lib/trading/db";
 import { tradeDbErrorStatus } from "@/lib/trading/http";
@@ -7,7 +9,6 @@ import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
 import { logger } from "@/lib/telemetry/logger";
 import { logTradeCreated } from "@/lib/telemetry/trade-lifecycle";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -26,26 +27,22 @@ function parseLines(raw: unknown): TradeLineInput[] {
 }
 
 async function POST_handler(request: Request) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return errorJson(ctx, "Invalid JSON", 400, { code: ApiErrorCode.PAYLOAD_INVALID });
   }
 
   const counterpartyId =
     typeof body.counterpartyId === "string" ? body.counterpartyId.trim() : "";
   if (!counterpartyId) {
-    return NextResponse.json({ error: "counterpartyId is required" }, { status: 400 });
+    return errorJson(ctx, "counterpartyId is required", 400, { code: ApiErrorCode.BAD_REQUEST });
   }
 
   const offerLines =
@@ -61,7 +58,7 @@ async function POST_handler(request: Request) {
 
   const started = Date.now();
   const result = await createTradeDraft(supabase, {
-    creatorId: user.id,
+    creatorId: session.userId,
     counterpartyId,
     offerLines,
     requestLines,
@@ -71,24 +68,26 @@ async function POST_handler(request: Request) {
   if (!result.ok) {
     logger.warn({
       eventType: "trade.created",
-      userId: user.id,
+      userId: session.userId,
       success: false,
       latencyMs: Date.now() - started,
-      payloadSummary: { initiatorId: user.id, recipientId: counterpartyId, error: result.error },
+      payloadSummary: { initiatorId: session.userId, recipientId: counterpartyId, error: result.error },
     });
-    return NextResponse.json({ error: result.error }, { status: tradeDbErrorStatus(result.error) });
+    return errorJson(ctx, result.error, tradeDbErrorStatus(result.error), {
+      code: ApiErrorCode.BAD_REQUEST,
+    });
   }
 
-  const trade = await getTradeById(supabase, result.tradeId, user.id);
+  const trade = await getTradeById(supabase, result.tradeId, session.userId);
   if (!trade) {
     logger.warn({
       eventType: "trade.created",
-      userId: user.id,
+      userId: session.userId,
       success: false,
       latencyMs: Date.now() - started,
-      payloadSummary: { tradeId: result.tradeId, initiatorId: user.id, recipientId: counterpartyId },
+      payloadSummary: { tradeId: result.tradeId, initiatorId: session.userId, recipientId: counterpartyId },
     });
-    return NextResponse.json({ error: "Trade created but could not be loaded." }, { status: 500 });
+    return errorJson(ctx, "Trade created but could not be loaded.", 500, { code: ApiErrorCode.INTERNAL });
   }
 
   const allLines = [...trade.offerSideA, ...trade.offerSideB];
@@ -102,7 +101,7 @@ async function POST_handler(request: Request) {
       createdBy: trade.createdBy,
       counterpartyId: trade.counterpartyId,
     },
-    user.id
+    session.userId
   );
 
   logTradeCreated(
@@ -112,15 +111,12 @@ async function POST_handler(request: Request) {
       recipientId: trade.counterpartyId,
       status: trade.status,
     },
-    user.id,
+    session.userId,
     Date.now() - started,
     true
   );
 
-  return NextResponse.json({
-    trade,
-    summary,
-  });
+  return successJson(ctx, { trade, summary });
 }
 
 export const POST = defineRouteSimple("POST /api/trades/create", POST_handler);

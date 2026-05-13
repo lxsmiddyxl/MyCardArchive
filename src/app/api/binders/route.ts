@@ -1,6 +1,8 @@
+import { ApiErrorCode } from "@/lib/api/api-error-codes";
 import {
   errorJson,
   safePublicDbMessage,
+  successJson,
   validateSession,
   withContextId,
 } from "@/lib/api/route-helpers";
@@ -14,6 +16,7 @@ import {
 } from "@/lib/cache";
 import type { BinderSummaryDTO } from "@/lib/dto/catalog";
 import { markHotPathEnd, markHotPathStart } from "@/lib/perf/hot-paths";
+import { logServerError } from "@/lib/server/observability";
 import {
   defineRouteNoArgs,
   defineRouteSimple,
@@ -23,7 +26,6 @@ import {
   assertCanCreateBinder,
   isTierLimitError,
 } from "@/lib/tier/check-limits";
-import { NextResponse } from "next/server";
 
 async function GET_handler() {
   const ctx = withContextId();
@@ -40,7 +42,7 @@ async function GET_handler() {
     if (isCacheEnabled()) {
       const cached = getCache(cacheKey);
       if (cached) {
-        return NextResponse.json({ success: true, context_id: ctx.contextId, ...cached });
+        return successJson(ctx, cached as { binders: BinderSummaryDTO[] });
       }
     }
 
@@ -55,9 +57,12 @@ async function GET_handler() {
         ctx,
         safePublicDbMessage(error.message),
         500,
-        process.env.NODE_ENV !== "production"
-          ? { hint: "Ensure binders table and RLS exist." }
-          : undefined
+        {
+          code: ApiErrorCode.SUPABASE_QUERY,
+          ...(process.env.NODE_ENV !== "production"
+            ? { hint: "Ensure binders table and RLS exist." }
+            : {}),
+        }
       );
     }
 
@@ -65,11 +70,7 @@ async function GET_handler() {
     if (isCacheEnabled()) {
       setCache(cacheKey, body, effectiveTtl(ttlCollectionMs()));
     }
-    return NextResponse.json({
-      success: true,
-      context_id: ctx.contextId,
-      binders: body.binders as BinderSummaryDTO[],
-    });
+    return successJson(ctx, { binders: body.binders as BinderSummaryDTO[] });
   } finally {
     markHotPathEnd(hpToken);
   }
@@ -88,21 +89,22 @@ async function POST_handler(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return errorJson(ctx, "Invalid JSON", 400);
+    return errorJson(ctx, "Invalid JSON", 400, { code: ApiErrorCode.PAYLOAD_INVALID });
   }
 
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (!name) {
-    return errorJson(ctx, "name is required", 400);
+    return errorJson(ctx, "name is required", 400, { code: ApiErrorCode.BAD_REQUEST });
   }
 
   try {
     await assertCanCreateBinder(supabase);
   } catch (e) {
     if (isTierLimitError(e)) {
-      return errorJson(ctx, e.message, 403);
+      return errorJson(ctx, e.message, 403, { code: ApiErrorCode.FORBIDDEN });
     }
-    throw e;
+    logServerError({ scope: "api", route: "POST /api/binders", err: e });
+    return errorJson(ctx, "Unable to create binder.", 500, { code: ApiErrorCode.INTERNAL });
   }
 
   const description =
@@ -129,10 +131,12 @@ async function POST_handler(request: Request) {
     .single();
 
   if (error) {
-    return errorJson(ctx, safePublicDbMessage(error.message), 500);
+    return errorJson(ctx, safePublicDbMessage(error.message), 500, {
+      code: ApiErrorCode.SUPABASE_QUERY,
+    });
   }
 
-  return NextResponse.json({ success: true, context_id: ctx.contextId, binder: data as BinderSummaryDTO });
+  return successJson(ctx, { binder: data as BinderSummaryDTO });
 }
 
 export const POST = defineRouteSimple("POST /api/binders", POST_handler);

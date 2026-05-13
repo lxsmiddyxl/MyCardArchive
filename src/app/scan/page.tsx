@@ -13,6 +13,7 @@ import {
   type ScanUpgradeReason,
 } from "@/components/scan/scan-upgrade-modal";
 import { requestBinderSurfacesRefresh } from "@/lib/binders/binder-surfaces-refresh";
+import { extractApiErrorMessage, extractApiPayload } from "@/lib/client";
 import type { NormalizedCard } from "@/lib/ai/normalize-card";
 import type {
   AddCardToBinderDTO,
@@ -177,21 +178,22 @@ export default function ScanPage() {
       setTierStatusLoading(true);
       try {
         const res = await fetch("/api/tier/status", { cache: "no-store" });
-        const body = (await res.json().catch(() => ({}))) as {
+        const raw = await res.json().catch(() => ({}));
+        const body = extractApiPayload(raw) as {
           tier?: UserTierRecord | null;
           at_scan_limit?: boolean;
           stripe_checkout_available?: boolean;
-        };
-        if (!cancelled && res.ok) {
+        } | null;
+        if (!cancelled && res.ok && body) {
           setAtScanLimitFromApi(Boolean(body.at_scan_limit));
           setStripeCheckoutAvailable(Boolean(body.stripe_checkout_available));
         } else if (!cancelled) {
           setAtScanLimitFromApi(false);
           setStripeCheckoutAvailable(false);
         }
-        if (!cancelled && res.ok && body.tier?.tier_slug) {
+        if (!cancelled && res.ok && body?.tier?.tier_slug) {
           setTierRow(body.tier);
-        } else if (!cancelled && res.ok && body.tier) {
+        } else if (!cancelled && res.ok && body?.tier) {
           setTierRow(body.tier);
         } else if (!cancelled) {
           setTierRow(null);
@@ -241,13 +243,15 @@ export default function ScanPage() {
       setBindersLoading(false);
       if (!res.ok) {
         setBinderError(
-          typeof payload.error === "string"
-            ? payload.error
-            : "Could not load binders."
+          extractApiErrorMessage(payload) ?? "Could not load binders."
         );
         return;
       }
-      const list = (payload.binders ?? []) as { id: string; name: string }[];
+      const data = extractApiPayload(payload) ?? (payload as Record<string, unknown>);
+      const list = (Array.isArray(data.binders) ? data.binders : []) as {
+        id: string;
+        name: string;
+      }[];
       setBinders(
         list.map((b) => ({
           id: b.id,
@@ -478,13 +482,14 @@ export default function ScanPage() {
       const tierRun = runId;
       try {
         const tr = await fetch("/api/tier/status", { cache: "no-store" });
-        const b = (await tr.json().catch(() => ({}))) as {
+        const raw = await tr.json().catch(() => ({}));
+        const b = extractApiPayload(raw) as {
           tier?: UserTierRecord | null;
           at_scan_limit?: boolean;
           stripe_checkout_available?: boolean;
-        };
+        } | null;
         if (tierRun !== scanRunSeqRef.current) return;
-        if (tr.ok) {
+        if (tr.ok && b) {
           setAtScanLimitFromApi(Boolean(b.at_scan_limit));
           setStripeCheckoutAvailable(Boolean(b.stripe_checkout_available));
           if (b.tier) {

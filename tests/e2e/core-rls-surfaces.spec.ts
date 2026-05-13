@@ -4,6 +4,7 @@
  * Authenticated blocks need `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD`.
  */
 import { expect, test } from "@playwright/test";
+import { readApiData, readApiErrorMessage, isApiSuccess } from "./fixtures/api-envelope";
 import { expect as authExpect, test as authTest } from "./fixtures/auth";
 
 /** UUID v4-shaped id unlikely to exist as an owned row for the test account. */
@@ -43,13 +44,10 @@ authTest.describe("RLS surfaces (authenticated)", () => {
     async ({ authenticatedPage: page }) => {
       const res = await page.request.get("/api/binders");
       authExpect(res.ok()).toBeTruthy();
-      const body = (await res.json()) as {
-        success?: boolean;
-        binders?: unknown[];
-        context_id?: string;
-      };
-      authExpect(body.success).toBe(true);
-      authExpect(Array.isArray(body.binders)).toBe(true);
+      const body = (await res.json()) as Record<string, unknown>;
+      authExpect(isApiSuccess(body)).toBe(true);
+      const data = readApiData<{ binders?: unknown[] }>(body) ?? body;
+      authExpect(Array.isArray(data.binders)).toBe(true);
       authExpect(typeof body.context_id).toBe("string");
     }
   );
@@ -154,8 +152,8 @@ authTest.describe("RLS surfaces (authenticated)", () => {
       data: { name: "" },
     });
     authExpect(res.status()).toBe(400);
-    const body = (await res.json()) as { error?: string };
-    authExpect(body.error).toMatch(/name is required/i);
+    const body = (await res.json()) as Record<string, unknown>;
+    authExpect(readApiErrorMessage(body)).toMatch(/name is required/i);
   });
 
   authTest("trade detail (non-party): shows trade not found", async ({
@@ -175,8 +173,8 @@ authTest.describe("RLS surfaces (authenticated)", () => {
       headers: { "Content-Type": "application/json" },
     });
     authExpect(res.status()).toBe(400);
-    const body = (await res.json()) as { error?: string };
-    authExpect(body.error).toMatch(/counterpartyId/i);
+    const body = (await res.json()) as Record<string, unknown>;
+    authExpect(readApiErrorMessage(body)).toMatch(/counterpartyId/i);
   });
 
   authTest("profile edit (owner) loads", async ({ authenticatedPage: page }) => {
@@ -209,14 +207,10 @@ authTest.describe("RLS surfaces (authenticated)", () => {
   }) => {
     const res = await page.request.get("/api/activity-waves/platform");
     authExpect(res.ok()).toBeTruthy();
-    const body = (await res.json()) as {
-      success?: boolean;
-      context_id?: string;
-      cells?: unknown[];
-      headline?: string;
-    };
-    authExpect(body.success).toBe(true);
+    const body = (await res.json()) as Record<string, unknown>;
+    authExpect(isApiSuccess(body)).toBe(true);
     authExpect(typeof body.context_id).toBe("string");
-    authExpect(Array.isArray(body.cells)).toBe(true);
+    const data = readApiData<{ cells?: unknown[] }>(body) ?? body;
+    authExpect(Array.isArray(data.cells)).toBe(true);
   });
 });

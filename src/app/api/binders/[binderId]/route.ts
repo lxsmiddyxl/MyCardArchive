@@ -1,8 +1,14 @@
-import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
+import { ApiErrorCode } from "@/lib/api/api-error-codes";
+import {
+  errorJson,
+  safePublicDbMessage,
+  successJson,
+  validateSession,
+  withContextId,
+} from "@/lib/api/route-helpers";
 import type { BinderSummaryDTO } from "@/lib/dto/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { defineRoute } from "@/lib/server/api-route";
-import { NextResponse } from "next/server";
 
 async function GET_handler(
   _request: Request,
@@ -16,7 +22,7 @@ async function GET_handler(
 
     const id = context.params["binderId"]?.trim();
     if (!id) {
-      return errorJson(ctx, "Invalid binder id", 400);
+      return errorJson(ctx, "Invalid binder id", 400, { code: ApiErrorCode.BAD_REQUEST });
     }
 
     const { data, error } = await supabase
@@ -27,16 +33,18 @@ async function GET_handler(
       .maybeSingle();
 
     if (error) {
-      return errorJson(ctx, error.message, 500);
+      return errorJson(ctx, safePublicDbMessage(error.message), 500, {
+        code: ApiErrorCode.SUPABASE_QUERY,
+      });
     }
 
     if (!data) {
-      return errorJson(ctx, "Not found", 404);
+      return errorJson(ctx, "Not found", 404, { code: ApiErrorCode.NOT_FOUND });
     }
 
-    return NextResponse.json({ success: true, context_id: ctx.contextId, binder: data as BinderSummaryDTO });
+    return successJson(ctx, { binder: data as BinderSummaryDTO });
   } catch {
-    return errorJson(ctx, "Server error", 500);
+    return errorJson(ctx, "Server error", 500, { code: ApiErrorCode.INTERNAL });
   }
 }
 
@@ -52,14 +60,14 @@ async function PATCH_handler(
 
     const id = context.params["binderId"]?.trim();
     if (!id) {
-      return errorJson(ctx, "Invalid binder id", 400);
+      return errorJson(ctx, "Invalid binder id", 400, { code: ApiErrorCode.BAD_REQUEST });
     }
 
     let body: { name?: string; description?: string | null };
     try {
       body = await request.json();
     } catch {
-      return errorJson(ctx, "Invalid JSON", 400);
+      return errorJson(ctx, "Invalid JSON", 400, { code: ApiErrorCode.PAYLOAD_INVALID });
     }
 
     const patch: { name?: string; description?: string | null } = {};
@@ -67,7 +75,7 @@ async function PATCH_handler(
     if (typeof body.name === "string") {
       const trimmed = body.name.trim();
       if (!trimmed) {
-        return errorJson(ctx, "name cannot be empty", 400);
+        return errorJson(ctx, "name cannot be empty", 400, { code: ApiErrorCode.BAD_REQUEST });
       }
       patch.name = trimmed;
     }
@@ -79,7 +87,7 @@ async function PATCH_handler(
     }
 
     if (Object.keys(patch).length === 0) {
-      return errorJson(ctx, "No valid fields to update", 400);
+      return errorJson(ctx, "No valid fields to update", 400, { code: ApiErrorCode.BAD_REQUEST });
     }
 
     const { data, error } = await supabase
@@ -91,16 +99,18 @@ async function PATCH_handler(
       .maybeSingle();
 
     if (error) {
-      return errorJson(ctx, error.message, 500);
+      return errorJson(ctx, safePublicDbMessage(error.message), 500, {
+        code: ApiErrorCode.SUPABASE_QUERY,
+      });
     }
 
     if (!data) {
-      return errorJson(ctx, "Not found", 404);
+      return errorJson(ctx, "Not found", 404, { code: ApiErrorCode.NOT_FOUND });
     }
 
-    return NextResponse.json({ success: true, context_id: ctx.contextId, binder: data as BinderSummaryDTO });
+    return successJson(ctx, { binder: data as BinderSummaryDTO });
   } catch {
-    return errorJson(ctx, "Server error", 500);
+    return errorJson(ctx, "Server error", 500, { code: ApiErrorCode.INTERNAL });
   }
 }
 
@@ -116,7 +126,7 @@ async function DELETE_handler(
 
     const id = context.params["binderId"]?.trim();
     if (!id) {
-      return errorJson(ctx, "Invalid binder id", 400);
+      return errorJson(ctx, "Invalid binder id", 400, { code: ApiErrorCode.BAD_REQUEST });
     }
 
     const { data, error } = await supabase
@@ -128,16 +138,18 @@ async function DELETE_handler(
       .maybeSingle();
 
     if (error) {
-      return errorJson(ctx, error.message, 500);
+      return errorJson(ctx, safePublicDbMessage(error.message), 500, {
+        code: ApiErrorCode.SUPABASE_QUERY,
+      });
     }
 
     if (!data) {
-      return errorJson(ctx, "Not found", 404);
+      return errorJson(ctx, "Not found", 404, { code: ApiErrorCode.NOT_FOUND });
     }
 
-    return NextResponse.json({ success: true, context_id: ctx.contextId, ok: true });
+    return successJson(ctx, { deleted: true, id: data.id as string });
   } catch {
-    return errorJson(ctx, "Server error", 500);
+    return errorJson(ctx, "Server error", 500, { code: ApiErrorCode.INTERNAL });
   }
 }
 

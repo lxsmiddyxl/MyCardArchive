@@ -1,16 +1,12 @@
 "use client";
 
+import { extractApiErrorMessage, extractApiPayload } from "@/lib/client";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const TEL = { componentName: "CreateBinderPage", surfaceName: "binder-create" } as const;
-
-type TierStatusPayload = {
-  at_binder_limit?: boolean;
-  error?: string;
-};
 
 export default function CreateBinderPage() {
   const router = useRouter();
@@ -24,10 +20,11 @@ export default function CreateBinderPage() {
     let cancelled = false;
     (async () => {
       const res = await fetch("/api/tier/status");
-      const payload = (await res.json().catch(() => ({}))) as TierStatusPayload;
+      const raw = await res.json().catch(() => ({}));
+      const payload = extractApiPayload(raw);
       if (cancelled) return;
       setStatusLoading(false);
-      if (res.ok && payload.at_binder_limit === true) {
+      if (res.ok && payload?.at_binder_limit === true) {
         setAtBinderLimit(true);
       }
     })();
@@ -59,15 +56,12 @@ export default function CreateBinderPage() {
     });
 
     const payload = await res.json().catch(() => ({}));
+
     setSubmitting(false);
 
     if (!res.ok) {
-      const msg =
-        typeof payload.error === "string"
-          ? payload.error
-          : "Could not create binder.";
-      setError(msg);
-      if (payload.success === false || res.status === 403) {
+      setError(extractApiErrorMessage(payload) ?? "Could not create binder.");
+      if (res.status === 403) {
         setAtBinderLimit(true);
       }
       return;

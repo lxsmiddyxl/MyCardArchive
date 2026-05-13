@@ -1,8 +1,8 @@
-import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
+import { ApiErrorCode } from "@/lib/api/api-error-codes";
+import { errorJson, safePublicDbMessage, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import type { CardSummaryDTO } from "@/lib/dto/catalog";
 import { defineRouteNoArgs } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +50,9 @@ async function GET_handler() {
     .order("created_at", { ascending: false });
 
   if (cardsError) {
-    return errorJson(ctx, cardsError.message, 500);
+    return errorJson(ctx, safePublicDbMessage(cardsError.message), 500, {
+      code: ApiErrorCode.SUPABASE_QUERY,
+    });
   }
 
   const cards: (CardSummaryDTO & {
@@ -78,7 +80,7 @@ async function GET_handler() {
     };
   });
 
-  return NextResponse.json({ success: true, context_id: ctx.contextId, cards });
+  return successJson(ctx, { cards });
 }
 
 export const GET = defineRouteNoArgs("GET /api/cards/list", GET_handler);

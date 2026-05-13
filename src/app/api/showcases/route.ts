@@ -1,38 +1,41 @@
+import { ApiErrorCode } from "@/lib/api/api-error-codes";
+import {
+  errorJson,
+  safePublicDbMessage,
+  successJson,
+  validateSession,
+  withContextId,
+} from "@/lib/api/route-helpers";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 async function GET_handler() {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const { data, error } = await supabase
     .from("collection_showcases")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", session.userId)
     .order("updated_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, safePublicDbMessage(error.message), 500, {
+      code: ApiErrorCode.SUPABASE_QUERY,
+    });
   }
-  return NextResponse.json({ showcases: data ?? [] });
+  return successJson(ctx, { showcases: data ?? [] });
 }
 
 async function POST_handler(request: Request) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const body = (await request.json().catch(() => null)) as {
     title?: string;
@@ -42,7 +45,7 @@ async function POST_handler(request: Request) {
   } | null;
 
   if (!body || typeof body.title !== "string" || body.title.trim().length === 0) {
-    return NextResponse.json({ error: "title required" }, { status: 400 });
+    return errorJson(ctx, "title required", 400, { code: ApiErrorCode.BAD_REQUEST });
   }
 
   const binder_ids = Array.isArray(body.binder_ids) ? body.binder_ids : [];
@@ -55,7 +58,7 @@ async function POST_handler(request: Request) {
   const { data, error } = await supabase
     .from("collection_showcases")
     .insert({
-      user_id: user.id,
+      user_id: session.userId,
       title: body.title.trim(),
       description,
       binder_ids,
@@ -65,10 +68,12 @@ async function POST_handler(request: Request) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return errorJson(ctx, safePublicDbMessage(error.message), 400, {
+      code: ApiErrorCode.SUPABASE_QUERY,
+    });
   }
 
-  return NextResponse.json({ showcase: data });
+  return successJson(ctx, { showcase: data });
 }
 
 export const GET = defineRouteSimple("GET /api/showcases", GET_handler);

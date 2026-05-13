@@ -1,7 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import {
+  successJson,
+  validateSession,
+  withContextId,
+} from "@/lib/api/route-helpers";
 import { defineRouteNoArgs } from "@/lib/server/api-route";
+import { createClient } from "@/lib/supabase/server";
 import { isStripeConfigured } from "@/lib/stripe/server";
-import { NextResponse } from "next/server";
 import {
   getBinderCount,
   getCardCount,
@@ -12,14 +16,10 @@ import {
 } from "@/lib/tier/check-limits";
 
 async function GET_handler() {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const [tier, binderCount, cardCount, scanCount] = await Promise.all([
     getEffectiveUserTier(supabase),
@@ -29,13 +29,9 @@ async function GET_handler() {
   ]);
 
   const atBinderLimit =
-    tier != null &&
-    tier.binder_limit > 0 &&
-    binderCount >= tier.binder_limit;
+    tier != null && tier.binder_limit > 0 && binderCount >= tier.binder_limit;
   const atCardLimit =
-    tier != null &&
-    tier.card_limit > 0 &&
-    cardCount >= tier.card_limit;
+    tier != null && tier.card_limit > 0 && cardCount >= tier.card_limit;
   const remainingScans =
     tier != null && !isUnlimitedScans(tier.scan_limit)
       ? remainingScansThisMonth(tier, scanCount)
@@ -46,7 +42,7 @@ async function GET_handler() {
     remainingScans !== null &&
     remainingScans <= 0;
 
-  return NextResponse.json({
+  return successJson(ctx, {
     tier,
     binder_count: binderCount,
     card_count: cardCount,

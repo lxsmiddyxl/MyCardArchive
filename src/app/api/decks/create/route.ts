@@ -1,7 +1,15 @@
+import { ApiErrorCode } from "@/lib/api/api-error-codes";
+import {
+  errorJson,
+  safePublicDbMessage,
+  successJson,
+  validateSession,
+  withContextId,
+} from "@/lib/api/route-helpers";
 import { assertCanCreateDeck, isDeckLimitError } from "@/lib/decks/limits";
+import { logServerError } from "@/lib/server/observability";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,25 +20,21 @@ type Body = {
 };
 
 async function POST_handler(request: Request) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   let body: Body;
   try {
     body = (await request.json()) as Body;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return errorJson(ctx, "Invalid JSON", 400, { code: ApiErrorCode.PAYLOAD_INVALID });
   }
 
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (!name) {
-    return NextResponse.json({ error: "name is required" }, { status: 400 });
+    return errorJson(ctx, "name is required", 400, { code: ApiErrorCode.BAD_REQUEST });
   }
 
   const description =
@@ -41,19 +45,21 @@ async function POST_handler(request: Request) {
       : "standard";
 
   try {
-    await assertCanCreateDeck(supabase, user.id);
+    await assertCanCreateDeck(supabase, session.userId);
   } catch (e) {
     if (isDeckLimitError(e)) {
-      return NextResponse.json({ error: e.message }, { status: 403 });
+      return errorJson(ctx, e instanceof Error ? e.message : "Deck limit", 403, {
+        code: ApiErrorCode.FORBIDDEN,
+      });
     }
-    const msg = e instanceof Error ? e.message : "Tier check failed";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    logServerError({ scope: "api", route: "POST /api/decks/create", err: e });
+    return errorJson(ctx, "Tier check failed.", 500, { code: ApiErrorCode.INTERNAL });
   }
 
   const { data, error } = await supabase
     .from("decks")
     .insert({
-      user_id: user.id,
+      user_id: session.userId,
       name,
       description,
       format,
@@ -62,16 +68,17 @@ async function POST_handler(request: Request) {
     .single();
 
   if (error) {
-    if (
-      error.message.includes("Deck limit reached") ||
-      error.code === "P0001"
-    ) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+    if (error.message.includes("Deck limit reached") || error.code === "P0001") {
+      return errorJson(ctx, safePublicDbMessage(error.message), 403, {
+        code: ApiErrorCode.FORBIDDEN,
+      });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, safePublicDbMessage(error.message), 500, {
+      code: ApiErrorCode.SUPABASE_QUERY,
+    });
   }
 
-  return NextResponse.json({ deck: data });
+  return successJson(ctx, { deck: data });
 }
 
 export const POST = defineRouteSimple("POST /api/decks/create", POST_handler);

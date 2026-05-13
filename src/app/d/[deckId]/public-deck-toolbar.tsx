@@ -5,6 +5,7 @@ import {
   modalPanelClasses,
   useModalMount,
 } from "@/lib/ui/use-modal-mount";
+import { extractApiErrorMessage, extractApiPayload } from "@/lib/client";
 import { LoadingButton, LoadingSpinner } from "@/mca-ui/loading-button";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
@@ -65,16 +66,14 @@ export function PublicDeckToolbar({
         setBinders([]);
         return;
       }
-      const body = (await res.json().catch(() => ({}))) as {
-        binders?: BinderRow[];
-        error?: string;
-      };
+      const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       if (!res.ok) {
-        setBindersError(body.error ?? "Could not load binders.");
+        setBindersError(extractApiErrorMessage(raw) ?? "Could not load binders.");
         setBinders([]);
         return;
       }
-      const list = Array.isArray(body.binders) ? body.binders : [];
+      const data = extractApiPayload(raw) ?? raw;
+      const list = Array.isArray(data.binders) ? (data.binders as BinderRow[]) : [];
       setBinders(list);
       if (list.length > 0 && !selectedBinderId) {
         setSelectedBinderId(list[0]!.id);

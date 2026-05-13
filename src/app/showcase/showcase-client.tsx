@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/mca-ui/button";
+import { extractApiErrorMessage, extractApiPayload } from "@/lib/client";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -36,10 +37,12 @@ export function ShowcaseClient() {
       ]);
       const sJson = await sRes.json();
       const bJson = await bRes.json();
-      if (!sRes.ok) throw new Error(sJson.error ?? "Failed to load showcases");
-      if (!bRes.ok) throw new Error(bJson.error ?? "Failed to load binders");
-      setShowcases(sJson.showcases ?? []);
-      setBinders((bJson.binders ?? []) as BinderRow[]);
+      if (!sRes.ok) throw new Error(extractApiErrorMessage(sJson) ?? "Failed to load showcases");
+      if (!bRes.ok) throw new Error(extractApiErrorMessage(bJson) ?? "Failed to load binders");
+      const sData = extractApiPayload(sJson) ?? (sJson as Record<string, unknown>);
+      const bData = extractApiPayload(bJson) ?? (bJson as Record<string, unknown>);
+      setShowcases((Array.isArray(sData.showcases) ? sData.showcases : []) as ShowcaseRow[]);
+      setBinders((Array.isArray(bData.binders) ? bData.binders : []) as BinderRow[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed");
     } finally {
@@ -76,7 +79,7 @@ export function ShowcaseClient() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Create failed");
+      if (!res.ok) throw new Error(extractApiErrorMessage(json) ?? "Create failed");
       setTitle("");
       setDescription("");
       setSelectedBinders([]);

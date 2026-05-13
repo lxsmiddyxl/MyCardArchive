@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readApiData } from "./fixtures/api-envelope";
 import {
   clearBrowserSession,
   hasDualAccountCredentials,
@@ -6,6 +7,26 @@ import {
   loginAsUser,
   readSelfUserIdFromProfile,
 } from "./fixtures/auth";
+
+function cardsFromListBody(body: unknown): { id: string }[] | undefined {
+  const data = readApiData<{ cards?: { id: string }[] }>(body);
+  if (data && Array.isArray(data.cards)) return data.cards;
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    const b = body as { cards?: { id: string }[] };
+    if (Array.isArray(b.cards)) return b.cards;
+  }
+  return undefined;
+}
+
+function tradeIdFromCreateBody(body: unknown): string | undefined {
+  const data = readApiData<{ trade?: { id: string } }>(body);
+  if (data?.trade?.id) return data.trade.id;
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    const b = body as { trade?: { id: string } };
+    return b.trade?.id;
+  }
+  return undefined;
+}
 
 /** UUID-shaped id unlikely to exist as a trade row for the signed-in user. */
 const FOREIGN_TRADE_ID = "00000000-0000-4000-8000-000000000042";
@@ -48,9 +69,8 @@ test.describe("Trades — creator & counterparty", () => {
     await loginAsUser(page, emailA, passwordA);
     const listA = await page.request.get("/api/cards/list");
     expect(listA.ok()).toBeTruthy();
-    const bodyA = (await listA.json()) as { success?: boolean; cards?: { id: string }[] };
-    expect(bodyA.success).toBe(true);
-    const creatorCardId = bodyA.cards?.[0]?.id;
+    const bodyA = await listA.json();
+    const creatorCardId = cardsFromListBody(bodyA)?.[0]?.id;
     if (!creatorCardId) {
       testInfo.skip(true, "Primary test account needs at least one card in /api/cards/list.");
     }
@@ -63,9 +83,8 @@ test.describe("Trades — creator & counterparty", () => {
 
     const listB = await page.request.get("/api/cards/list");
     expect(listB.ok()).toBeTruthy();
-    const bodyB = (await listB.json()) as { success?: boolean; cards?: { id: string }[] };
-    expect(bodyB.success).toBe(true);
-    const counterpartyCardId = bodyB.cards?.[0]?.id;
+    const bodyB = await listB.json();
+    const counterpartyCardId = cardsFromListBody(bodyB)?.[0]?.id;
     if (!counterpartyCardId) {
       testInfo.skip(true, "Counterparty account needs at least one card in /api/cards/list.");
     }
@@ -86,8 +105,8 @@ test.describe("Trades — creator & counterparty", () => {
       const errText = await createRes.text();
       throw new Error(`POST /api/trades/create failed: ${createRes.status()} ${errText}`);
     }
-    const created = (await createRes.json()) as { trade?: { id: string } };
-    const tradeId = created.trade?.id;
+    const created = await createRes.json();
+    const tradeId = tradeIdFromCreateBody(created);
     expect(tradeId).toBeTruthy();
 
     await page.goto(`/trades/${tradeId}`);

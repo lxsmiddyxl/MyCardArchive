@@ -1,19 +1,16 @@
+import { successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { sanitizeHandle } from "@/lib/validation/profile";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { isUuidString } from "@/lib/server/is-uuid";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 async function GET_handler(request: Request) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const url = new URL(request.url);
   const raw = url.searchParams.get("handle") ?? "";
@@ -21,7 +18,7 @@ async function GET_handler(request: Request) {
   const excludeUserId = url.searchParams.get("exclude_user_id")?.trim();
 
   if (!handle || handle.length < 3) {
-    return NextResponse.json({ available: false, reason: "invalid" });
+    return successJson(ctx, { available: false as const, reason: "invalid" as const });
   }
 
   /* Handles are mirrored to social_public_profiles (RLS: any authenticated user may SELECT).
@@ -33,13 +30,13 @@ async function GET_handler(request: Request) {
     .maybeSingle();
 
   if (!taken?.user_id) {
-    return NextResponse.json({ available: true });
+    return successJson(ctx, { available: true as const });
   }
   if (excludeUserId && isUuidString(excludeUserId) && taken.user_id === excludeUserId) {
-    return NextResponse.json({ available: true });
+    return successJson(ctx, { available: true as const });
   }
 
-  return NextResponse.json({ available: false, reason: "taken" });
+  return successJson(ctx, { available: false as const, reason: "taken" as const });
 }
 
 export const GET = defineRouteSimple("GET /api/profile/handle-available", GET_handler);

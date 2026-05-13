@@ -1,5 +1,6 @@
+import { ApiErrorCode } from "@/lib/api/api-error-codes";
+import { errorJson, withContextId } from "@/lib/api/route-helpers";
 import { logServerError } from "@/lib/server/observability";
-import { NextResponse } from "next/server";
 
 type RouteHandler = (
   request: Request,
@@ -19,7 +20,8 @@ export function defineRoute(
       return await handler(request, context);
     } catch (err) {
       logServerError({ scope: "api", route: routeLabel, err });
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      const ctx = withContextId();
+      return errorJson(ctx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });
     }
   };
 }
@@ -34,7 +36,8 @@ export function defineRouteSimple(
       return await handler(request);
     } catch (err) {
       logServerError({ scope: "api", route: routeLabel, err });
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      const ctx = withContextId();
+      return errorJson(ctx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });
     }
   };
 }
@@ -49,7 +52,8 @@ export function defineRouteNoArgs(
       return await handler();
     } catch (err) {
       logServerError({ scope: "api", route: routeLabel, err });
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      const ctx = withContextId();
+      return errorJson(ctx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });
     }
   };
 }

@@ -11,6 +11,11 @@ export {
   type McaApiErrorBody,
   type McaApiSuccessBody,
 } from "./fetch-json";
+export {
+  extractApiErrorMessage,
+  extractApiPayload,
+  isApiSuccessEnvelope,
+} from "./api-envelope-client";
 export { scheduleCoalescedRouterRefresh } from "./coalesce-router-refresh";
 export { safeQueryParam, type SearchParamSource } from "./safe-query-param";
 export { useDebouncedSurfaceReload } from "./use-debounced-surface-reload";
