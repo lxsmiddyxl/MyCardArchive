@@ -256,7 +256,7 @@ function TradesDashboardBody() {
   return (
     <div
       className={cn(
-        "touch-manipulation space-y-mca-lg rounded-mca-card transition-[box-shadow,background-color] duration-200 ease-mca-standard",
+        "min-w-0 touch-manipulation space-y-mca-lg rounded-mca-card transition-[box-shadow,background-color] duration-200 ease-mca-standard",
         silentListFlash && "bg-mca-accent-strong/[0.03] shadow-[inset_0_0_0_1px_rgba(245,158,11,0.08)]"
       )}
     >
@@ -271,7 +271,7 @@ function TradesDashboardBody() {
         </div>
         <Link
           href="/trades/new"
-          className="inline-flex shrink-0 items-center justify-center gap-mca-sm rounded-mca-control border border-mca-accent-border/50 bg-mca-accent-strong/90 px-mca-base py-mca-tight text-sm font-semibold text-mca-on-accent shadow-mca-panel shadow-black/20 transition-all duration-200 ease-mca-standard hover:bg-mca-accent/95 hover:shadow-mca-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 focus-visible:ring-offset-2 focus-visible:ring-offset-mca-surface active:scale-[0.98]"
+          className="inline-flex min-h-11 min-w-0 shrink-0 items-center justify-center gap-mca-sm rounded-mca-control border border-mca-accent-border/50 bg-mca-accent-strong/90 px-mca-base py-mca-tight text-sm font-semibold text-mca-on-accent shadow-mca-panel shadow-black/20 transition-all duration-200 ease-mca-standard hover:bg-mca-accent/95 hover:shadow-mca-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 focus-visible:ring-offset-2 focus-visible:ring-offset-mca-surface active:scale-[0.98]"
         >
           Create Trade
         </Link>
