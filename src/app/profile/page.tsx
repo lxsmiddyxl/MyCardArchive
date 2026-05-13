@@ -8,6 +8,7 @@ import { SocialRecommendationsStrip } from "@/components/social/social-recommend
 import { SocialRecentActivity } from "@/components/social/social-recent-activity";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
+import { loadProfileV3EcosystemStats } from "@/lib/profile/profile-v3-stats";
 import { mapShowcaseRowToPublicV1 } from "@/lib/showcases/map-showcase-public";
 import { isShowcaseFeaturedFromDescription } from "@/lib/showcases/showcase-featured-meta";
 import { loadSelfSocialProfile } from "@/lib/social/build-profile";
@@ -37,6 +38,8 @@ export default async function ProfilePage() {
   const list = showcaseRows ?? [];
   const featuredRow = list.find((r) => isShowcaseFeaturedFromDescription(r.description)) ?? list[0];
   const featuredShowcase = featuredRow ? mapShowcaseRowToPublicV1(featuredRow) : null;
+
+  const ecosystem = await loadProfileV3EcosystemStats(supabase, user.id);
 
   return (
     <AuthenticatedPresenceShell userId={user.id}>
@@ -98,6 +101,26 @@ export default async function ProfilePage() {
                 Manage showcases
               </Link>
             </div>
+          </Panel>
+        ) : null}
+
+        {ecosystem.ok ? (
+          <Panel className="border border-mca-border/80 bg-mca-surface-elevated/35 p-mca-md shadow-mca-panel">
+            <p className="mca-typo-label text-mca-ink-muted">Collector snapshot</p>
+            <dl className="mt-mca-sm grid gap-mca-sm text-sm text-mca-ink-body sm:grid-cols-3">
+              <div>
+                <dt className="text-mca-caption text-mca-ink-muted">Trades completed</dt>
+                <dd className="font-semibold tabular-nums text-mca-ink-strong">{ecosystem.stats.trades_completed}</dd>
+              </div>
+              <div>
+                <dt className="text-mca-caption text-mca-ink-muted">Showcases</dt>
+                <dd className="font-semibold tabular-nums text-mca-ink-strong">{ecosystem.stats.showcases_total}</dd>
+              </div>
+              <div>
+                <dt className="text-mca-caption text-mca-ink-muted">Community posts</dt>
+                <dd className="font-semibold tabular-nums text-mca-ink-strong">{ecosystem.stats.community_posts}</dd>
+              </div>
+            </dl>
           </Panel>
         ) : null}
 
