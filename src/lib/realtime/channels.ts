@@ -25,6 +25,7 @@
  */
 
 import { mcaLog } from "@/lib/logging/mca-log-client";
+import { presenceMetadataDigest } from "@/lib/realtime/presence-metadata-digest";
 import { getTelemetryConnectionId } from "@/lib/telemetry/client-telemetry";
 import { log } from "@/lib/logging/log";
 import {
@@ -148,6 +149,7 @@ type PresenceMuxEntry = {
 let presenceClientSingleton: ReturnType<typeof supabaseBrowser> | null = null;
 const presenceRegistry = new Map<string, PresenceMuxEntry>();
 const presenceTopicRefCount = new Map<string, number>();
+const lastPresenceTrackDigest = new Map<string, string>();
 
 function getPresenceClient(): ReturnType<typeof supabaseBrowser> {
   presenceClientSingleton ??= supabaseBrowser();
@@ -425,6 +427,11 @@ export async function joinPresence(
   const trackStarted =
     typeof performance !== "undefined" ? performance.now() : Date.now();
   const channel = await ensurePresenceChannel(channelName);
+  const digest = `${channelName}:${presenceMetadataDigest(metadata)}`;
+  if (lastPresenceTrackDigest.get(channelName) === digest) {
+    log.presence.info("presence.track.deduped", { channel: channelName });
+    return;
+  }
   const payload = {
     ...metadata,
     at: new Date().toISOString(),
@@ -449,6 +456,7 @@ export async function joinPresence(
     );
     throw new Error(`Presence track failed: ${String(res)}`);
   }
+  lastPresenceTrackDigest.set(channelName, digest);
   const uid = typeof metadata.user_id === "string" ? metadata.user_id : undefined;
   if (uid) {
     presenceUserByTopic.set(channelName, uid);
@@ -534,6 +542,7 @@ export async function leavePresence(channelName: string): Promise<void> {
   log.presence.info("leave", { channel: channelName });
   log.realtime.debug("presence.channel.detach", { channelName });
   void supabase.removeChannel(ch);
+  lastPresenceTrackDigest.delete(channelName);
   if (DEV) {
     devtoolsPresenceTopicClosed(channelName);
   }

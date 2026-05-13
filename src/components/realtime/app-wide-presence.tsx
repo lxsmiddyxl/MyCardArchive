@@ -91,6 +91,14 @@ export function AppWidePresenceProvider({
     };
   }, [userId, onPresenceMuxEvent]);
 
+  useEffect(() => {
+    const onPageHide = () => {
+      void leavePresence(PRESENCE_ONLINE_USERS);
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, []);
+
   const isUserOnline = useCallback(
     (uid: string) => {
       void state.version;
