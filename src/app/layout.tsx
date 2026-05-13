@@ -6,6 +6,7 @@ import { TopNav } from "@/components/layout/top-nav";
 import { MobileAppShell } from "@/components/mobile/mobile-app-shell";
 import { InstallAppCta } from "@/components/pwa/install-app-cta";
 import { PwaRegister } from "@/components/pwa/pwa-register";
+import { ProductPageviewTracker } from "@/components/analytics/product-pageview-tracker";
 import { GrowthShell } from "@/components/growth/growth-shell";
 import { A11yEnvironmentTelemetry } from "@/components/system/a11y-environment-telemetry";
 import { RootClientBoundary } from "@/components/system/root-client-boundary";
@@ -169,6 +170,7 @@ export default async function RootLayout({
           <PwaRegister />
           <InstallAppCta />
           <GrowthShell />
+          <ProductPageviewTracker />
           <A11yEnvironmentTelemetry />
           <header className="sticky top-0 z-50 min-h-[3.5rem] border-b border-mca-border bg-mca-surface/90 backdrop-blur-md shadow-mca-panel shadow-black/20">
             <div className="mx-auto flex min-h-[3.5rem] max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-mca-base py-mca-sm sm:px-mca-lg">

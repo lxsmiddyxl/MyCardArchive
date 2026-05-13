@@ -14,6 +14,7 @@ import {
 
 } from "@/lib/validation/profile";
 
+import { trackProductServerEvent } from "@/lib/analytics/track-product-server";
 import { mcaLog } from "@/lib/logging/mca-log-server";
 
 import { defineRouteSimple } from "@/lib/server/api-route";
@@ -235,6 +236,8 @@ async function POST_handler(request: Request) {
 
 
   mcaLog.event("profile.update", { ok: true, userId: user.id }, CTX);
+
+  trackProductServerEvent(user.id, "profile_edit", { ok: true });
 
   return NextResponse.json({
 

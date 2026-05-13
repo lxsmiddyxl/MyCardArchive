@@ -8,6 +8,7 @@ import {
   validateSession,
   withContextId,
 } from "@/lib/api/route-helpers";
+import { trackProductServerEvent } from "@/lib/analytics/track-product-server";
 import { assertCanCreateDeck, isDeckLimitError } from "@/lib/decks/limits";
 import { logServerError } from "@/lib/server/observability";
 import { defineRouteSimple } from "@/lib/server/api-route";
@@ -72,6 +73,7 @@ async function POST_handler(request: Request) {
     });
   }
 
+  trackProductServerEvent(session.userId, "deck_create", { deckId: data.id });
   return successJson(ctx, { deck: data });
 }
 

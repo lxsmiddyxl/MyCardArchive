@@ -1,3 +1,4 @@
+import { trackProductServerEvent } from "@/lib/analytics/track-product-server";
 import { ApiErrorCode } from "@/lib/api/api-error-codes";
 import { parseRequestBodyZod } from "@/lib/api/request-body-schema";
 import { tradesCreateBodySchema } from "@/lib/api/schemas/post-bodies";
@@ -95,6 +96,11 @@ async function POST_handler(request: Request) {
     Date.now() - started,
     true
   );
+
+  trackProductServerEvent(session.userId, "trade_create", {
+    tradeId: trade.id,
+    status: trade.status,
+  });
 
   return successJson(ctx, { trade, summary });
 }

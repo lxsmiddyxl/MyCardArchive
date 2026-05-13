@@ -24,6 +24,7 @@ import {
   defineRouteSimple,
 } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/server";
+import { trackProductServerEvent } from "@/lib/analytics/track-product-server";
 import {
   assertCanCreateBinder,
   isTierLimitError,
@@ -138,6 +139,7 @@ async function POST_handler(request: Request) {
     });
   }
 
+  trackProductServerEvent(session.userId, "binder_create", { binderId: data.id });
   return successJson(ctx, { binder: data as BinderSummaryDTO });
 }
 

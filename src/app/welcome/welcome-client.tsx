@@ -1,5 +1,6 @@
 "use client";
 
+import { trackProductClientEvent } from "@/lib/analytics/track-product-client";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import { Button } from "@/mca-ui/button";
 import { Panel } from "@/mca-ui/panel";
@@ -36,17 +37,20 @@ export function WelcomeLaunchClient() {
   useEffect(() => {
     setCompleted(readDone());
     mcaLog.event("launch.welcome.view", {}, { componentName: "WelcomeLaunchClient", surfaceName: "onboarding" });
+    trackProductClientEvent("onboarding_step", { step: "welcome_view" });
   }, []);
 
   const finishToFeed = useCallback(() => {
     writeDone();
     mcaLog.event("launch.welcome.finish", { path: "feed" }, { componentName: "WelcomeLaunchClient", surfaceName: "onboarding" });
+    trackProductClientEvent("onboarding_step", { step: "welcome_finish" });
     router.push("/feed");
   }, [router]);
 
   const skipToFeed = useCallback(() => {
     writeDone();
     mcaLog.event("launch.welcome.skip", {}, { componentName: "WelcomeLaunchClient", surfaceName: "onboarding" });
+    trackProductClientEvent("onboarding_step", { step: "welcome_skip" });
     router.push("/feed");
   }, [router]);
 
