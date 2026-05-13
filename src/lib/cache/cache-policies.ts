@@ -23,6 +23,10 @@ export function ttlNotificationsMs(): number {
   return envMs("CACHE_TTL_NOTIFICATIONS", 10_000);
 }
 
+export function ttlCommunityFeedMs(): number {
+  return envMs("CACHE_TTL_COMMUNITY_FEED", 8000);
+}
+
 export function effectiveTtl(ms: number): number {
   if (!isCacheEnabled()) return 0;
   return getEffectiveCacheTtlMs(ms);

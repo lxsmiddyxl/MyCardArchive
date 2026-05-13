@@ -1,4 +1,12 @@
 import {
+  cacheKeyCommunityFeedV1,
+  effectiveTtl,
+  getCache,
+  isCacheEnabled,
+  setCache,
+  ttlCommunityFeedMs,
+} from "@/lib/cache";
+import {
   errorJson,
   safePublicDbMessage,
   successJson,
@@ -15,7 +23,7 @@ const CTX = { componentName: "api/community/feed/v1", surfaceName: "community.fe
 
 export const dynamic = "force-dynamic";
 
-/** Read-only, paginated community feed with server-side snippet filtering (Phase 63). */
+/** Read-only, paginated community feed with server-side snippet filtering (Phase 63 + Phase 68 cache). */
 async function GET_handler(request: Request) {
   const ctx = withContextId();
   const supabase = createClient();
@@ -28,6 +36,15 @@ async function GET_handler(request: Request) {
   const authorFilter = url.searchParams.get("author_id")?.trim();
   if (authorFilter && !isUuidString(authorFilter)) {
     return errorJson(ctx, "Invalid author_id", 400);
+  }
+
+  const authorKey = authorFilter ?? "all";
+  const cacheKey = cacheKeyCommunityFeedV1(session.userId, { limit, offset, authorKey });
+  if (isCacheEnabled()) {
+    const hit = getCache(cacheKey);
+    if (hit) {
+      return successJson(ctx, hit as { items: unknown[]; next_offset: number });
+    }
   }
 
   let q = supabase.from("community_posts").select("id, body, created_at, author_id");
@@ -50,13 +67,19 @@ async function GET_handler(request: Request) {
     snippet: snippetForCommunityFeedV1(String(p.body ?? "")),
   }));
 
+  const payload = { items, next_offset: offset + items.length };
+
   mcaLog.event(
     "community.feed.v1",
     { viewerId: session.userId, count: items.length, offset, limit },
     CTX
   );
 
-  return successJson(ctx, { items, next_offset: offset + items.length });
+  if (isCacheEnabled()) {
+    setCache(cacheKey, payload, effectiveTtl(ttlCommunityFeedMs()));
+  }
+
+  return successJson(ctx, payload);
 }
 
 export const GET = defineRouteSimple("GET /api/community/feed/v1", GET_handler);

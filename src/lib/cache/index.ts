@@ -14,6 +14,7 @@ export {
   cacheKeyActivityList,
   cacheKeyBindersList,
   cacheKeyCardSearch,
+  cacheKeyCommunityFeedV1,
   cacheKeyDecksList,
   cacheKeyNotificationsList,
   cacheKeyTradeDetail,
@@ -22,6 +23,7 @@ export {
   effectiveTtl,
   ttlActivityMs,
   ttlCollectionMs,
+  ttlCommunityFeedMs,
   ttlNotificationsMs,
   ttlSearchMs,
 } from "@/lib/cache/cache-policies";
