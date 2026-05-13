@@ -5,8 +5,20 @@ import { ApiErrorCode, httpStatusToApiErrorCode } from "@/lib/api/api-error-code
 
 export type RouteContext = { contextId: string; startedAt: number };
 
+/** HTTP header mirrored on JSON API responses for log correlation (Phase 54). */
+export const MCA_CONTEXT_HEADER = "x-mca-context-id" as const;
+
 export function withContextId(): RouteContext {
   return { contextId: randomUUID(), startedAt: Date.now() };
+}
+
+function withCorrelationHeaders(
+  contextId: string,
+  init?: ResponseInit
+): ResponseInit {
+  const headers = new Headers(init?.headers ?? undefined);
+  headers.set(MCA_CONTEXT_HEADER, contextId);
+  return { ...init, headers };
 }
 
 function splitErrorExtra(extra?: Record<string, unknown>): {
@@ -39,7 +51,7 @@ export function errorJson(
     error: { code, message },
   };
   if (Object.keys(meta).length > 0) body.meta = meta;
-  return NextResponse.json(body, { status });
+  return NextResponse.json(body, withCorrelationHeaders(ctx.contextId, { status }));
 }
 
 /**
@@ -50,7 +62,10 @@ export function successJson<T extends Record<string, unknown>>(
   body: T,
   init?: ResponseInit
 ) {
-  return NextResponse.json({ ok: true, context_id: ctx.contextId, data: body }, init);
+  return NextResponse.json(
+    { ok: true, context_id: ctx.contextId, data: body },
+    withCorrelationHeaders(ctx.contextId, init)
+  );
 }
 
 /** Alias for `successJson` (Phase 28 naming). */

@@ -78,15 +78,18 @@ export function logServerError(opts: {
   route: string;
   userId?: string | null;
   err: unknown;
+  /** Optional request correlation id (API envelope `context_id` or `x-mca-context-id`). */
+  correlationId?: string;
 }): void {
   if (isNextDynamicServerUsageError(opts.err)) return;
 
   const { message, stack } = errorToParts(opts.err);
+  const prefix = opts.correlationId ? `ctx=${opts.correlationId} ` : "";
   pushLog({
     scope: opts.scope,
     route: opts.route,
     userId: opts.userId ?? undefined,
-    message,
+    message: prefix + message,
     stack,
   });
 }

@@ -27,14 +27,19 @@ export function defineRoute(
 ): (request: Request, context: { params: Record<string, string> }) => Promise<Response> {
   return async (request, context) => {
     const started = Date.now();
+    const errorCtx = withContextId();
     try {
       const res = await handler(request, context);
       recordSlowApiHandler(routeLabel, started);
       return res;
     } catch (err) {
-      logServerError({ scope: "api", route: routeLabel, err });
-      const ctx = withContextId();
-      return errorJson(ctx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });
+      logServerError({
+        scope: "api",
+        route: routeLabel,
+        err,
+        correlationId: errorCtx.contextId,
+      });
+      return errorJson(errorCtx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });
     }
   };
 }
@@ -46,14 +51,19 @@ export function defineRouteSimple(
 ): (request: Request, context?: { params: Record<string, string> }) => Promise<Response> {
   return async (request, _context) => {
     const started = Date.now();
+    const errorCtx = withContextId();
     try {
       const res = await handler(request);
       recordSlowApiHandler(routeLabel, started);
       return res;
     } catch (err) {
-      logServerError({ scope: "api", route: routeLabel, err });
-      const ctx = withContextId();
-      return errorJson(ctx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });
+      logServerError({
+        scope: "api",
+        route: routeLabel,
+        err,
+        correlationId: errorCtx.contextId,
+      });
+      return errorJson(errorCtx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });
     }
   };
 }
@@ -65,14 +75,19 @@ export function defineRouteNoArgs(
 ): () => Promise<Response> {
   return async () => {
     const started = Date.now();
+    const errorCtx = withContextId();
     try {
       const res = await handler();
       recordSlowApiHandler(routeLabel, started);
       return res;
     } catch (err) {
-      logServerError({ scope: "api", route: routeLabel, err });
-      const ctx = withContextId();
-      return errorJson(ctx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });
+      logServerError({
+        scope: "api",
+        route: routeLabel,
+        err,
+        correlationId: errorCtx.contextId,
+      });
+      return errorJson(errorCtx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });
     }
   };
 }
