@@ -7,6 +7,7 @@ import { resolveAuthorFromSocial } from "@/lib/profile/resolveAuthor";
 import { mcaLog } from "@/lib/logging/mca-log-server";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { isUuidString } from "@/lib/server/is-uuid";
+import { sanitizePlainTextUserInput } from "@/lib/server/sanitize-user-text";
 import { createClient } from "@/lib/supabase/route";
 import { NextResponse } from "next/server";
 
@@ -191,12 +192,10 @@ async function POST_handler(request: Request) {
     return errorJson(ctx, "Invalid JSON", 400);
   }
 
-  const text = typeof body.body === "string" ? body.body.trim() : "";
+  const raw = typeof body.body === "string" ? body.body : "";
+  const text = sanitizePlainTextUserInput(raw, MAX_BODY);
   if (!text) {
     return errorJson(ctx, "body required", 400);
-  }
-  if (text.length > MAX_BODY) {
-    return errorJson(ctx, `body too long (max ${MAX_BODY})`, 400);
   }
 
   const { data, error } = await supabase

@@ -52,6 +52,8 @@ export const RATE_LIMITS = {
   /** POST `/api/billing/*` — checkout sessions, portal (fraud / abuse). */
   billingMutation: { max: 30, windowMs: 60_000 },
   publicDeckView: { max: 240, windowMs: 60_000 },
+  /** POST `/api/community/posts` — spam / flood protection. */
+  communityPostMutation: { max: 36, windowMs: 60_000 },
 } as const;
 
 /** In-memory snapshot for `/api/health/rate-limits` (suffixes match middleware buckets). */
@@ -70,5 +72,6 @@ export function getRateLimitHealthBuckets(): Record<
     { suffix: "log-ingest", max: RATE_LIMITS.logIngest.max },
     { suffix: "billing-mut", max: RATE_LIMITS.billingMutation.max },
     { suffix: "pub-deck-view", max: RATE_LIMITS.publicDeckView.max },
+    { suffix: "community-post-mut", max: RATE_LIMITS.communityPostMutation.max },
   ]);
 }

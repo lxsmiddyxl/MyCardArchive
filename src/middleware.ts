@@ -49,6 +49,15 @@ export async function middleware(request: NextRequest) {
     if (blocked) return blocked;
   }
 
+  if (pathname === "/api/community/posts" && method === "POST") {
+    const blocked = rateLimitedResponse(
+      request,
+      "community-post-mut",
+      RATE_LIMITS.communityPostMutation
+    );
+    if (blocked) return blocked;
+  }
+
   if (
     pathname.startsWith("/api/cards") &&
     pathname !== "/api/cards/search" &&
