@@ -39,22 +39,23 @@ export async function loadFeedV3SupplementRows(
   const mutualSet = new Set(opts.mutualIds);
   const followingSlice = opts.followingIds.slice(0, 60);
 
-  let showRes: {
-    data: {
-      id: string;
-      user_id: string;
-      title: string;
-      updated_at: string;
-      analytics_views: number | null;
-    }[];
-  } = { data: [] };
+  type ShowcaseFeedRow = {
+    id: string;
+    user_id: string;
+    title: string;
+    updated_at: string;
+    analytics_views: number | null;
+  };
+
+  let showcaseRows: ShowcaseFeedRow[] = [];
   if (followingSlice.length > 0) {
-    showRes = await supabase
+    const res = await supabase
       .from("collection_showcases")
       .select("id, user_id, title, updated_at, analytics_views")
       .in("user_id", followingSlice)
       .order("updated_at", { ascending: false })
       .limit(10);
+    showcaseRows = (res.data ?? []) as ShowcaseFeedRow[];
   }
 
   const [tradeRes, followRes] = await Promise.all([
@@ -75,7 +76,7 @@ export async function loadFeedV3SupplementRows(
 
   const out: FeedItemForRank[] = [];
 
-  for (const r of showRes.data ?? []) {
+  for (const r of showcaseRows) {
     const id = typeof r.id === "string" ? r.id : "";
     const actor = typeof r.user_id === "string" ? r.user_id : "";
     const updated = typeof r.updated_at === "string" ? r.updated_at : new Date().toISOString();
