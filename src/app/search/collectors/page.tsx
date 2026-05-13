@@ -1,4 +1,5 @@
 import { CollectorsSearchClient } from "@/components/search/collectors-search-client";
+import { SocialSuggestedCollectorsStrip } from "@/components/social/social-suggested-collectors-strip";
 import { AuthenticatedPresenceShell } from "@/components/realtime/app-wide-presence";
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
@@ -32,6 +33,7 @@ export default async function CollectorsSearchPage() {
             seasons, and recent activity — all identity-driven, never a leaderboard.
           </p>
         </header>
+        <SocialSuggestedCollectorsStrip />
         <CollectorsSearchClient />
       </div>
     </AuthenticatedPresenceShell>
