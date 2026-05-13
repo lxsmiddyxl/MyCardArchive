@@ -7,7 +7,7 @@ import { Panel } from "@/mca-ui/panel";
 import Link from "next/link";
 import { useCallback, useEffect } from "react";
 
-type Collector = { user_id?: string; username?: string | null };
+type Collector = { userId?: string; username?: string | null };
 
 /**
  * Suggested collectors + soft follow-back hint (Phase 66).
@@ -77,9 +77,9 @@ export function SocialSuggestedCollectorsStrip() {
               <p className="font-medium text-mca-ink-strong">Suggested collectors</p>
               <ul className="mt-mca-xs list-inside list-disc text-mca-ink-muted">
                 {suggested.slice(0, 6).map((c, idx) => (
-                  <li key={c.user_id ?? `s-${idx}`}>
-                    {c.user_id ? (
-                      <Link className="text-mca-accent-tint hover:underline" href={`/profile/${c.user_id}`}>
+                  <li key={c.userId ?? `s-${idx}`}>
+                    {c.userId ? (
+                      <Link className="text-mca-accent-tint hover:underline" href={`/profile/${c.userId}`}>
                         {c.username?.trim() || "Collector"}
                       </Link>
                     ) : (
