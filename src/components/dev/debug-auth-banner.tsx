@@ -62,34 +62,17 @@ export function DebugAuthBanner() {
   if (process.env.NODE_ENV !== "development") return null;
 
   return (
-    <div
-      style={{
-        background: "#111",
-        color: "#0f0",
-        padding: "8px 12px",
-        fontSize: "12px",
-        fontFamily: "monospace",
-        borderBottom: "1px solid #0f0",
-        zIndex: 9999,
-      }}
-    >
-      <div>DEV AUTH DEBUG</div>
+    <div className="z-[9999] border-b border-mca-success/50 bg-mca-surface px-mca-sm py-mca-xs font-mono text-mca-caption text-mca-success">
+      <div className="font-semibold text-mca-success">DEV AUTH DEBUG</div>
       <div>User Email: {info.email ?? "null"}</div>
       <div>User ID: {info.id ?? "null"}</div>
       <div>Profile Exists: {String(info.profileExists)}</div>
-      <div style={{ marginTop: 6 }}>
+      <div className="mt-mca-xs">
         <button
           type="button"
           onClick={() => void repair()}
           disabled={repairing}
-          style={{
-            fontSize: "11px",
-            padding: "4px 8px",
-            cursor: repairing ? "wait" : "pointer",
-            background: "#222",
-            color: "#0f0",
-            border: "1px solid #0f0",
-          }}
+          className="rounded-mca-control border border-mca-success/50 bg-mca-chrome/80 px-mca-sm py-mca-trace text-mca-caption text-mca-success transition-colors duration-200 ease-mca-standard hover:bg-mca-chrome disabled:cursor-wait"
         >
           {repairing ? "Repairing…" : "Repair Profile Now"}
         </button>
