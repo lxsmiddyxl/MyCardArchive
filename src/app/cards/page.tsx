@@ -1,6 +1,7 @@
 import { HotPathTracker } from "@/components/perf/hot-path-tracker";
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
+import { mcaSegmentMetadata } from "@/lib/seo/segment-metadata";
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
 import { redirect } from "next/navigation";
@@ -16,10 +17,11 @@ const CardsInventoryClient = dynamic(
   }
 );
 
-export const metadata: Metadata = {
+export const metadata: Metadata = mcaSegmentMetadata({
   title: "Collection inventory",
   description: "Read-only view of all Pokémon cards across your binders.",
-};
+  path: "/cards",
+});
 
 export default async function CardsPage() {
   const supabase = createClient();

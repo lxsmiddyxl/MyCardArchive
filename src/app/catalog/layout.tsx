@@ -3,16 +3,12 @@ import { mcaSegmentMetadata } from "@/lib/seo/segment-metadata";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = mcaSegmentMetadata({
-  title: "Binders",
-  description: "Create and browse Pokémon card binders with tier-aware limits.",
-  path: "/binders",
+  title: "Catalog",
+  description: "Browse Pokémon TCG sets and cards synced to MyCardArchive.",
+  path: "/catalog",
 });
 
-export default function BindersLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function CatalogLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <OfflineNotice />

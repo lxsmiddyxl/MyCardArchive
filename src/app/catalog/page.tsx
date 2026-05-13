@@ -2,12 +2,7 @@ import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-tele
 import { logServerError } from "@/lib/server/observability";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
-import type { Metadata } from "next";
 import Link from "next/link";
-
-export const metadata: Metadata = {
-  title: "Catalog",
-};
 
 type CatalogSet = Database["public"]["Tables"]["catalog_sets"]["Row"];
 

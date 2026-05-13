@@ -10,13 +10,8 @@ import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-tele
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { loadSelfSocialProfile } from "@/lib/social/build-profile";
 import { createClient } from "@/lib/supabase/server";
-import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-
-export const metadata: Metadata = {
-  title: "Profile",
-};
 
 export default async function ProfilePage() {
   const supabase = createClient();
