@@ -1,4 +1,5 @@
 import { DeckListView } from "@/components/decks/deck-list-view";
+import { OfflineReadOnlyStrip } from "@/components/offline/offline-read-only-strip";
 import { RetentionHintsStrip } from "@/components/retention/retention-hints-strip";
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
@@ -27,6 +28,7 @@ export default async function DecksPage() {
 
   return (
     <>
+      <OfflineReadOnlyStrip surface="Decks" />
       <RetentionHintsStrip />
       <DeckListView />
     </>
