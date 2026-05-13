@@ -1,3 +1,4 @@
+import { logClientCollectionFetchTiming } from "@/lib/client/dev-client-perf";
 import { fetchStaleWhileRevalidate } from "@/lib/client/stale-whilst-revalidate";
 import { fetchWithRetry } from "@/lib/http/fetch-with-retry";
 import type { TradeCardLine, TradeRecord, TradeSummaryStats } from "@/lib/trading/types";
@@ -36,10 +37,18 @@ export async function fetchTradesList(query: string): Promise<
   return fetchStaleWhileRevalidate(
     cacheKey,
     async () => {
+      const started = typeof performance !== "undefined" ? performance.now() : 0;
       const res = await fetch(`/api/trades/list${query}`, {
         cache: "no-store",
         credentials: "include",
       });
+      logClientCollectionFetchTiming(
+        "trades_list",
+        `/api/trades/list${query}`,
+        started,
+        res.ok,
+        res.status
+      );
       const body = await json<Record<string, unknown>>(res);
       if (isEnvelopeFailure(body, res.ok)) {
         return { ok: false as const, error: errorMessageFromBody(body, "Failed to load trades") };

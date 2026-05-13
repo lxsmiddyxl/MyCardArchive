@@ -1,3 +1,4 @@
+import { aggregateCountsByKey } from "@/lib/internal/binder-card-counts";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
 import { NextResponse } from "next/server";
@@ -42,22 +43,26 @@ async function GET_handler(request: Request) {
   const binderIds = (binderRows ?? []).map((b) => b.id);
   const binderChecks: { binderId: string; name: string | null; cardsActual: number }[] = [];
 
-  for (const bid of binderIds) {
-    const { count, error: cErr } = await supabase
+  let cardCounts = new Map<string, number>();
+  if (binderIds.length > 0) {
+    const { data: cardRows, error: cardsAggErr } = await supabase
       .from("cards")
-      .select("id", { count: "exact", head: true })
-      .eq("binder_id", bid)
-      .eq("user_id", user.id);
+      .select("binder_id")
+      .eq("user_id", user.id)
+      .in("binder_id", binderIds);
 
-    if (cErr) {
-      return NextResponse.json({ error: cErr.message }, { status: 500 });
+    if (cardsAggErr) {
+      return NextResponse.json({ error: cardsAggErr.message }, { status: 500 });
     }
+    cardCounts = aggregateCountsByKey(cardRows ?? []);
+  }
 
+  for (const bid of binderIds) {
     const row = binderRows?.find((b) => b.id === bid);
     binderChecks.push({
       binderId: bid,
       name: row?.name ?? null,
-      cardsActual: count ?? 0,
+      cardsActual: cardCounts.get(bid) ?? 0,
     });
   }
 

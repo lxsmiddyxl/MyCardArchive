@@ -3,7 +3,7 @@
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { formatRelativeTime } from "@/lib/format-relative";
 import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CreateDeckModal } from "./create-deck-modal";
 import { DeckCard } from "./deck-card";
 import { DeleteDeckModal } from "./delete-deck-modal";
@@ -104,6 +104,16 @@ export function DeckListView() {
 
   const showEmpty = !loading && !error && decks.length === 0;
 
+  const deckCardRows = useMemo(
+    () =>
+      decks.map((deck) => ({
+        deck,
+        stats: normalizeStats(deck),
+        createdAtLabel: formatRelativeTime(deck.created_at),
+      })),
+    [decks]
+  );
+
   return (
     <section
       aria-label="Your decks"
@@ -168,24 +178,21 @@ export function DeckListView() {
 
       {!loading && !error && decks.length > 0 ? (
         <ul className="grid gap-mca-lg sm:grid-cols-2 xl:grid-cols-3">
-          {decks.map((deck) => {
-            const stats = normalizeStats(deck);
-            return (
-              <li key={deck.id}>
-                <DeckCard
-                  id={deck.id}
-                  name={deck.name}
-                  format={deck.format}
-                  total_cards={stats.total_cards}
-                  synergy_score={stats.synergy_score}
-                  legality_status={stats.legality_status}
-                  createdAtLabel={formatRelativeTime(deck.created_at)}
-                  onRename={handleRename}
-                  onDelete={handleDelete}
-                />
-              </li>
-            );
-          })}
+          {deckCardRows.map(({ deck, stats, createdAtLabel }) => (
+            <li key={deck.id}>
+              <DeckCard
+                id={deck.id}
+                name={deck.name}
+                format={deck.format}
+                total_cards={stats.total_cards}
+                synergy_score={stats.synergy_score}
+                legality_status={stats.legality_status}
+                createdAtLabel={createdAtLabel}
+                onRename={handleRename}
+                onDelete={handleDelete}
+              />
+            </li>
+          ))}
         </ul>
       ) : null}
 

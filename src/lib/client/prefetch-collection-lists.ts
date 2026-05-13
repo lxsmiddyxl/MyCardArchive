@@ -1,3 +1,5 @@
+import { logClientCollectionFetchTiming } from "@/lib/client/dev-client-perf";
+
 /**
  * Warm browser cache for common collection APIs after sign-in navigation (best-effort).
  */
@@ -9,7 +11,14 @@ export function scheduleCollectionListPrefetch(): void {
 
   const run = () => {
     for (const path of URLS) {
-      void fetch(path, { credentials: "include", priority: "low" } as RequestInit).catch(() => {});
+      const started = performance.now();
+      void fetch(path, { credentials: "include", priority: "low" } as RequestInit)
+        .then((res) => {
+          logClientCollectionFetchTiming("prefetch", path, started, res.ok, res.status);
+        })
+        .catch(() => {
+          logClientCollectionFetchTiming("prefetch", path, started, false);
+        });
     }
   };
 
