@@ -30,6 +30,9 @@ jobs:
           test -f supabase/migrations/103_trades_draft_delete_cascade_rls.sql
           grep -q "trades_delete_own_draft" supabase/migrations/103_trades_draft_delete_cascade_rls.sql
 
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Lint
         run: npm run lint
         env:

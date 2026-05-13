@@ -4,7 +4,7 @@ Use this for production releases and major staging promotions.
 
 ## Pre-deploy checks
 
-- [ ] **Git:** target branch merged; CI green (`.github/workflows/ci.yml`: lint + build).
+- [ ] **Git:** target branch merged; CI green (`.github/workflows/ci.yml`: typecheck + lint + build + Playwright smoke).
 - [ ] **Migrations:** Supabase migrations applied to target DB; types regenerated if your process requires (`supabase/types` / `src/lib/types`).
 - [ ] **Env:** `NEXT_PUBLIC_SITE_URL` matches user-facing origin; Stripe keys and webhook URL match environment.
 - [ ] **Secrets:** `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `INTERNAL_TELEMETRY_SECRET` (if used) present in host—not committed.
@@ -34,22 +34,21 @@ Use this for production releases and major staging promotions.
 - [ ] **Development:** open `/dev/telemetry` and confirm snapshot loads when logged in (aggregates include events accepted via `POST /api/log`).
 - [ ] **Production:** `GET /api/internal/telemetry` with `x-internal-telemetry-secret` **or** verify host logs show expected traffic; `POST /api/log` returns **401** without session, **204** with valid envelope when testing with a session.
 
-## Storybook / visual regression
+## Storybook
 
-- [ ] `npm run build-storybook` succeeds locally or in CI.
-- [ ] **Chromatic:** if using `.github/workflows/chromatic.yml`, pipeline green and **UI diffs** reviewed/accepted for the release.
+- [ ] `npm run build-storybook` succeeds locally before major UI releases.
 
 ## Production readiness criteria (release gate)
 
 | Criterion | Met? |
 |-----------|------|
-| CI lint + build + health/stability passing | ☐ |
+| CI typecheck + lint + build + health/stability + Playwright passing | ☐ |
 | DB migrations applied | ☐ |
 | Critical env vars set on production | ☐ |
 | Post-deploy smoke complete | ☐ |
 | Realtime smoke on one critical path | ☐ |
 | Telemetry path verified (see observability runbook) | ☐ |
-| Chromatic / visual sign-off (if applicable) | ☐ |
+| Storybook build succeeds (major UI releases) | ☐ |
 | Rollback SHA noted | ☐ |
 
 ## Rollback
