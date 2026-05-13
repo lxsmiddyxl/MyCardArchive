@@ -4,6 +4,8 @@ import type { FeedItemDTO } from "@/lib/dto/catalog";
 import { enrichUsersWithFlair } from "@/lib/flair/enrich-user-flair-batch";
 import { presenceSnapshotFromFlair } from "@/lib/presence/flair-presence-fields";
 import { rankFeedItemsV4 } from "@/lib/feed/engagement-v4";
+import { loadFeedV3SupplementRows } from "@/lib/feed/feed-v3-supplement";
+import { buildFeedV3SupplementSignalLine } from "@/lib/feed/feed-v3-ui-copy";
 import { compositeReputation01 } from "@/lib/reputation/composite-score";
 import { parseSocialGraphV4Narrative, socialGraphV4FeedEchoLine } from "@/lib/social/social-graph-v4";
 import { loadSocialGraphV4ByUserIds } from "@/lib/social/load-social-graph-v4-batch";
@@ -40,10 +42,18 @@ async function GET_handler(request: Request) {
   const debug = url.searchParams.get("debug") === "1" || url.searchParams.get("debug") === "true";
   const useMl = url.searchParams.get("ml") !== "0";
 
-  const { data, error } = await supabase.rpc("get_global_feed_v3", {
-    p_limit: limit,
-    p_before: before && before.length > 0 ? before : null,
-  });
+  const [{ data, error }, followRes, mutualRes] = await Promise.all([
+    supabase.rpc("get_global_feed_v3", {
+      p_limit: limit,
+      p_before: before && before.length > 0 ? before : null,
+    }),
+    supabase.from("user_follows").select("following_id").eq("follower_id", session.userId).limit(200),
+    supabase
+      .from("social_mutual_pairs")
+      .select("user_low, user_high")
+      .or(`user_low.eq.${session.userId},user_high.eq.${session.userId}`)
+      .limit(400),
+  ]);
 
   if (error) {
     return errorJson(ctx, error.message, 500);
@@ -51,9 +61,20 @@ async function GET_handler(request: Request) {
 
   const raw = data as unknown;
   const baseItems = Array.isArray(raw) ? raw : [];
+  const followingIds = (followRes.data ?? []).map((r) => r.following_id).filter(Boolean);
+  const mutualIds = new Set<string>();
+  for (const row of mutualRes.data ?? []) {
+    if (row.user_low === session.userId) mutualIds.add(row.user_high);
+    else if (row.user_high === session.userId) mutualIds.add(row.user_low);
+  }
+  const supplement = await loadFeedV3SupplementRows(supabase, session.userId, {
+    followingIds,
+    mutualIds: [...mutualIds],
+  });
+  const merged = [...(baseItems as Parameters<typeof rankFeedItemsV4>[1]), ...supplement];
   const actorIdsForRank = [
     ...new Set(
-      (baseItems as { actor_id?: string }[])
+      (merged as { actor_id?: string }[])
         .map((x) => x.actor_id)
         .filter((x): x is string => Boolean(x))
     ),
@@ -84,7 +105,7 @@ async function GET_handler(request: Request) {
 
   const { items: ranked, debug: rankDebug } = rankFeedItemsV4(
     session.userId,
-    baseItems as Parameters<typeof rankFeedItemsV4>[1],
+    merged as Parameters<typeof rankFeedItemsV4>[1],
     { useMl },
     { reputationByActor }
   );
@@ -96,7 +117,7 @@ async function GET_handler(request: Request) {
     });
   }
 
-  const items = ranked;
+  const items = ranked.slice(0, limit);
 
   let hybridAcc = 0;
   let persBoosts = 0;
@@ -244,6 +265,11 @@ async function GET_handler(request: Request) {
   }
   for (const it of itemRows) {
     const r = it as Record<string, unknown>;
+    const kind = typeof r.kind === "string" ? r.kind : "";
+    const extraLine = buildFeedV3SupplementSignalLine(kind, r.payload);
+    if (extraLine && (typeof r.feed_v3_signal_line !== "string" || !String(r.feed_v3_signal_line).trim())) {
+      r.feed_v3_signal_line = extraLine;
+    }
     const aid = r.actor_id;
     if (typeof aid === "string" && byActor[aid]) {
       r.actor_name = resolveAuthorFromSocial(byActor[aid]);

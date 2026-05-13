@@ -20,9 +20,11 @@ import {
   scheduleCoalescedRouterRefresh,
   useAsyncState,
 } from "@/lib/client";
+import { feedV3KindLabel } from "@/lib/feed/feed-v3-ui-copy";
 import { LKG_KEY, lkgGet, lkgSet } from "@/lib/offline/surface-lkg";
 import { buildInlineIdentityProgressTitle } from "@/lib/social/inline-identity-tooltip";
 import { mcaLog } from "@/lib/logging/mca-log-client";
+import { isUuidString } from "@/lib/server/is-uuid";
 import { Button } from "@/mca-ui/button";
 import { Panel } from "@/mca-ui/panel";
 import { useRouter } from "next/navigation";
@@ -501,7 +503,7 @@ const FeedRow = memo(function FeedRow({
     <Panel className="rounded-mca-card border-mca-border bg-mca-surface-elevated/50 p-mca-md shadow-mca-panel active:bg-mca-chrome/30">
       <div className="flex flex-wrap items-baseline justify-between gap-mca-sm">
         <span className="rounded-full bg-mca-chrome px-mca-sm py-mca-trace text-mca-caption font-semibold uppercase tracking-wide text-mca-ink-muted">
-          {it.kind}
+          {feedV3KindLabel(it.kind)}
         </span>
         <time className="text-mca-caption text-mca-ink-muted" dateTime={it.created_at}>
           {new Date(it.created_at).toLocaleString()}
@@ -631,17 +633,19 @@ const FeedRow = memo(function FeedRow({
       ) : null}
       {currentUserId ? (
         <div className="mt-mca-md flex flex-wrap gap-mca-sm">
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={saveBusy}
-            aria-pressed={saved}
-            aria-label={saved ? "Remove saved feed item" : "Save feed item to your list"}
-            className="text-xs"
-            onClick={() => onToggleSave(it.id)}
-          >
-            {saved ? "Saved" : "Save"}
-          </Button>
+          {isUuidString(it.id) ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={saveBusy}
+              aria-pressed={saved}
+              aria-label={saved ? "Remove saved feed item" : "Save feed item to your list"}
+              className="text-xs"
+              onClick={() => onToggleSave(it.id)}
+            >
+              {saved ? "Saved" : "Save"}
+            </Button>
+          ) : null}
           {it.actor_id !== currentUserId ? (
             <Button
               type="button"
@@ -655,6 +659,21 @@ const FeedRow = memo(function FeedRow({
             </Button>
           ) : null}
         </div>
+      ) : null}
+      {it.kind === "showcase_created" && it.payload && typeof it.payload.title === "string" ? (
+        <p className="mt-mca-sm rounded-mca-control border border-mca-border/70 bg-mca-surface/40 px-mca-sm py-mca-xs text-sm text-mca-ink-body">
+          <span className="font-semibold text-mca-ink-strong">Showcase:</span> {it.payload.title}
+        </p>
+      ) : null}
+      {it.kind === "trade_completed" ? (
+        <p className="mt-mca-sm rounded-mca-control border border-mca-border/70 bg-mca-surface/40 px-mca-sm py-mca-xs text-sm text-mca-ink-body">
+          Pokémon TCG trade marked completed — celebration-friendly signal without payment detail.
+        </p>
+      ) : null}
+      {it.kind === "follow_edge_created" ? (
+        <p className="mt-mca-sm rounded-mca-control border border-mca-border/70 bg-mca-surface/40 px-mca-sm py-mca-xs text-sm text-mca-ink-body">
+          Follow activity — trainers you watch are connecting.
+        </p>
       ) : null}
       <pre className="mt-mca-md max-h-40 overflow-auto rounded-mca-control border border-mca-border/60 bg-mca-surface/50 p-mca-sm text-[11px] text-mca-ink-muted">
         {JSON.stringify(it.payload ?? {}, null, 2)}

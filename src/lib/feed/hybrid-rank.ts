@@ -10,6 +10,8 @@ export type FeedItemForRank = {
   created_at: string;
   rank_score?: number;
   signals?: Record<string, number>;
+  subject_id?: string | null;
+  payload?: Record<string, unknown>;
 };
 
 export type HybridRankingMeta = {
