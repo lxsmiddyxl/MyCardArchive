@@ -1,3 +1,4 @@
+import { fetchStaleWhileRevalidate } from "@/lib/client/stale-whilst-revalidate";
 import { fetchWithRetry } from "@/lib/http/fetch-with-retry";
 import type { TradeCardLine, TradeRecord, TradeSummaryStats } from "@/lib/trading/types";
 
@@ -31,16 +32,23 @@ function errorMessageFromBody(raw: Record<string, unknown>, fallback: string): s
 export async function fetchTradesList(query: string): Promise<
   { ok: true; trades: TradeRecord[] } | { ok: false; error: string }
 > {
-  const res = await fetch(`/api/trades/list${query}`, {
-    cache: "no-store",
-    credentials: "include",
-  });
-  const body = await json<Record<string, unknown>>(res);
-  if (isEnvelopeFailure(body, res.ok)) {
-    return { ok: false, error: errorMessageFromBody(body, "Failed to load trades") };
-  }
-  const data = unwrapPayload<{ trades?: TradeRecord[] }>(body);
-  return { ok: true, trades: Array.isArray(data.trades) ? data.trades : [] };
+  const cacheKey = `trades:list:${query || "default"}`;
+  return fetchStaleWhileRevalidate(
+    cacheKey,
+    async () => {
+      const res = await fetch(`/api/trades/list${query}`, {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const body = await json<Record<string, unknown>>(res);
+      if (isEnvelopeFailure(body, res.ok)) {
+        return { ok: false as const, error: errorMessageFromBody(body, "Failed to load trades") };
+      }
+      const data = unwrapPayload<{ trades?: TradeRecord[] }>(body);
+      return { ok: true as const, trades: Array.isArray(data.trades) ? data.trades : [] };
+    },
+    { staleMs: 15_000, maxAgeMs: 120_000 }
+  );
 }
 
 /** Line items only (lighter than full trade) for realtime merges. */

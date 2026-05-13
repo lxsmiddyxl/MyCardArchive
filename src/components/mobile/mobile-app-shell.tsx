@@ -1,5 +1,7 @@
 "use client";
 
+import { OfflineNoticeStrip } from "@/components/system/offline-notice-strip";
+import { scheduleCollectionListPrefetch } from "@/lib/client/prefetch-collection-lists";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import { initMobileActionQueueListeners } from "@/lib/mobile/action-queue";
 import { cn } from "@/lib/ui/cn";
@@ -24,6 +26,12 @@ export function MobileAppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      scheduleCollectionListPrefetch();
+    }
+  }, []);
+
+  useEffect(() => {
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
     void navigator.serviceWorker.ready.then((reg) => {
       const sync = (reg as ServiceWorkerRegistration & { sync?: { register: (t: string) => Promise<void> } }).sync;
@@ -42,6 +50,7 @@ export function MobileAppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <OfflineNoticeStrip />
       {children}
       <nav
         className={cn(
