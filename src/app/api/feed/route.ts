@@ -4,6 +4,7 @@ import type { FeedItemDTO } from "@/lib/dto/catalog";
 import { enrichUsersWithFlair } from "@/lib/flair/enrich-user-flair-batch";
 import { presenceSnapshotFromFlair } from "@/lib/presence/flair-presence-fields";
 import { rankFeedItemsV4 } from "@/lib/feed/engagement-v4";
+import { compositeReputation01 } from "@/lib/reputation/composite-score";
 import { parseSocialGraphV4Narrative, socialGraphV4FeedEchoLine } from "@/lib/social/social-graph-v4";
 import { loadSocialGraphV4ByUserIds } from "@/lib/social/load-social-graph-v4-batch";
 import { resolveAuthorFromSocial } from "@/lib/profile/resolveAuthor";
@@ -50,10 +51,42 @@ async function GET_handler(request: Request) {
 
   const raw = data as unknown;
   const baseItems = Array.isArray(raw) ? raw : [];
+  const actorIdsForRank = [
+    ...new Set(
+      (baseItems as { actor_id?: string }[])
+        .map((x) => x.actor_id)
+        .filter((x): x is string => Boolean(x))
+    ),
+  ];
+  const reputationByActor: Record<string, number> = {};
+  if (actorIdsForRank.length > 0) {
+    const { data: repRows } = await supabase.rpc("get_users_reputation_graph_batch", {
+      p_user_ids: actorIdsForRank,
+    });
+    for (const row of repRows ?? []) {
+      const r = row as {
+        user_id: string;
+        helpfulness_score: number;
+        expertise_score: number;
+        positivity_score: number;
+        reliability_score: number;
+        contribution_score: number;
+      };
+      reputationByActor[r.user_id] = compositeReputation01({
+        helpfulness_score: r.helpfulness_score,
+        expertise_score: r.expertise_score,
+        positivity_score: r.positivity_score,
+        reliability_score: r.reliability_score,
+        contribution_score: r.contribution_score,
+      });
+    }
+  }
+
   const { items: ranked, debug: rankDebug } = rankFeedItemsV4(
     session.userId,
     baseItems as Parameters<typeof rankFeedItemsV4>[1],
-    { useMl }
+    { useMl },
+    { reputationByActor }
   );
 
   if (debug && ranked.length === rankDebug.length) {
@@ -85,6 +118,14 @@ async function GET_handler(request: Request) {
   const avgPred = n > 0 ? predAcc / n : 0;
   const avgAff = n > 0 ? affAcc / n : 0;
 
+  mcaLog.event(
+    "feed.rank.reputation",
+    {
+      viewerId: session.userId,
+      actors: Object.keys(reputationByActor).length,
+    },
+    CTX
+  );
   mcaLog.event(
     "feed.rank.compute",
     {

@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/route";
 
 export const dynamic = "force-dynamic";
 
-async function GET_handler(request: Request, context: { params: Record<string, string> }) {
+async function GET_handler(_request: Request, context: { params: Record<string, string> }) {
   const base = withContextId();
   const id = context.params.id?.trim();
   if (!id || !isUuidString(id)) {

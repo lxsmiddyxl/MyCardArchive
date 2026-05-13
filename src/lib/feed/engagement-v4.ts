@@ -67,19 +67,29 @@ export type FeedRankingMetaV4 = Omit<HybridRankingMeta, "version"> & {
   v4: EngagementV4Meta;
 };
 
+/** Optional Phase 67 personalization signals layered after v4 blend. */
+export type FeedRankingExtrasV67 = {
+  /** Per-actor reputation in 0–1 (e.g. from `compositeReputation01`). */
+  reputationByActor?: Record<string, number>;
+};
+
 function buildWhy(
   hybrid: number,
   pred: number,
   aff: number,
   fresh: number,
   meta: HybridRankingMeta,
-  item: FeedItemForRank
+  item: FeedItemForRank,
+  repBoost: number
 ): string {
   const parts: string[] = [];
   parts.push(`Hybrid ${hybrid.toFixed(3)} (ML ${meta.ml.toFixed(3)}, heur ${meta.heuristic.toFixed(3)})`);
   parts.push(`Predicted engagement ${pred.toFixed(3)}`);
   parts.push(`Affinity ${aff.toFixed(3)}`);
   parts.push(`Freshness ${fresh.toFixed(3)}`);
+  if (Math.abs(repBoost - 1) > 0.001) {
+    parts.push(`Reputation boost ${repBoost.toFixed(3)}`);
+  }
   const s = item.signals;
   if (s && (s.identity_alignment != null || s.presence_proximity != null || s.cluster_fusion != null)) {
     parts.push(
@@ -97,15 +107,20 @@ const W_F = 0.16;
 export function rankFeedItemsV4(
   viewerId: string,
   items: FeedItemForRank[],
-  opts?: HybridRankOptions
+  opts?: HybridRankOptions,
+  extras?: FeedRankingExtrasV67
 ): { items: FeedItemForRank[]; debug: FeedRankingMetaV4[] } {
   const enriched = items.map((it) => {
     const { score: hybridVal, meta: hMeta } = hybridScore(viewerId, it, opts ?? {});
     const pred = predictedEngagement(viewerId, it);
     const aff = userAffinity(viewerId, it);
     const fresh = freshnessDecay(it);
-    const combined = W_H * hybridVal + W_P * pred + W_A * aff + W_F * fresh;
-    const why = buildWhy(hybridVal, pred, aff, fresh, hMeta, it);
+    const repRaw = extras?.reputationByActor?.[it.actor_id];
+    const repN =
+      typeof repRaw === "number" && Number.isFinite(repRaw) ? Math.min(1, Math.max(0, repRaw)) : 0.5;
+    const repBoost = 1 + 0.12 * (repN - 0.5) * 2;
+    const combined = (W_H * hybridVal + W_P * pred + W_A * aff + W_F * fresh) * repBoost;
+    const why = buildWhy(hybridVal, pred, aff, fresh, hMeta, it, repBoost);
     const v4: EngagementV4Meta = {
       predicted_engagement: pred,
       affinity: aff,
