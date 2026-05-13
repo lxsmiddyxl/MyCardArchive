@@ -1,6 +1,16 @@
 import { ApiErrorCode } from "@/lib/api/api-error-codes";
 import { errorJson, withContextId } from "@/lib/api/route-helpers";
+import { mcaLog } from "@/lib/logging/mca-log-server";
+import { shouldFlagSlowApiHandler } from "@/lib/server/api-handler-slow";
 import { logServerError } from "@/lib/server/observability";
+
+const MCA_API_TEL = { componentName: "defineRoute", surfaceName: "api" } as const;
+
+function recordSlowApiHandler(routeLabel: string, startedMs: number) {
+  const ms = Date.now() - startedMs;
+  if (!shouldFlagSlowApiHandler(ms)) return;
+  mcaLog.event("api.slow_handler", { route: routeLabel, ms }, MCA_API_TEL);
+}
 
 type RouteHandler = (
   request: Request,
@@ -16,8 +26,11 @@ export function defineRoute(
   handler: RouteHandler
 ): (request: Request, context: { params: Record<string, string> }) => Promise<Response> {
   return async (request, context) => {
+    const started = Date.now();
     try {
-      return await handler(request, context);
+      const res = await handler(request, context);
+      recordSlowApiHandler(routeLabel, started);
+      return res;
     } catch (err) {
       logServerError({ scope: "api", route: routeLabel, err });
       const ctx = withContextId();
@@ -32,8 +45,11 @@ export function defineRouteSimple(
   handler: (request: Request) => Promise<Response>
 ): (request: Request, context?: { params: Record<string, string> }) => Promise<Response> {
   return async (request, _context) => {
+    const started = Date.now();
     try {
-      return await handler(request);
+      const res = await handler(request);
+      recordSlowApiHandler(routeLabel, started);
+      return res;
     } catch (err) {
       logServerError({ scope: "api", route: routeLabel, err });
       const ctx = withContextId();
@@ -48,8 +64,11 @@ export function defineRouteNoArgs(
   handler: () => Promise<Response>
 ): () => Promise<Response> {
   return async () => {
+    const started = Date.now();
     try {
-      return await handler();
+      const res = await handler();
+      recordSlowApiHandler(routeLabel, started);
+      return res;
     } catch (err) {
       logServerError({ scope: "api", route: routeLabel, err });
       const ctx = withContextId();
