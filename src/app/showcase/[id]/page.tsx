@@ -1,5 +1,6 @@
 import { mcaLog } from "@/lib/logging/mca-log-server";
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
+import { stripShowcaseMachineLines } from "@/lib/showcases/showcase-featured-meta";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -52,6 +53,8 @@ export default async function ShowcaseDetailPage({ params }: PageProps) {
     );
   }
 
+  const publicDescription = stripShowcaseMachineLines(data.description);
+
   return (
     <article className="space-y-mca-lg">
       <p className="mca-typo-label">
@@ -60,8 +63,8 @@ export default async function ShowcaseDetailPage({ params }: PageProps) {
         </Link>
       </p>
       <h1 className="text-3xl font-semibold tracking-tight text-mca-ink sm:text-4xl">{data.title}</h1>
-      {data.description ? (
-        <p className="max-w-prose whitespace-pre-wrap text-mca-body text-mca-ink-muted">{data.description}</p>
+      {publicDescription ? (
+        <p className="max-w-prose whitespace-pre-wrap text-mca-body text-mca-ink-muted">{publicDescription}</p>
       ) : null}
       <section className="rounded-mca-card border border-mca-border bg-mca-surface-elevated/40 p-mca-lg">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-mca-ink-subtle">Binders</h2>

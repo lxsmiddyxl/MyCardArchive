@@ -7,6 +7,9 @@ import {
   withContextId,
 } from "@/lib/api/route-helpers";
 import { defineRouteSimple } from "@/lib/server/api-route";
+import { applyExclusiveFeaturedShowcase } from "@/lib/showcases/apply-featured-showcase";
+import { mapShowcaseRowToPublicV1 } from "@/lib/showcases/map-showcase-public";
+import { withShowcaseFeaturedDescription } from "@/lib/showcases/showcase-featured-meta";
 import { createClient } from "@/lib/supabase/route";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +31,8 @@ async function GET_handler() {
       code: ApiErrorCode.SUPABASE_QUERY,
     });
   }
-  return successJson(ctx, { showcases: data ?? [] });
+  const showcases = (data ?? []).map((row) => mapShowcaseRowToPublicV1(row));
+  return successJson(ctx, { showcases });
 }
 
 async function POST_handler(request: Request) {
@@ -42,6 +46,7 @@ async function POST_handler(request: Request) {
     description?: string | null;
     binder_ids?: string[];
     featured_card_ids?: string[];
+    is_featured?: boolean;
   } | null;
 
   if (!body || typeof body.title !== "string" || body.title.trim().length === 0) {
@@ -50,10 +55,12 @@ async function POST_handler(request: Request) {
 
   const binder_ids = Array.isArray(body.binder_ids) ? body.binder_ids : [];
   const featured_card_ids = Array.isArray(body.featured_card_ids) ? body.featured_card_ids : [];
-  const description =
+  const baseDescription =
     typeof body.description === "string" && body.description.trim().length > 0
       ? body.description.trim()
       : null;
+  const wantsFeatured = body.is_featured === true;
+  const description = withShowcaseFeaturedDescription(baseDescription, wantsFeatured);
 
   const { data, error } = await supabase
     .from("collection_showcases")
@@ -64,7 +71,7 @@ async function POST_handler(request: Request) {
       binder_ids,
       featured_card_ids,
     })
-    .select()
+    .select("*")
     .single();
 
   if (error) {
@@ -73,7 +80,16 @@ async function POST_handler(request: Request) {
     });
   }
 
-  return successJson(ctx, { showcase: data });
+  if (wantsFeatured) {
+    const applied = await applyExclusiveFeaturedShowcase(supabase, session.userId, data.id);
+    if (!applied.ok) {
+      return errorJson(ctx, applied.message, 500, { code: ApiErrorCode.SUPABASE_QUERY });
+    }
+    const { data: refreshed } = await supabase.from("collection_showcases").select("*").eq("id", data.id).single();
+    return successJson(ctx, { showcase: mapShowcaseRowToPublicV1(refreshed ?? data) });
+  }
+
+  return successJson(ctx, { showcase: mapShowcaseRowToPublicV1(data) });
 }
 
 export const GET = defineRouteSimple("GET /api/showcases", GET_handler);

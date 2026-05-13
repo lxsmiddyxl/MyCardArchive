@@ -12,6 +12,7 @@ type ShowcaseRow = {
   binder_ids: string[];
   featured_card_ids: string[];
   updated_at: string;
+  is_featured?: boolean;
 };
 
 type BinderRow = { id: string; name: string | null };
@@ -164,7 +165,14 @@ export function ShowcaseClient() {
                 className="flex flex-wrap items-center justify-between gap-mca-sm rounded-mca-block border border-mca-border bg-mca-surface-elevated/40 px-mca-md py-mca-sm"
               >
                 <div>
-                  <p className="font-medium text-mca-ink-strong">{s.title}</p>
+                  <p className="font-medium text-mca-ink-strong">
+                    {s.title}
+                    {s.is_featured ? (
+                      <span className="ml-mca-sm rounded-full bg-mca-chrome px-mca-sm py-mca-trace text-mca-caption font-semibold uppercase tracking-wide text-mca-accent-strong">
+                        Featured
+                      </span>
+                    ) : null}
+                  </p>
                   <p className="text-mca-caption text-mca-ink-muted">
                     {s.binder_ids.length} binder{s.binder_ids.length === 1 ? "" : "s"}
                   </p>

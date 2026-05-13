@@ -8,10 +8,13 @@ import { SocialRecommendationsStrip } from "@/components/social/social-recommend
 import { SocialRecentActivity } from "@/components/social/social-recent-activity";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
+import { mapShowcaseRowToPublicV1 } from "@/lib/showcases/map-showcase-public";
+import { isShowcaseFeaturedFromDescription } from "@/lib/showcases/showcase-featured-meta";
 import { loadSelfSocialProfile } from "@/lib/social/build-profile";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Panel } from "@/mca-ui/panel";
 
 export default async function ProfilePage() {
   const supabase = createClient();
@@ -25,6 +28,15 @@ export default async function ProfilePage() {
 
   const loaded = await loadSelfSocialProfile(supabase, user);
   const selfProfile = "error" in loaded ? null : loaded;
+
+  const { data: showcaseRows } = await supabase
+    .from("collection_showcases")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("updated_at", { ascending: false });
+  const list = showcaseRows ?? [];
+  const featuredRow = list.find((r) => isShowcaseFeaturedFromDescription(r.description)) ?? list[0];
+  const featuredShowcase = featuredRow ? mapShowcaseRowToPublicV1(featuredRow) : null;
 
   return (
     <AuthenticatedPresenceShell userId={user.id}>
@@ -64,6 +76,30 @@ export default async function ProfilePage() {
         ) : (
           <p className="text-mca-body text-mca-error-accent">Could not load profile row.</p>
         )}
+
+        {featuredShowcase ? (
+          <Panel className="border border-mca-border/80 bg-mca-surface-elevated/40 p-mca-md shadow-mca-panel">
+            <p className="mca-typo-label text-mca-ink-muted">Featured showcase</p>
+            <h2 className="mt-mca-xs text-lg font-semibold text-mca-ink-strong">{featuredShowcase.title}</h2>
+            {featuredShowcase.description ? (
+              <p className="mt-mca-sm text-sm text-mca-ink-body">{featuredShowcase.description}</p>
+            ) : null}
+            <div className="mt-mca-md flex flex-wrap gap-mca-sm">
+              <Link
+                href={`/showcase/${encodeURIComponent(featuredShowcase.id)}`}
+                className="text-sm font-semibold text-mca-accent-strong/90 transition duration-200 ease-mca-standard hover:text-mca-accent"
+              >
+                Open showcase
+              </Link>
+              <Link
+                href="/showcase"
+                className="text-sm font-medium text-mca-ink-muted transition duration-200 ease-mca-standard hover:text-mca-ink-body"
+              >
+                Manage showcases
+              </Link>
+            </div>
+          </Panel>
+        ) : null}
 
         <SocialMutualsStrip />
         <RecommendedCollectorsStrip limit={8} />
