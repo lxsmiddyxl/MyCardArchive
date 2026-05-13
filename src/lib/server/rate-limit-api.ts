@@ -56,6 +56,8 @@ export const RATE_LIMITS = {
   communityPostMutation: { max: 36, windowMs: 60_000 },
   /** GET `/api/community/feed/v1` — read-only feed polling. */
   communityFeedRead: { max: 120, windowMs: 60_000 },
+  /** POST `/api/community/posts/report` — abuse protection. */
+  communityReportMutation: { max: 24, windowMs: 60_000 },
   /** GET `/api/market/v3/discover/*` — discovery polling (Phase 71). */
   marketV3DiscoverRead: { max: 90, windowMs: 60_000 },
 } as const;

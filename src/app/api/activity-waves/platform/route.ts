@@ -9,6 +9,7 @@ import {
   withContextId,
 } from "@/lib/api/route-helpers";
 import { defineRouteSimple } from "@/lib/server/api-route";
+import { buildZoneHeatFromRoomRows } from "@/lib/presence/zone-heat-v3";
 import { createClient } from "@/lib/supabase/route";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,12 @@ async function GET_handler() {
   const spotlights = (Array.isArray(sl) ? sl : [])
     .map((r) => (r as { note?: string }).note)
     .filter((x): x is string => Boolean(x?.trim()));
+
+  const [{ data: roomRows }, { data: memberRows }] = await Promise.all([
+    supabase.from("collector_rooms").select("room_id, room_type").order("created_at", { ascending: false }).limit(400),
+    supabase.from("collector_room_members").select("room_id, user_id").order("last_seen_at", { ascending: false }).limit(1200),
+  ]);
+  const zone_heat = buildZoneHeatFromRoomRows(roomRows ?? [], memberRows ?? []);
 
   const now = new Date();
   const d = now.getUTCDay();
@@ -49,6 +56,7 @@ async function GET_handler() {
     headline,
     wave_intent: waveIntent,
     wave_decay: waveDecay,
+    zone_heat,
   });
 }
 

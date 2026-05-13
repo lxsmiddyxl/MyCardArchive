@@ -2,6 +2,7 @@
 
 import { fetchJson, fetchJsonErrorMessage, useAsyncState } from "@/lib/client";
 import type { PlatformActivityWavePayloadDTO, PlatformWaveCellDTO } from "@/lib/dto/activity-waves";
+import type { PresenceZoneHeatV3DTO } from "@/lib/presence/zone-heat-v3";
 import { cn } from "@/lib/ui/cn";
 import { Panel } from "@/mca-ui/panel";
 import { useCallback, useEffect, useState } from "react";
@@ -29,6 +30,7 @@ type WaveView = {
   headline: string;
   spotlights: string[];
   waveIntent: string | null;
+  zoneHeat: PresenceZoneHeatV3DTO[];
 };
 
 /** 24×7 qualitative grid — UTC buckets; no numeric counts (Phase 27). */
@@ -48,6 +50,7 @@ export function PlatformActivityHeatmap({ className }: { className?: string }) {
         headline: typeof body.headline === "string" ? body.headline : "",
         spotlights: Array.isArray(body.spotlights) ? body.spotlights : [],
         waveIntent: typeof body.wave_intent === "string" ? body.wave_intent : null,
+        zoneHeat: Array.isArray(body.zone_heat) ? body.zone_heat : [],
       };
     });
   }, [run]);
@@ -60,6 +63,7 @@ export function PlatformActivityHeatmap({ className }: { className?: string }) {
   const headline = data?.headline ?? "";
   const spotlights = data?.spotlights ?? [];
   const waveIntent = data?.waveIntent ?? null;
+  const zoneHeat = data?.zoneHeat ?? [];
 
   return (
     <Panel className={cn("border border-mca-border/80 bg-mca-surface-elevated/35 p-mca-md", className)}>
@@ -106,6 +110,18 @@ export function PlatformActivityHeatmap({ className }: { className?: string }) {
             </div>
           ))}
         </div>
+        {zoneHeat.length > 0 ? (
+          <div className="mt-mca-md rounded-mca-control border border-mca-border/60 bg-mca-chrome/25 px-mca-sm py-mca-xs">
+            <p className="text-mca-caption font-semibold uppercase tracking-wide text-mca-ink-muted">Zone heat (v3)</p>
+            <ul className="mt-mca-xs flex flex-wrap gap-mca-sm text-mca-caption text-mca-ink-body">
+              {zoneHeat.map((z) => (
+                <li key={z.zone} className="rounded-full bg-mca-surface/60 px-mca-sm py-mca-trace">
+                  {z.zone.replace(/_/g, " ")} · {z.collector_bucket}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {spotlights.length > 0 ? (
           <ul className="mt-mca-md space-y-mca-xs text-mca-caption text-mca-ink-subtle">
             {spotlights.map((s, i) => (

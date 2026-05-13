@@ -1,5 +1,7 @@
 /** Client/API shapes for activity wave routes (`/api/activity-waves/*`). */
 
+import type { PresenceZoneHeatV3DTO } from "@/lib/presence/zone-heat-v3";
+
 export type PlatformWaveCellDTO = {
   day_bucket: number;
   hour_bucket: number;
@@ -12,6 +14,7 @@ export type PlatformActivityWavePayloadDTO = {
   spotlights?: string[];
   wave_intent?: "browse" | "build" | "trade" | "explore";
   wave_decay?: number;
+  zone_heat?: PresenceZoneHeatV3DTO[];
 };
 
 export type SetClubWaveHourDTO = {
