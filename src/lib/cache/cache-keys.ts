@@ -30,7 +30,7 @@ export function cacheKeyTradeDetail(userId: string, tradeId: string): string {
 
 export function cacheKeyCommunityFeedV1(
   userId: string,
-  params: { limit: number; offset: number; authorKey: string }
+  params: { limit: number; offset: number; authorKey: string; topicKey: string }
 ): string {
-  return `community:feed:v1:${userId}:${params.limit}:${params.offset}:${params.authorKey}`;
+  return `community:feed:v1:${userId}:${params.limit}:${params.offset}:${params.authorKey}:${params.topicKey}`;
 }

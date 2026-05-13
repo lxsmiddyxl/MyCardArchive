@@ -22,20 +22,24 @@ async function POST_handler(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { post_id?: string; action?: string };
+  let body: { post_id?: string; action?: string; topic_key?: string };
   try {
-    body = (await request.json()) as { post_id?: string; action?: string };
+    body = (await request.json()) as { post_id?: string; action?: string; topic_key?: string };
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const postId = typeof body.post_id === "string" ? body.post_id.trim() : "";
   const action = typeof body.action === "string" ? body.action.trim().slice(0, 64) : "unknown";
+  const topicKey =
+    typeof body.topic_key === "string" && body.topic_key.trim().length > 0
+      ? body.topic_key.trim().slice(0, 64)
+      : undefined;
   if (!postId || !isUuidString(postId)) {
     return NextResponse.json({ error: "post_id required" }, { status: 400 });
   }
 
-  mcaLog.event("community.moderation.review", { postId, action }, CTX);
+  mcaLog.event("community.moderation.review", { postId, action, topic_key: topicKey }, CTX);
   return NextResponse.json({ ok: true });
 }
 

@@ -39,7 +39,8 @@ async function GET_handler(request: Request) {
   }
 
   const authorKey = authorFilter ?? "all";
-  const cacheKey = cacheKeyCommunityFeedV1(session.userId, { limit, offset, authorKey });
+  const topicKey = url.searchParams.get("topic")?.trim().toLowerCase() ?? "all";
+  const cacheKey = cacheKeyCommunityFeedV1(session.userId, { limit, offset, authorKey, topicKey });
   if (isCacheEnabled()) {
     const hit = getCache(cacheKey);
     if (hit) {
@@ -50,6 +51,9 @@ async function GET_handler(request: Request) {
   let q = supabase.from("community_posts").select("id, body, created_at, author_id");
   if (authorFilter) {
     q = q.eq("author_id", authorFilter);
+  }
+  if (topicKey !== "all" && /^[a-z0-9_-]{1,32}$/.test(topicKey)) {
+    q = q.like("body", `[mca:topic:${topicKey}]%`);
   }
   const { data: posts, error } = await q
     .order("created_at", { ascending: false })
@@ -71,7 +75,7 @@ async function GET_handler(request: Request) {
 
   mcaLog.event(
     "community.feed.v1",
-    { viewerId: session.userId, count: items.length, offset, limit },
+    { viewerId: session.userId, count: items.length, offset, limit, topicKey },
     CTX
   );
 

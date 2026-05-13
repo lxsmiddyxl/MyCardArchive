@@ -1,6 +1,7 @@
 import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { loadTopScanMilestonesByUserIds } from "@/lib/badges/load-top-scan-milestones";
 import { moderationTokensViolated } from "@/lib/community/content-guard";
+import { splitCommunityTopicBody, withCommunityTopicLine } from "@/lib/community/topic-line";
 import type { CommunityPostDTO } from "@/lib/dto/catalog";
 import { enrichUsersWithFlair } from "@/lib/flair/enrich-user-flair-batch";
 import { presenceSnapshotFromFlair } from "@/lib/presence/flair-presence-fields";
@@ -31,10 +32,14 @@ async function GET_handler(request: Request) {
   if (authorFilter && !isUuidString(authorFilter)) {
     return errorJson(ctx, "Invalid author_id", 400);
   }
+  const topicFilter = url.searchParams.get("topic")?.trim().toLowerCase();
 
   let q = supabase.from("community_posts").select("id, body, created_at, updated_at, author_id");
   if (authorFilter) {
     q = q.eq("author_id", authorFilter);
+  }
+  if (topicFilter && /^[a-z0-9_-]{1,32}$/.test(topicFilter)) {
+    q = q.like("body", `[mca:topic:${topicFilter}]%`);
   }
   const { data: posts, error } = await q
     .order("created_at", { ascending: false })
@@ -120,8 +125,11 @@ async function GET_handler(request: Request) {
 
   const enriched = rows.map((p) => {
     const fx = flairByAuthor[p.author_id];
+    const split = splitCommunityTopicBody(String(p.body ?? ""));
     return {
     ...p,
+    topic_slug: split.topic_slug,
+    body_text: split.text,
     author_display: resolveAuthorFromSocial(profileByUser[p.author_id] ?? null),
     author_avatar_url: profileByUser[p.author_id]?.avatar_url ?? null,
     author_tier_slug: profileByUser[p.author_id]?.tier_slug ?? null,
@@ -186,9 +194,9 @@ async function POST_handler(request: Request) {
   const session = await validateSession(supabase, ctx);
   if (!session.ok) return session.response;
 
-  let body: { body?: string } = {};
+  let body: { body?: string; topic_slug?: string | null } = {};
   try {
-    body = (await request.json()) as { body?: string };
+    body = (await request.json()) as { body?: string; topic_slug?: string | null };
   } catch {
     return errorJson(ctx, "Invalid JSON", 400);
   }
@@ -203,9 +211,12 @@ async function POST_handler(request: Request) {
     return errorJson(ctx, "This content cannot be posted.", 422);
   }
 
+  const topic = typeof body.topic_slug === "string" ? body.topic_slug : null;
+  const stored = topic ? withCommunityTopicLine(topic, text) : text;
+
   const { data, error } = await supabase
     .from("community_posts")
-    .insert({ author_id: session.userId, body: text })
+    .insert({ author_id: session.userId, body: stored })
     .select("id, body, created_at, updated_at, author_id")
     .single();
 
