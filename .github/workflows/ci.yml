@@ -53,7 +53,14 @@ jobs:
           echo $! > /tmp/mca-next.pid
           cleanup() { kill $(cat /tmp/mca-next.pid) 2>/dev/null || true; }
           trap cleanup EXIT
-          sleep 12
+          # Wait for production Next to accept traffic (cold CI can exceed a fixed sleep).
+          for i in $(seq 1 45); do
+            if curl -sf "http://127.0.0.1:3000/api/health/core" >/dev/null 2>&1; then
+              echo "Server ready (attempt $i)"
+              break
+            fi
+            sleep 2
+          done
           HEALTH_CHECK_URL=http://127.0.0.1:3000 node scripts/health-check.mjs
           LOAD_CHECK_URL=http://127.0.0.1:3000 LOAD_CHECK_LAG_FAIL_MS=2000 LOAD_CHECK_JITTER_FAIL_MS=80 node scripts/load-check.mjs --out load-report.json
           PREDICT_BASE_URL=http://127.0.0.1:3000 PREDICTIVE_MODE=1 node scripts/predictive-check.mjs --out predictive-report.json
