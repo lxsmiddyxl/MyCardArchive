@@ -1,4 +1,5 @@
 import { TradeNewClient } from "@/components/trading/trade-new-client";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -27,7 +28,7 @@ export default async function NewTradePage({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/trades/new");
+    redirect(authSignInUrl("/trades/new"));
   }
 
   const initialCounterpartyId = firstSearchParam(searchParams.counterparty);

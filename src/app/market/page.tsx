@@ -5,6 +5,7 @@ import { MarketDiscoveryClient } from "@/components/market/market-discovery-clie
 import { MarketOffersPanel } from "@/components/market/market-offers-panel";
 import { MarketWatchlistPanel } from "@/components/market/market-watchlist-panel";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -23,7 +24,7 @@ export default async function MarketPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/market");
+    redirect(authSignInUrl("/market"));
   }
 
   return (

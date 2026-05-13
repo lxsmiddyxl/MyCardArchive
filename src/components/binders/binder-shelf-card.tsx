@@ -22,7 +22,7 @@ export const BinderShelfCard = memo(function BinderShelfCard({
         href={`/binders/${id}`}
         className="group flex h-full flex-col rounded-mca-sheet border border-mca-border bg-mca-surface-elevated/40 p-mca-lg shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] transition hover:border-mca-accent-strong/35 hover:bg-mca-surface-elevated/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mca-accent"
       >
-        <h2 className="text-lg font-semibold tracking-tight text-mca-ink-strong group-hover:text-white">
+        <h2 className="text-lg font-semibold tracking-tight text-mca-ink-strong transition-colors duration-200 ease-mca-standard group-hover:text-mca-accent-strong">
           {name}
         </h2>
         <p className="mt-mca-compact text-sm text-mca-ink-muted">

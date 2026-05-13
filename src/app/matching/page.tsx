@@ -1,4 +1,5 @@
 import { MatchingDashboardClient } from "@/components/matching/matching-dashboard-client";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { SuspenseFallbackMarker } from "@/lib/telemetry";
 import { createClient } from "@/lib/supabase/server";
 import { MCAErrorBoundary } from "@/mca-ui/error-boundary";
@@ -18,7 +19,7 @@ export default async function MatchingPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/matching");
+    redirect(authSignInUrl("/matching"));
   }
 
   return (

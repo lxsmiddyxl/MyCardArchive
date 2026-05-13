@@ -53,11 +53,13 @@ export function RealtimeStatusBanner() {
     return null;
   }
 
+  const isCritical = phase === "exhausted";
+
   return (
     <div
       className="pointer-events-none fixed left-0 right-0 top-14 z-[55] flex justify-center px-mca-base pt-mca-sm"
-      role="status"
-      aria-live="polite"
+      role={isCritical ? "alert" : "status"}
+      aria-live={isCritical ? "assertive" : "polite"}
     >
       <div
         className={cn(

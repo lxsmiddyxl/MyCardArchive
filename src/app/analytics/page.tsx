@@ -7,6 +7,7 @@ import { RecentScansList } from "@/components/analytics/RecentScansList";
 import { ScanActivityChart } from "@/components/analytics/ScanActivityChart";
 import { SetChart } from "@/components/analytics/SetChart";
 import { TopCardsList } from "@/components/analytics/TopCardsList";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { logServerError } from "@/lib/server/observability";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
@@ -26,11 +27,11 @@ export default async function CollectionAnalyticsPage() {
     } = await supabase.auth.getUser();
     user = u;
   } catch {
-    redirect("/login?next=/analytics");
+    redirect(authSignInUrl("/analytics"));
   }
 
   if (!user) {
-    redirect("/login?next=/analytics");
+    redirect(authSignInUrl("/analytics"));
   }
 
   let data: AnalyticsResult;

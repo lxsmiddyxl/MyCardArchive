@@ -5,6 +5,7 @@ import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { NotificationsBell } from "@/components/layout/notifications-bell";
 import { NavDropdown, NavDropdownLink } from "@/mca-ui/nav-dropdown";
 import { ProfileMenu } from "@/components/layout/profile-menu";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import {
   isActivityActive,
   isCollectionActive,
@@ -103,9 +104,9 @@ export function TopNav({ user }: { user: TopNavUser }) {
         </Link>
         <div className="flex shrink-0 items-center gap-mca-sm">
           <Link
-            href="/auth/sign-in"
+            href={authSignInUrl(pathname)}
             className={cn(
-              "mca-header-toolbar-control border border-mca-field-border bg-mca-surface-elevated/80 text-xs font-semibold hover:border-mca-accent-strong/40"
+              "mca-header-toolbar-control border border-mca-field-border bg-mca-surface-elevated/80 text-xs font-semibold text-mca-ink-strong hover:border-mca-accent-strong/40 hover:text-mca-ink"
             )}
           >
             Sign in

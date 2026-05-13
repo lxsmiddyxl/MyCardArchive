@@ -1,6 +1,7 @@
 import { BillingActions } from "@/components/billing-actions";
 import { NavBackLink } from "@/mca-ui";
 import { isCurrentUserInternalUnlimited } from "@/lib/entitlements/internal-unlimited";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { isStripeConfigured } from "@/lib/stripe/server";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -27,11 +28,11 @@ export default async function BillingHistoryPage() {
     } = await supabase.auth.getUser();
     user = u;
   } catch {
-    redirect("/login?next=/billing/history");
+    redirect(authSignInUrl("/billing/history"));
   }
 
   if (!user) {
-    redirect("/login?next=/billing/history");
+    redirect(authSignInUrl("/billing/history"));
   }
 
   const suppressCommercialUi = await isCurrentUserInternalUnlimited(supabase);

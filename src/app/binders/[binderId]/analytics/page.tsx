@@ -5,6 +5,7 @@ import { RecentScansList } from "@/components/analytics/RecentScansList";
 import { ScanActivityChart } from "@/components/analytics/ScanActivityChart";
 import { SetChart } from "@/components/analytics/SetChart";
 import { TopCardsList } from "@/components/analytics/TopCardsList";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -51,7 +52,7 @@ export default async function BinderAnalyticsPage({ params }: PageProps) {
 
   if (!user) {
     redirect(
-      `/login?next=/binders/${encodeURIComponent(params.binderId)}/analytics`
+      authSignInUrl(`/binders/${encodeURIComponent(params.binderId)}/analytics`)
     );
   }
 

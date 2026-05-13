@@ -22,6 +22,14 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Playwright Chromium (E2E smoke)
+        run: npx playwright install chromium --with-deps
+
+      - name: Verify migration 103 (draft trade DELETE RLS)
+        run: |
+          test -f supabase/migrations/103_trades_draft_delete_cascade_rls.sql
+          grep -q "trades_delete_own_draft" supabase/migrations/103_trades_draft_delete_cascade_rls.sql
+
       - name: Lint
         run: npm run lint
         env:
@@ -52,6 +60,8 @@ jobs:
           PREDICTIVE_MODE=1 \
             node scripts/stability-runner.mjs --out stability-report.json
           PERF_SNAPSHOT_BASE_URL=http://127.0.0.1:3000 PERF_ALLOW_ZERO_SAMPLES=1 node scripts/perf-snapshot.mjs --out perf-report.json
+          PLAYWRIGHT_SKIP_WEBSERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 \
+            npx playwright test tests/e2e/smoke.spec.ts tests/e2e/api-protected-routes.spec.ts tests/e2e/trades-dual-account.spec.ts
         env:
           NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-placeholder"

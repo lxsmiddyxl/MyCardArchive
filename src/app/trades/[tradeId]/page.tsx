@@ -1,5 +1,6 @@
 import { HotPathTracker } from "@/components/perf/hot-path-tracker";
 import { TradeDetailClient } from "@/components/trading/trade-detail-client";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { SuspenseFallbackMarker } from "@/lib/telemetry";
 import { createClient } from "@/lib/supabase/server";
 import { MCAErrorBoundary } from "@/mca-ui/error-boundary";
@@ -22,7 +23,7 @@ export default async function TradeDetailPage({ params }: Props) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/login?next=/trades/${encodeURIComponent(params.tradeId)}`);
+    redirect(authSignInUrl(`/trades/${encodeURIComponent(params.tradeId)}`));
   }
 
   const tradeId = typeof params.tradeId === "string" ? params.tradeId.trim() : "";

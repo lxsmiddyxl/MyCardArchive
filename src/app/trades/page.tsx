@@ -1,4 +1,5 @@
 import { TradesDashboardClient } from "@/components/trading/trades-dashboard-client";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -16,7 +17,7 @@ export default async function TradesPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/trades");
+    redirect(authSignInUrl("/trades"));
   }
 
   return (

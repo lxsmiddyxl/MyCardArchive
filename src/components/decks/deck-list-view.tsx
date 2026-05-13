@@ -1,5 +1,6 @@
 "use client";
 
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { formatRelativeTime } from "@/lib/format-relative";
 import { fetchJson, fetchJsonErrorMessage } from "@/lib/client";
 import { useCallback, useEffect, useState } from "react";
@@ -66,10 +67,15 @@ export function DeckListView() {
       const r = await fetchJson<{ decks: DeckListRow[] }>("/api/decks/list");
       if (r.kind !== "ok") {
         if (r.kind === "error" && r.status === 401) {
-          window.location.href = "/login?next=/decks";
+          window.location.href = authSignInUrl("/decks");
           return;
         }
-        setError(r.kind === "error" ? fetchJsonErrorMessage(r) : "Could not load decks.");
+        const detail =
+          r.kind === "error" ? fetchJsonErrorMessage(r) : "Could not load decks.";
+        const needsLead =
+          r.kind === "network" ||
+          (r.kind === "error" && (r.status >= 500 || r.status === 0));
+        setError(needsLead ? `Couldn't load your decks. ${detail}` : detail);
         setDecks([]);
         return;
       }

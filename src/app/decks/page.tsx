@@ -1,4 +1,5 @@
 import { DeckListView } from "@/components/decks/deck-list-view";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -16,11 +17,11 @@ export default async function DecksPage() {
     } = await supabase.auth.getUser();
     user = u;
   } catch {
-    redirect("/login?next=/decks");
+    redirect(authSignInUrl("/decks"));
   }
 
   if (!user) {
-    redirect("/login?next=/decks");
+    redirect(authSignInUrl("/decks"));
   }
 
   return (

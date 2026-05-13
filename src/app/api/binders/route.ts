@@ -1,4 +1,9 @@
-import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
+import {
+  errorJson,
+  safePublicDbMessage,
+  validateSession,
+  withContextId,
+} from "@/lib/api/route-helpers";
 import {
   cacheKeyBindersList,
   effectiveTtl,
@@ -46,9 +51,14 @@ async function GET_handler() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      return errorJson(ctx, error.message, 500, {
-        hint: "Ensure binders table and RLS exist.",
-      });
+      return errorJson(
+        ctx,
+        safePublicDbMessage(error.message),
+        500,
+        process.env.NODE_ENV !== "production"
+          ? { hint: "Ensure binders table and RLS exist." }
+          : undefined
+      );
     }
 
     const body = { binders: data ?? [] };
@@ -119,7 +129,7 @@ async function POST_handler(request: Request) {
     .single();
 
   if (error) {
-    return errorJson(ctx, error.message, 500);
+    return errorJson(ctx, safePublicDbMessage(error.message), 500);
   }
 
   return NextResponse.json({ success: true, context_id: ctx.contextId, binder: data as BinderSummaryDTO });

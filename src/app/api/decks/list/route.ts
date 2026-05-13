@@ -1,30 +1,58 @@
-import { createClient } from "@/lib/supabase/route";
+import {
+  errorJson,
+  safePublicDbMessage,
+  successJson,
+  validateSession,
+  withContextId,
+} from "@/lib/api/route-helpers";
+import {
+  cacheKeyDecksList,
+  effectiveTtl,
+  getCache,
+  isCacheEnabled,
+  setCache,
+  ttlCollectionMs,
+} from "@/lib/cache";
+import { markHotPathEnd, markHotPathStart } from "@/lib/perf/hot-paths";
 import { defineRouteNoArgs } from "@/lib/server/api-route";
-import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/route";
 
 export const dynamic = "force-dynamic";
 
 async function GET_handler() {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const hpToken = markHotPathStart("hp:collection:listViewport");
+  try {
+    const cacheKey = cacheKeyDecksList(session.userId);
+    if (isCacheEnabled()) {
+      const cached = getCache(cacheKey) as { decks?: unknown[] } | undefined;
+      if (cached && Array.isArray(cached.decks)) {
+        return successJson(ctx, { decks: cached.decks });
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("decks")
+      .select("*")
+      .eq("user_id", session.userId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return errorJson(ctx, safePublicDbMessage(error.message), 500);
+    }
+
+    const body = { decks: data ?? [] };
+    if (isCacheEnabled()) {
+      setCache(cacheKey, body, effectiveTtl(ttlCollectionMs()));
+    }
+    return successJson(ctx, body);
+  } finally {
+    markHotPathEnd(hpToken);
   }
-
-  const { data, error } = await supabase
-    .from("decks")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ decks: data ?? [] });
 }
 
 export const GET = defineRouteNoArgs("GET /api/decks/list", GET_handler);

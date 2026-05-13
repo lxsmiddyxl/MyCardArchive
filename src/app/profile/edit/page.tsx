@@ -1,6 +1,7 @@
 import { ProfileEditClient } from "@/components/profile/profile-edit-client";
 import { AuthenticatedPresenceShell } from "@/components/realtime/app-wide-presence";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { loadSelfSocialProfile } from "@/lib/social/build-profile";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
@@ -18,7 +19,7 @@ export default async function ProfileEditPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/profile/edit");
+    redirect(authSignInUrl("/profile/edit"));
   }
 
   const loaded = await loadSelfSocialProfile(supabase, user);

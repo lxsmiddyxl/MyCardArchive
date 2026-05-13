@@ -2,6 +2,7 @@ import { AchievementCard } from "@/components/achievement-card";
 import { AchievementsUnlockSummary } from "@/components/achievements/achievements-unlock-summary";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
 import { groupAchievementsByCategoryAndRarity } from "@/lib/achievements/categories";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { logServerError } from "@/lib/server/observability";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
@@ -90,14 +91,14 @@ export default async function AchievementsPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/achievements");
+    redirect(authSignInUrl("/achievements"));
   }
 
   const result = await fetchAchievementsList();
 
   if (!result.ok) {
     if (result.status === 401) {
-      redirect("/login?next=/achievements");
+      redirect(authSignInUrl("/achievements"));
     }
     logServerError({
       scope: "ssr",

@@ -1,8 +1,14 @@
+import {
+  errorJson,
+  safePublicDbMessage,
+  successJson,
+  validateSession,
+  withContextId,
+} from "@/lib/api/route-helpers";
 import { getUserTrades } from "@/lib/trading/db";
 import type { TradeRecord, TradeStatus } from "@/lib/trading/types";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -34,19 +40,18 @@ function filterTrades(trades: TradeRecord[], sp: URLSearchParams): TradeRecord[]
 }
 
 async function GET_handler(request: Request) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const loaded = await getUserTrades(supabase, session.userId);
+  if (!loaded.ok) {
+    return errorJson(ctx, safePublicDbMessage(loaded.message), 500);
   }
 
-  const trades = await getUserTrades(supabase, user.id);
-  const filtered = filterTrades(trades, new URL(request.url).searchParams);
-
-  return NextResponse.json({ trades: filtered });
+  const filtered = filterTrades(loaded.trades, new URL(request.url).searchParams);
+  return successJson(ctx, { trades: filtered });
 }
 
 export const GET = defineRouteSimple("GET /api/trades/list", GET_handler);

@@ -20,6 +20,10 @@ export function cacheKeyBindersList(userId: string): string {
   return `binders:list:v2:${userId}`;
 }
 
+export function cacheKeyDecksList(userId: string): string {
+  return `decks:list:v1:${userId}`;
+}
+
 export function cacheKeyTradeDetail(userId: string, tradeId: string): string {
   return `trade:detail:${userId}:${tradeId}`;
 }

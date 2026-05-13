@@ -147,7 +147,13 @@ function TradesDashboardBody() {
         setTradesData(out.trades);
       } catch (e) {
         if (seq !== loadSeq.current) return;
-        setListError(e instanceof Error ? e.message : "Failed to load trades");
+        const detail =
+          e instanceof Error ? e.message : "Something went wrong loading trades.";
+        setListError(
+          /^couldn'?t load your trades/i.test(detail.trim())
+            ? detail
+            : `Couldn't load your trades. ${detail}`
+        );
       } finally {
         if (seq === loadSeq.current) {
           setListLoading(false);

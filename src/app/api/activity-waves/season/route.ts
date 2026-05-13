@@ -1,23 +1,26 @@
 import { waveBandToPulseHeadline } from "@/lib/activity-waves/band-labels";
 import { ensureActivityWavesFresh } from "@/lib/activity-waves/ensure-activity-waves-fresh";
+import {
+  errorJson,
+  safePublicDbMessage,
+  successJson,
+  validateSession,
+  withContextId,
+} from "@/lib/api/route-helpers";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 async function GET_handler(request: Request) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const seasonId = new URL(request.url).searchParams.get("seasonId")?.trim();
   if (!seasonId) {
-    return NextResponse.json({ error: "seasonId required" }, { status: 400 });
+    return errorJson(ctx, "seasonId required", 400);
   }
 
   await ensureActivityWavesFresh(supabase);
@@ -25,7 +28,7 @@ async function GET_handler(request: Request) {
     p_season_id: seasonId,
   });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, safePublicDbMessage(error.message), 500);
   }
 
   const list = Array.isArray(rows) ? rows : [];
@@ -35,7 +38,7 @@ async function GET_handler(request: Request) {
     | undefined;
   const pulseHeadline = waveBandToPulseHeadline(cur?.wave_band);
 
-  return NextResponse.json({ hours: list, pulseHeadline });
+  return successJson(ctx, { hours: list, pulseHeadline });
 }
 
 export const GET = defineRouteSimple("GET /api/activity-waves/season", GET_handler);

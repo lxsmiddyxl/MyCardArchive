@@ -1,5 +1,6 @@
 import { CollectorsSearchClient } from "@/components/search/collectors-search-client";
 import { AuthenticatedPresenceShell } from "@/components/realtime/app-wide-presence";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -15,7 +16,7 @@ export default async function CollectorsSearchPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/search/collectors");
+    redirect(authSignInUrl("/search/collectors"));
   }
 
   return (

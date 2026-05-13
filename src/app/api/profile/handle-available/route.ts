@@ -24,12 +24,18 @@ async function GET_handler(request: Request) {
     return NextResponse.json({ available: false, reason: "invalid" });
   }
 
-  const { data: taken } = await supabase.from("profiles").select("id").eq("handle", handle).maybeSingle();
+  /* Handles are mirrored to social_public_profiles (RLS: any authenticated user may SELECT).
+     public.profiles is owner-scoped — querying it cannot detect another user's taken handle. */
+  const { data: taken } = await supabase
+    .from("social_public_profiles")
+    .select("user_id")
+    .eq("handle", handle)
+    .maybeSingle();
 
-  if (!taken?.id) {
+  if (!taken?.user_id) {
     return NextResponse.json({ available: true });
   }
-  if (excludeUserId && isUuidString(excludeUserId) && taken.id === excludeUserId) {
+  if (excludeUserId && isUuidString(excludeUserId) && taken.user_id === excludeUserId) {
     return NextResponse.json({ available: true });
   }
 

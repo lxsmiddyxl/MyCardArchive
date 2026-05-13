@@ -1,5 +1,6 @@
 "use client";
 
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { McaIcons } from "@/lib/icons/mca-icons";
 import type { NavLinkItem } from "@/lib/nav/nav-link-config";
@@ -88,7 +89,7 @@ export function MobileNavDrawer({
     try {
       const supabase = supabaseBrowser();
       await supabase.auth.signOut();
-      router.push("/auth/sign-in");
+      router.push(authSignInUrl("/feed"));
       router.refresh();
     } finally {
       setSigningOut(false);

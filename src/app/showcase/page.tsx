@@ -1,5 +1,6 @@
 import { ShowcaseClient } from "@/app/showcase/showcase-client";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -15,7 +16,7 @@ export default async function ShowcaseIndexPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/showcase");
+    redirect(authSignInUrl("/showcase"));
   }
 
   return (

@@ -1,24 +1,27 @@
 import { platformHeadlineFromBand } from "@/lib/activity-waves/band-labels";
 import { ensureActivityWavesFresh } from "@/lib/activity-waves/ensure-activity-waves-fresh";
+import {
+  errorJson,
+  safePublicDbMessage,
+  successJson,
+  validateSession,
+  withContextId,
+} from "@/lib/api/route-helpers";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 async function GET_handler() {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   await ensureActivityWavesFresh(supabase);
   const { data: cells, error } = await supabase.rpc("get_platform_activity_wave");
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, safePublicDbMessage(error.message), 500);
   }
   const { data: sl } = await supabase.rpc("get_activity_spotlights", { p_limit: 4 });
   const spotlights = (Array.isArray(sl) ? sl : [])
@@ -37,7 +40,7 @@ async function GET_handler() {
   ) as { wave_band?: string } | undefined;
   const headline = platformHeadlineFromBand(cell?.wave_band);
 
-  return NextResponse.json({
+  return successJson(ctx, {
     cells: g,
     spotlights,
     headline,

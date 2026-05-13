@@ -3,6 +3,7 @@ import { CommunityFeedClient } from "@/components/community/community-feed-clien
 import { RecommendedCollectorsStrip } from "@/components/social/recommended-collectors-strip";
 import { AuthenticatedPresenceShell } from "@/components/realtime/app-wide-presence";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -20,7 +21,7 @@ export default async function CommunityPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/community");
+    redirect(authSignInUrl("/community"));
   }
 
   return (

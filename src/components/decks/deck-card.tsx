@@ -62,7 +62,7 @@ function DeckCardInner({
           </span>
         </div>
 
-        <h2 className="mt-mca-base text-lg font-semibold tracking-tight text-mca-ink-strong transition group-hover:text-white">
+        <h2 className="mt-mca-base text-lg font-semibold tracking-tight text-mca-ink-strong transition-colors duration-200 ease-mca-standard group-hover:text-mca-accent-strong">
           {name}
         </h2>
 

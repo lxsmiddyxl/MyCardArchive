@@ -133,7 +133,10 @@ const ITEM_SELECT = `
 export async function getUserTrades(
   supabase: SupabaseClient<Database>,
   userId: string
-): Promise<TradeRecord[]> {
+): Promise<
+  | { ok: true; trades: TradeRecord[] }
+  | { ok: false; message: string }
+> {
   const { data, error } = await supabase
     .from("trades")
     .select(
@@ -150,10 +153,16 @@ export async function getUserTrades(
     .or(`created_by.eq.${userId},counterparty_id.eq.${userId}`)
     .order("updated_at", { ascending: false });
 
-  if (error || !data) return [];
-  return (data as TradeJoin[])
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+  if (!data) {
+    return { ok: true, trades: [] };
+  }
+  const trades = (data as TradeJoin[])
     .map((row) => mapTradeRow(row, userId))
     .filter((r): r is TradeRecord => r !== null);
+  return { ok: true, trades };
 }
 
 export async function getTradeById(
@@ -411,7 +420,13 @@ async function createTradeWithItems(
   if (rows.length > 0) {
     const { error: ie } = await supabase.from("trade_items").insert(rows);
     if (ie) {
-      await supabase.from("trades").delete().eq("id", tradeId);
+      const { error: delErr } = await supabase.from("trades").delete().eq("id", tradeId);
+      if (delErr) {
+        log.trade.warn("createTradeWithItems rollback delete failed", {
+          tradeId,
+          message: delErr.message,
+        });
+      }
       return { ok: false, error: ie.message };
     }
   }

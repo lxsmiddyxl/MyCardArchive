@@ -1,5 +1,6 @@
 import { ExperimentsDevPanel } from "@/components/dev/experiments-dev-panel";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -16,7 +17,7 @@ export default async function DevExperimentsPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/dev/experiments");
+    redirect(authSignInUrl("/dev/experiments"));
   }
 
   return (

@@ -1,29 +1,32 @@
 import { waveBandToDisplayLabel } from "@/lib/activity-waves/band-labels";
 import { ensureActivityWavesFresh } from "@/lib/activity-waves/ensure-activity-waves-fresh";
+import {
+  errorJson,
+  safePublicDbMessage,
+  successJson,
+  validateSession,
+  withContextId,
+} from "@/lib/api/route-helpers";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
-import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 async function GET_handler(request: Request) {
+  const ctx = withContextId();
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await validateSession(supabase, ctx);
+  if (!session.ok) return session.response;
 
   const clubId = new URL(request.url).searchParams.get("clubId")?.trim();
   if (!clubId) {
-    return NextResponse.json({ error: "clubId required" }, { status: 400 });
+    return errorJson(ctx, "clubId required", 400);
   }
 
   await ensureActivityWavesFresh(supabase);
   const { data: rows, error } = await supabase.rpc("get_club_activity_wave", { p_club_id: clubId });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return errorJson(ctx, safePublicDbMessage(error.message), 500);
   }
 
   const list = Array.isArray(rows) ? rows : [];
@@ -33,7 +36,7 @@ async function GET_handler(request: Request) {
     | undefined;
   const headline = cur?.wave_band ? `${waveBandToDisplayLabel(cur.wave_band)} · This club` : null;
 
-  return NextResponse.json({ hours: list, headline });
+  return successJson(ctx, { hours: list, headline });
 }
 
 export const GET = defineRouteSimple("GET /api/activity-waves/club", GET_handler);

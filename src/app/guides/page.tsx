@@ -1,5 +1,6 @@
 import { DeckGuidesClient } from "@/app/guides/deck-guides-client";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -15,7 +16,7 @@ export default async function GuidesPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/guides");
+    redirect(authSignInUrl("/guides"));
   }
 
   return (

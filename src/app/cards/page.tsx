@@ -1,4 +1,5 @@
 import { HotPathTracker } from "@/components/perf/hot-path-tracker";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
@@ -27,7 +28,7 @@ export default async function CardsPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/cards");
+    redirect(authSignInUrl("/cards"));
   }
 
   return (

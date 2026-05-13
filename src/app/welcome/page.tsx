@@ -1,5 +1,6 @@
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
 import { WelcomeLaunchClient } from "./welcome-client";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -19,7 +20,7 @@ export default async function WelcomePage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/welcome");
+    redirect(authSignInUrl("/welcome"));
   }
 
   return (

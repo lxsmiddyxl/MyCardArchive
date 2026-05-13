@@ -10,6 +10,9 @@ Operational guides for MyCardArchive. Start here during incidents or deployments
 | [deployments.md](./deployments.md) | Deploy process and recovery |
 | [incidents.md](./incidents.md) | Severity, first response, rollback |
 | [maintenance-mode.md](./maintenance-mode.md) | `MAINTENANCE_MODE` behavior |
+| [e2e-playwright.md](./e2e-playwright.md) | Playwright env vars, local vs CI server |
+| [ci-playwright-and-migrations.md](./ci-playwright-and-migrations.md) | CI smoke tests + migration 103 file checks |
+| [migration-103-trades-draft-delete-rls.md](./migration-103-trades-draft-delete-rls.md) | Trade draft DELETE RLS + CASCADE rollback |
 
 **Deployment checklist:** [../deployments/checklist.md](../deployments/checklist.md)
 

@@ -4,6 +4,7 @@ import { CollectorRoomsPanel } from "@/components/collector-rooms/collector-room
 import { CollectorQuickSearch } from "@/components/search/collector-quick-search";
 import { MiniActivityStrip } from "@/components/activity/mini-activity-strip";
 import { TrainerPresenceDot } from "@/components/presence/trainer-presence-dot";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { getClubById } from "@/lib/clubs/club-catalog";
 import { loadSocialPresenceByUserIds } from "@/lib/presence/load-presence-batch";
 import { createClient } from "@/lib/supabase/server";
@@ -12,6 +13,9 @@ import { Panel } from "@/mca-ui/panel";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+
+/** Session-scoped shell; avoids accidental static caching of personalized markup. */
+export const dynamic = "force-dynamic";
 
 const HEADER_RING: Record<string, string> = {
   "mca-accent-strong": "from-mca-accent-strong/25",
@@ -45,7 +49,7 @@ export default async function ClubDetailPage({ params }: { params: { clubId: str
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    redirect(`/auth/sign-in?next=${encodeURIComponent(`/clubs/${encodeURIComponent(clubId)}`)}`);
+    redirect(authSignInUrl(`/clubs/${encodeURIComponent(clubId)}`));
   }
 
   const { data: rawRows, error } = await supabase.rpc("get_club_members", {

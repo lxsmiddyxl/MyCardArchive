@@ -12,8 +12,14 @@ export async function fetchTradesList(query: string): Promise<
     cache: "no-store",
     credentials: "include",
   });
-  const body = await json<{ trades?: TradeRecord[]; error?: string }>(res);
-  if (!res.ok) return { ok: false, error: body.error ?? "Failed to load trades" };
+  const body = await json<{
+    trades?: TradeRecord[];
+    error?: string;
+    success?: boolean;
+  }>(res);
+  if (!res.ok || body.success === false) {
+    return { ok: false, error: body.error ?? "Failed to load trades" };
+  }
   return { ok: true, trades: Array.isArray(body.trades) ? body.trades : [] };
 }
 

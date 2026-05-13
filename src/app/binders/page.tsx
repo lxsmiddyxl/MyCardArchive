@@ -9,6 +9,7 @@ import {
   getEffectiveUserTier,
 } from "@/lib/tier/check-limits";
 import { isBusinessTier } from "@/lib/tier/scan-tier-policy";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -41,11 +42,11 @@ export default async function BindersPage() {
     } = await supabase.auth.getUser();
     user = u;
   } catch {
-    redirect("/login?next=/binders");
+    redirect(authSignInUrl("/binders"));
   }
 
   if (!user) {
-    redirect("/login?next=/binders");
+    redirect(authSignInUrl("/binders"));
   }
 
   const [tier, binderCount, bindersResult] = await Promise.all([
@@ -141,9 +142,17 @@ export default async function BindersPage() {
       ) : null}
 
       {error ? (
-        <p className="rounded-mca-card border border-mca-warning-surface-border/60 bg-mca-warning-surface/30 px-mca-base py-mca-compact text-sm text-mca-nav-accent">
-          {error.message}
-        </p>
+        <div
+          className="rounded-mca-card border border-mca-warning-surface-border/60 bg-mca-warning-surface/30 px-mca-base py-mca-compact text-sm text-mca-nav-accent"
+          role="alert"
+        >
+          <p className="font-medium">Couldn&apos;t load your binders</p>
+          <p className="mt-mca-xs text-mca-body text-mca-ink-muted">
+            {process.env.NODE_ENV === "production"
+              ? "Refresh the page or try again in a moment. If this keeps happening, check your connection or sign in again."
+              : error.message}
+          </p>
+        </div>
       ) : null}
 
       {!error && binders.length === 0 ? (

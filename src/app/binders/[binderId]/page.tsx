@@ -1,6 +1,7 @@
 import { BinderFtue } from "@/components/binders/binder-ftue";
 import { BinderPaperBackdrop } from "@/components/artwork/artwork-surfaces";
 import { BinderTitleWithRings } from "@/components/artwork/binder-title-artwork";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { logServerError } from "@/lib/server/observability";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
@@ -101,7 +102,7 @@ export default async function BinderDetailPage({ params }: PageProps) {
       binderId.length > 0
         ? `/binders/${encodeURIComponent(binderId)}`
         : "/binders";
-    redirect(`/login?next=${encodeURIComponent(next)}`);
+    redirect(authSignInUrl(next));
   }
 
   if (!binderId) {

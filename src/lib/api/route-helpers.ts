@@ -44,6 +44,16 @@ export function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
+/**
+ * Supabase/Postgres messages can include internal detail. Avoid exposing them in production responses.
+ */
+export function safePublicDbMessage(internalMessage: string): string {
+  if (process.env.NODE_ENV === "production") {
+    return "Unable to complete this request. Try again.";
+  }
+  return internalMessage;
+}
+
 export async function validateSession(
   supabase: SupabaseClient,
   ctx: RouteContext

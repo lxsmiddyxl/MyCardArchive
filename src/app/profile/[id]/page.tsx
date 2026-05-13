@@ -9,6 +9,7 @@ import {
   stubPublicProfile,
 } from "@/lib/social/build-profile";
 import type { SocialProfilePayload } from "@/lib/social/types";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -32,7 +33,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
   }
 
   if (!user) {
-    redirect(`/login?next=/profile/${encodeURIComponent(profileId)}`);
+    redirect(authSignInUrl(`/profile/${encodeURIComponent(profileId)}`));
   }
 
   let initial: SocialProfilePayload;

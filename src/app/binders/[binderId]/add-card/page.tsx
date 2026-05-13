@@ -4,6 +4,7 @@ import {
 } from "@/components/cards/card-form";
 import type { NormalizedCard } from "@/lib/ai/normalize-card";
 import { createClient } from "@/lib/supabase/server";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import type { AutoMatchResult } from "@/lib/types/auto-match";
 import type { BinderRow } from "@/lib/types/database";
 import { getCardCount, getUserTier } from "@/lib/tier/check-limits";
@@ -128,12 +129,8 @@ export async function generateMetadata({
   }
 }
 
-export default async function AddCardPage({ params, searchParams }: PageProps) {
-  try {
-    return await AddCardPageInner({ params, searchParams });
-  } catch {
-    notFound();
-  }
+export default async function AddCardPage(props: PageProps) {
+  return AddCardPageInner(props);
 }
 
 async function AddCardPageInner({ params, searchParams }: PageProps) {
@@ -143,7 +140,7 @@ async function AddCardPageInner({ params, searchParams }: PageProps) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/login?next=/binders/${params.binderId}/add-card`);
+    redirect(authSignInUrl(`/binders/${params.binderId}/add-card`));
   }
 
   const { data: binder, error: binderError } = await supabase

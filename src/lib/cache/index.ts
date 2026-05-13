@@ -14,6 +14,7 @@ export {
   cacheKeyActivityList,
   cacheKeyBindersList,
   cacheKeyCardSearch,
+  cacheKeyDecksList,
   cacheKeyNotificationsList,
   cacheKeyTradeDetail,
 } from "@/lib/cache/cache-keys";

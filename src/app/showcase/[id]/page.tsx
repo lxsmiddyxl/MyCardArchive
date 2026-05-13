@@ -1,4 +1,5 @@
 import { mcaLog } from "@/lib/logging/mca-log-server";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -19,7 +20,7 @@ export default async function ShowcaseDetailPage({ params }: PageProps) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/login?next=/showcase/${params.id}`);
+    redirect(authSignInUrl(`/showcase/${encodeURIComponent(params.id)}`));
   }
 
   const { data, error } = await supabase

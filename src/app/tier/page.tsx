@@ -40,6 +40,7 @@ import {
 import { ensureUserTier } from "@/lib/tier/ensure-tier";
 import type { PlanSlug } from "@/lib/tier/tier-plan-marketing";
 import { resolveTierAuraKey } from "@/lib/tier/tier-emblem-meta";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { cn } from "@/lib/ui/cn";
 import { createClient } from "@/lib/supabase/server";
 import { isStripeConfigured } from "@/lib/stripe/server";
@@ -205,11 +206,11 @@ export default async function TierPage() {
     } = await supabase.auth.getUser();
     user = u;
   } catch {
-    redirect("/login?next=/tier");
+    redirect(authSignInUrl("/tier"));
   }
 
   if (!user) {
-    redirect("/login?next=/tier");
+    redirect(authSignInUrl("/tier"));
   }
 
   const suppressCommercialUi = await isCurrentUserInternalUnlimited(supabase);

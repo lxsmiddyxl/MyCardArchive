@@ -1,6 +1,7 @@
 import { HotPathTracker } from "@/components/perf/hot-path-tracker";
 import { NotificationsListClient } from "@/components/notifications/notifications-list-client";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { SuspenseFallbackMarker } from "@/lib/telemetry";
 import { createClient } from "@/lib/supabase/server";
 import { MCAErrorBoundary } from "@/mca-ui/error-boundary";
@@ -20,7 +21,7 @@ export default async function NotificationsPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/notifications");
+    redirect(authSignInUrl("/notifications"));
   }
 
   return (

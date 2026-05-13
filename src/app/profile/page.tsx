@@ -7,6 +7,7 @@ import { SocialMutualsStrip } from "@/components/social/social-mutuals-strip";
 import { SocialRecommendationsStrip } from "@/components/social/social-recommendations-strip";
 import { SocialRecentActivity } from "@/components/social/social-recent-activity";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { loadSelfSocialProfile } from "@/lib/social/build-profile";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
@@ -24,7 +25,7 @@ export default async function ProfilePage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/profile");
+    redirect(authSignInUrl("/profile"));
   }
 
   const loaded = await loadSelfSocialProfile(supabase, user);

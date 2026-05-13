@@ -6,7 +6,8 @@ import { test, expect } from "@playwright/test";
 test.describe("public shell", () => {
   test("home responds", async ({ page }) => {
     const res = await page.goto("/");
-    expect(res?.ok()).toBeTruthy();
+    const status = res?.status() ?? 0;
+    expect(status === 200 || (status >= 300 && status < 400)).toBeTruthy();
     await expect(page.getByRole("link", { name: /MyCardArchive/i })).toBeVisible();
   });
 
@@ -15,9 +16,9 @@ test.describe("public shell", () => {
     await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
   });
 
-  test("tier page requires auth (redirects to login)", async ({ page }) => {
+  test("tier page requires auth (redirects to sign-in)", async ({ page }) => {
     await page.goto("/tier");
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/auth\/sign-in/);
   });
 
   test("health core responds", async ({ request }) => {

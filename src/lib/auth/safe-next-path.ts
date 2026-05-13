@@ -18,3 +18,11 @@ export function safeNextPath(
   const pathOnly = t.split(/[?#]/)[0] ?? "";
   return pathOnly.length > 0 ? pathOnly : fallback;
 }
+
+/**
+ * Canonical sign-in URL with a safe return path (matches middleware protected-route redirects).
+ */
+export function authSignInUrl(nextPath: string): string {
+  const path = safeNextPath(nextPath, "/feed");
+  return `/auth/sign-in?next=${encodeURIComponent(path)}`;
+}

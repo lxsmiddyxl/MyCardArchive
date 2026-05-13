@@ -1,4 +1,5 @@
 import { YearInReviewClient } from "@/components/seasons/year-in-review-client";
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -15,7 +16,7 @@ export default async function YearInReviewPage({ searchParams }: PageProps) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    redirect("/auth/sign-in");
+    redirect(authSignInUrl("/collector/year-in-review"));
   }
   const yRaw = sp.year != null ? Number(sp.year) : NaN;
   const year = Number.isFinite(yRaw) ? yRaw : new Date().getUTCFullYear() - 1;

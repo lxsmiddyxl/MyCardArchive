@@ -1,3 +1,4 @@
+import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { SuspenseFallbackMarker } from "@/lib/telemetry";
 import { logServerError } from "@/lib/server/observability";
 import { createClient } from "@/lib/supabase/server";
@@ -106,11 +107,11 @@ export default async function DeckEditorPage({ params }: PageProps) {
       route: "/decks/[deckId] getUser",
       err: e,
     });
-    redirect(`/login?next=/decks/${encodeURIComponent(cleanDeckId)}`);
+    redirect(authSignInUrl(`/decks/${encodeURIComponent(cleanDeckId)}`));
   }
 
   if (!user) {
-    redirect(`/login?next=/decks/${encodeURIComponent(cleanDeckId ?? "")}`);
+    redirect(authSignInUrl(`/decks/${encodeURIComponent(cleanDeckId ?? "")}`));
   }
 
   if (!cleanDeckId) {

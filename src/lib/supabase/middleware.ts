@@ -27,6 +27,8 @@ const PROTECTED_PREFIXES = [
   "/community",
   "/feed",
   "/clubs",
+  "/trades",
+  "/collector",
   "/search",
   "/guides",
   "/showcase",
