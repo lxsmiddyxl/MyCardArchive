@@ -18,7 +18,7 @@ export function AppErrorFallback({
     /(chunk|loading css chunk|loading chunk|cannot find module)/i.test(message);
 
   return (
-    <div className="mx-auto max-w-lg rounded-mca-card border border-mca-error-border/40 bg-mca-error-surface/20 p-mca-xl text-center shadow-mca-card transition-[box-shadow,opacity] duration-200 ease-mca-standard">
+    <div className="mx-auto min-h-[12rem] max-w-lg rounded-mca-card border border-mca-error-border/40 bg-mca-error-surface/20 p-mca-xl text-center shadow-mca-card transition-[box-shadow,opacity] duration-200 ease-mca-standard">
       <h1 className="text-lg font-semibold text-mca-error-text-strong">{title}</h1>
       <p className="mt-mca-sm text-sm text-mca-error-text/80">{message}</p>
       <div className="mt-mca-lg flex flex-wrap items-center justify-center gap-mca-compact">

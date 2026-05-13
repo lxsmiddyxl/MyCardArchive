@@ -99,7 +99,12 @@ export function MobileNavDrawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] md:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+    <div
+      className="fixed inset-0 z-[200] md:hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mca-mobile-nav-drawer-title"
+    >
       <button
         type="button"
         className="absolute inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 ease-mca-standard"
@@ -126,7 +131,9 @@ export function MobileNavDrawer({
         className="mca-drawer-viewport-h absolute left-0 top-0 flex w-[min(20rem,92vw)] flex-col border-r border-mca-border bg-mca-surface pt-[env(safe-area-inset-top)] shadow-mca-card transition-transform duration-200 ease-mca-standard motion-reduce:transition-none"
       >
         <div className="flex min-h-14 shrink-0 items-center justify-between border-b border-mca-border px-mca-md py-mca-compact">
-          <p className="text-sm font-semibold tracking-tight text-mca-ink-strong">Menu</p>
+          <p id="mca-mobile-nav-drawer-title" className="text-sm font-semibold tracking-tight text-mca-ink-strong">
+            Menu
+          </p>
           <button
             type="button"
             onClick={onClose}
@@ -139,7 +146,7 @@ export function MobileNavDrawer({
 
         <nav
           className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-mca-md py-mca-md pb-[max(1rem,env(safe-area-inset-bottom))] touch-pan-y"
-          aria-label="Mobile"
+          aria-label="Collections, trading, and account"
         >
           <ul className="space-y-mca-trace">
             {primaryLinks.map((item) => (
