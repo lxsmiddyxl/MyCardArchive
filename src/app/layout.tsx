@@ -10,6 +10,7 @@ import { GrowthShell } from "@/components/growth/growth-shell";
 import { A11yEnvironmentTelemetry } from "@/components/system/a11y-environment-telemetry";
 import { RootClientBoundary } from "@/components/system/root-client-boundary";
 import { RealtimeStatusBanner } from "@/components/system/realtime-status-banner";
+import { SkipToContent } from "@/components/system/skip-to-content";
 import { ensureProfileAndPublic } from "@/lib/supabase/ensureProfile";
 import { createClient } from "@/lib/supabase/server";
 import { Inter } from "next/font/google";
@@ -117,7 +118,7 @@ const McaPerfOverlay: ComponentType =
         return null;
       };
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], display: "swap", adjustFontFallback: true });
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "") || "http://localhost:3000";
@@ -162,6 +163,7 @@ export default async function RootLayout({
       <body
         className={`${inter.className} flex min-h-screen min-h-[100dvh] flex-col !bg-mca-surface !text-mca-ink-strong antialiased`}
       >
+        <SkipToContent />
         <DebugAuthBannerSlot />
         <AchievementToastProvider>
           <PwaRegister />
@@ -174,7 +176,10 @@ export default async function RootLayout({
             </div>
           </header>
           <RealtimeStatusBanner />
-          <main className="mca-main-min-h mx-auto max-w-6xl min-w-0 flex-1 overflow-x-hidden px-mca-base py-mca-md max-md:pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-mca-lg md:pb-mca-md">
+          <main
+            id="mca-main-content"
+            className="mca-main-min-h mx-auto max-w-6xl min-w-0 flex-1 overflow-x-hidden px-mca-base py-mca-md max-md:pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-mca-lg md:pb-mca-md"
+          >
             <RootClientBoundary>
               <MobileAppShell>{children}</MobileAppShell>
             </RootClientBoundary>
