@@ -19,8 +19,12 @@ import { defineConfig, devices } from "@playwright/test";
  *
  * Authenticated tests need `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD`. Dual-account trade tests also
  * need `E2E_COUNTERPARTY_EMAIL` / `E2E_COUNTERPARTY_PASSWORD` (see `docs/runbooks/e2e-playwright.md`).
+ *
+ * **Browser matrix (optional)** — set `PLAYWRIGHT_FULL_MATRIX=1` to run desktop + Mobile Chrome projects.
  */
 const baseURL = (process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000").replace(/\/$/, "");
+
+const fullMatrix = process.env.PLAYWRIGHT_FULL_MATRIX === "1";
 
 const skipWebServer =
   process.env.PLAYWRIGHT_SKIP_WEBSERVER === "1" || process.env.PLAYWRIGHT_SKIP_WEBSERVER === "true";
@@ -58,10 +62,18 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: "list",
-  use: {
-    baseURL,
-    trace: "on-first-retry",
-    ...devices["Desktop Chrome"],
-  },
+  use: fullMatrix
+    ? { baseURL, trace: "on-first-retry" }
+    : {
+        baseURL,
+        trace: "on-first-retry",
+        ...devices["Desktop Chrome"],
+      },
+  projects: fullMatrix
+    ? [
+        { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+        { name: "Mobile Chrome", use: { ...devices["Pixel 5"] } },
+      ]
+    : undefined,
   webServer: webServerConfig(),
 });

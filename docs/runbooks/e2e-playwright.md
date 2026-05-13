@@ -74,5 +74,8 @@ CI=1 PLAYWRIGHT_START_WEBSERVER=1 npx playwright test
 | `npm run test:e2e:protected` | `api-protected-routes.spec.ts` only |
 | `npm run test:e2e:core` | `core-rls-surfaces.spec.ts` |
 | `npm run test:e2e:trades-dual` | `trades-dual-account.spec.ts` |
+| `npm run test:e2e:matrix` | Entire `tests/e2e` directory (longer run) |
+
+Set `PLAYWRIGHT_FULL_MATRIX=1` to run **desktop + Mobile Chrome** projects (see `playwright.config.ts`).
 
 See `docs/runbooks/ci-playwright-and-migrations.md` for how this maps to GitHub Actions.

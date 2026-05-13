@@ -30,7 +30,8 @@
     "load:check": "node scripts/load-check.mjs",
     "stability:run": "node scripts/stability-runner.mjs",
     "perf:snapshot": "node scripts/perf-snapshot.mjs",
-    "deploy:verify": "node scripts/deploy-verify.mjs"
+    "deploy:verify": "node scripts/deploy-verify.mjs",
+    "test:e2e:matrix": "playwright test tests/e2e"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
