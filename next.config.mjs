@@ -35,6 +35,28 @@ const nextConfig = {
       { source: "/create-account", destination: "/auth/sign-up", permanent: true },
     ];
   },
+  async headers() {
+    return [
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/favicon.ico",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
+    ];
+  },
   images: {
     minimumCacheTTL: 86_400,
     remotePatterns: [

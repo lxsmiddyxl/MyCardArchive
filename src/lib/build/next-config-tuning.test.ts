@@ -13,4 +13,10 @@ describe("next.config tuning (Phase 49)", () => {
     const raw = readFileSync(path.join(process.cwd(), "next.config.mjs"), "utf8");
     expect(raw).toContain("minimumCacheTTL");
   });
+
+  it("declares static asset cache headers (Phase 53)", () => {
+    const raw = readFileSync(path.join(process.cwd(), "next.config.mjs"), "utf8");
+    expect(raw).toContain("async headers()");
+    expect(raw).toContain("/_next/static/:path*");
+  });
 });
