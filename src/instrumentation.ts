@@ -9,8 +9,10 @@ export async function register() {
 
   try {
     const { assertRequiredPublicEnv } = await import("./lib/server/env-guards");
+    const { assertProductionEnvParity } = await import("./lib/server/env-parity");
     if (process.env.NODE_ENV === "production") {
       assertRequiredPublicEnv();
+      assertProductionEnvParity();
     }
   } catch (e) {
     logServerError({ scope: "system", route: "instrumentation.register", err: e });
