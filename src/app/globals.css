@@ -107,7 +107,7 @@ body {
   }
   /* Native controls: explicit ink/placeholder so parent text-white / prose cannot hide typed text. */
   .mca-input {
-    @apply w-full rounded-mca-control px-mca-compact py-mca-sm text-sm shadow-mca-panel transition-shadow duration-200 ease-mca-standard focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply w-full rounded-mca-control px-mca-compact py-mca-sm text-sm shadow-mca-panel transition-shadow duration-200 ease-mca-standard outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50;
     border-width: 1px;
     border-style: solid;
     border-color: theme("colors.mca.fieldBorder");
@@ -116,8 +116,13 @@ body {
     --tw-ring-color: color-mix(in srgb, theme("colors.mca.focus") 35%, transparent);
   }
   .mca-input::placeholder {
-    color: theme("colors.mca.inkSubtle") !important;
+    /* Slightly stronger than inkSubtle so placeholders stay readable on dark field surfaces. */
+    color: color-mix(in srgb, theme("colors.mca.inkBody") 88%, transparent) !important;
     opacity: 1;
+  }
+  .mca-input:focus-visible {
+    --tw-ring-offset-width: 1px;
+    --tw-ring-offset-color: theme("colors.mca.surface");
   }
   .mca-input:focus {
     border-color: color-mix(in srgb, theme("colors.mca.focusSoft") 40%, transparent);
