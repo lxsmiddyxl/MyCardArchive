@@ -193,6 +193,15 @@ export async function middleware(request: NextRequest) {
     if (blocked) return blocked;
   }
 
+  if (pathname.startsWith("/api/market/v3/discover") && method === "GET") {
+    const blocked = rateLimitedResponse(
+      request,
+      "market-v3-discover-read",
+      RATE_LIMITS.marketV3DiscoverRead
+    );
+    if (blocked) return blocked;
+  }
+
   return await updateSession(request);
 }
 

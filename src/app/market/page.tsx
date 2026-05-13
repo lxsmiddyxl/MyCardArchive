@@ -3,6 +3,7 @@ import { MarketEnginePanel } from "@/components/market/market-engine-panel";
 import { MarketAutoMatchPanel } from "@/components/market/market-auto-match-panel";
 import { MarketDiscoveryClient } from "@/components/market/market-discovery-client";
 import { MarketOffersPanel } from "@/components/market/market-offers-panel";
+import { MarketV3ReadonlyPanel } from "@/components/market/market-v3-readonly-panel";
 import { MarketWatchlistPanel } from "@/components/market/market-watchlist-panel";
 import { SurfaceMountTelemetry } from "@/components/telemetry/surface-mount-telemetry";
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
@@ -47,6 +48,7 @@ export default async function MarketPage() {
             ← Matching
           </Link>
         </header>
+        <MarketV3ReadonlyPanel />
         <MarketEnginePanel />
         <MarketAutoMatchPanel />
         <MarketOffersPanel currentUserId={user.id} />
