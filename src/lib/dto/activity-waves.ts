@@ -10,6 +10,8 @@ export type PlatformActivityWavePayloadDTO = {
   cells?: PlatformWaveCellDTO[];
   headline?: string;
   spotlights?: string[];
+  wave_intent?: "browse" | "build" | "trade" | "explore";
+  wave_decay?: number;
 };
 
 export type SetClubWaveHourDTO = {

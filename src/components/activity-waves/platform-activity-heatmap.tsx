@@ -28,6 +28,7 @@ type WaveView = {
   cells: PlatformWaveCellDTO[];
   headline: string;
   spotlights: string[];
+  waveIntent: string | null;
 };
 
 /** 24×7 qualitative grid — UTC buckets; no numeric counts (Phase 27). */
@@ -46,6 +47,7 @@ export function PlatformActivityHeatmap({ className }: { className?: string }) {
         cells: Array.isArray(body.cells) ? body.cells : [],
         headline: typeof body.headline === "string" ? body.headline : "",
         spotlights: Array.isArray(body.spotlights) ? body.spotlights : [],
+        waveIntent: typeof body.wave_intent === "string" ? body.wave_intent : null,
       };
     });
   }, [run]);
@@ -57,6 +59,7 @@ export function PlatformActivityHeatmap({ className }: { className?: string }) {
   const cells = data?.cells ?? [];
   const headline = data?.headline ?? "";
   const spotlights = data?.spotlights ?? [];
+  const waveIntent = data?.waveIntent ?? null;
 
   return (
     <Panel className={cn("border border-mca-border/80 bg-mca-surface-elevated/35 p-mca-md", className)}>
@@ -69,6 +72,11 @@ export function PlatformActivityHeatmap({ className }: { className?: string }) {
         </p>
         <p className="mt-mca-micro text-mca-caption text-mca-ink-muted">
           Coarse UTC grid — rolling hobby energy, not individuals.
+          {waveIntent ? (
+            <span className="mt-mca-xs block text-mca-caption text-mca-ink-subtle">
+              Current pulse: {waveIntent}
+            </span>
+          ) : null}
         </p>
         <div className="mt-mca-md space-y-mca-xs overflow-x-auto pb-mca-xs">
           {[1, 2, 3, 4, 5, 6, 7].map((day) => (

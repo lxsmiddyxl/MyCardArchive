@@ -1,4 +1,5 @@
 import { platformHeadlineFromBand } from "@/lib/activity-waves/band-labels";
+import { waveIntentFromBandAndHour, waveSnapshotDecay } from "@/lib/activity-waves/wave-types-v2";
 import { ensureActivityWavesFresh } from "@/lib/activity-waves/ensure-activity-waves-fresh";
 import {
   errorJson,
@@ -39,11 +40,15 @@ async function GET_handler() {
       (r as { hour_bucket: number }).hour_bucket === hour
   ) as { wave_band?: string } | undefined;
   const headline = platformHeadlineFromBand(cell?.wave_band);
+  const waveIntent = waveIntentFromBandAndHour(cell?.wave_band, hour);
+  const waveDecay = waveSnapshotDecay(0);
 
   return successJson(ctx, {
     cells: g,
     spotlights,
     headline,
+    wave_intent: waveIntent,
+    wave_decay: waveDecay,
   });
 }
 
