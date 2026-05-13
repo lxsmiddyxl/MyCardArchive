@@ -3,6 +3,7 @@ import { BinderTitleWithRings } from "@/components/artwork/binder-title-artwork"
 import { HotPathTracker } from "@/components/perf/hot-path-tracker";
 import { BinderShelfReveal } from "@/components/binders/binder-shelf-reveal";
 import { BinderShelfCard } from "@/components/binders/binder-shelf-card";
+import { SurfaceEmptyState } from "@/components/system/surface-states";
 import { TierFeatureGateBadge } from "@/components/tier/tier-feature-gate-badge";
 import {
   getBinderCount,
@@ -156,32 +157,29 @@ export default async function BindersPage() {
       ) : null}
 
       {!error && binders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-mca-sheet border border-dashed border-mca-border-subtle bg-mca-surface-elevated/30 px-mca-xl py-mca-stage text-center">
-          <p className="text-lg font-medium text-mca-ink-soft">No binders yet</p>
-          <p className="mt-mca-sm max-w-sm text-sm leading-relaxed text-mca-ink-subtle">
-            Create your first binder to start a shelf—then add pages, drop cards into slots, and open any
-            card for details or grading.
-          </p>
-          {atBinderLimit ? (
-            <p className="mt-mca-lg max-w-sm text-sm text-mca-nav-accent/90">
-              You&apos;ve reached your binder limit.{" "}
-              <Link
-                href="/tier"
-                className="font-semibold text-mca-accent underline-offset-2 hover:underline"
-              >
-                Upgrade on the Tier page
-              </Link>{" "}
-              to add more.
-            </p>
-          ) : (
-            <Link
-              href="/binders/create"
-              className="mt-mca-xl inline-flex items-center justify-center rounded-mca-card bg-mca-accent-strong/90 px-mca-comfortable py-mca-tight text-sm font-semibold text-mca-on-accent shadow-[0_4px_20px_-4px_rgba(245,158,11,0.45)] transition hover:bg-mca-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mca-accent"
-            >
-              Create Binder
-            </Link>
-          )}
-        </div>
+        <SurfaceEmptyState
+          title="No binders yet"
+          description="Create your first binder to start a shelf—then add pages, drop cards into slots, and open any card for details or grading."
+          primaryAction={
+            atBinderLimit
+              ? undefined
+              : { href: "/binders/create", label: "Create Binder" }
+          }
+          secondaryMessage={
+            atBinderLimit ? (
+              <>
+                You&apos;ve reached your binder limit.{" "}
+                <Link
+                  href="/tier"
+                  className="font-semibold text-mca-accent underline-offset-2 hover:underline"
+                >
+                  Upgrade on the Tier page
+                </Link>{" "}
+                to add more.
+              </>
+            ) : undefined
+          }
+        />
       ) : null}
 
       {!error && binders.length > 0 ? (
