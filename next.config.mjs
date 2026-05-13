@@ -23,6 +23,7 @@ const nextConfig = {
   },
   experimental: {
     instrumentationHook: true,
+    optimizePackageImports: ["@tanstack/react-virtual"],
     serverComponentsExternalPackages: ["tesseract.js"],
   },
   async redirects() {
@@ -35,6 +36,7 @@ const nextConfig = {
     ];
   },
   images: {
+    minimumCacheTTL: 86_400,
     remotePatterns: [
       {
         protocol: "https",
