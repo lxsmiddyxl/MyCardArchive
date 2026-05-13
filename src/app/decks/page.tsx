@@ -1,4 +1,5 @@
 import { DeckListView } from "@/components/decks/deck-list-view";
+import { RetentionHintsStrip } from "@/components/retention/retention-hints-strip";
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
@@ -25,6 +26,9 @@ export default async function DecksPage() {
   }
 
   return (
-    <DeckListView />
+    <>
+      <RetentionHintsStrip />
+      <DeckListView />
+    </>
   );
 }

@@ -3,6 +3,7 @@ import { BinderTitleWithRings } from "@/components/artwork/binder-title-artwork"
 import { HotPathTracker } from "@/components/perf/hot-path-tracker";
 import { BinderShelfReveal } from "@/components/binders/binder-shelf-reveal";
 import { BinderShelfCard } from "@/components/binders/binder-shelf-card";
+import { RetentionHintsStrip } from "@/components/retention/retention-hints-strip";
 import { SurfaceEmptyState } from "@/components/system/surface-states";
 import { TierFeatureGateBadge } from "@/components/tier/tier-feature-gate-badge";
 import {
@@ -95,6 +96,7 @@ export default async function BindersPage() {
     <BinderPaperBackdrop>
     <div className="space-y-mca-2xl">
       <HotPathTracker pathId="hp:collection:listViewport" />
+      <RetentionHintsStrip />
       <div className="flex flex-col gap-mca-base sm:flex-row sm:items-start sm:justify-between">
         <BinderTitleWithRings>
           <h1 className="text-3xl font-semibold tracking-tight text-mca-ink-strong sm:text-4xl">
