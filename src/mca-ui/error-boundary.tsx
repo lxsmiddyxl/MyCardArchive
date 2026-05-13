@@ -1,9 +1,11 @@
 "use client";
 
+import { extractApiErrorMessage } from "@/lib/client/api-envelope-client";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import type { McaLogContext } from "@/lib/logging/types";
 import { Button } from "@/mca-ui/button";
 import { Panel } from "@/mca-ui/panel";
+import Link from "next/link";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 export type MCAErrorBoundaryProps = {
@@ -16,7 +18,11 @@ export type MCAErrorBoundaryProps = {
   title?: string;
 };
 
-type State = { error: Error | null };
+type State = {
+  error: Error | null;
+  /** Populated after commit phase (not available in getDerivedStateFromError). */
+  errorInfo: ErrorInfo | null;
+};
 
 function ctxFromProps(p: MCAErrorBoundaryProps): McaLogContext {
   return {
@@ -26,30 +32,53 @@ function ctxFromProps(p: MCAErrorBoundaryProps): McaLogContext {
   };
 }
 
-export class MCAErrorBoundary extends Component<MCAErrorBoundaryProps, State> {
-  state: State = { error: null };
+/** Best-effort copy for API / network failures surfaced as strings on Error.message. */
+function friendlyEnvelopeHint(message: string): string | null {
+  const trimmed = message.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    const apiMsg = extractApiErrorMessage(parsed);
+    return apiMsg ?? null;
+  } catch {
+    return null;
+  }
+}
 
-  static getDerivedStateFromError(error: Error): State {
-    return { error };
+export class MCAErrorBoundary extends Component<MCAErrorBoundaryProps, State> {
+  state: State = { error: null, errorInfo: null };
+
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    return { error, errorInfo: null };
   }
 
   componentDidCatch(err: Error, info: ErrorInfo): void {
+    this.setState({ errorInfo: info });
     mcaLog.error(
       "ui.errorBoundary",
       { err, componentStack: info.componentStack },
       ctxFromProps(this.props)
     );
+    if (process.env.NODE_ENV === "development") {
+      // eslint-disable-next-line no-console -- Phase 33 dev-only diagnostics
+      console.debug("[MCAErrorBoundary]", {
+        surface: this.props.surfaceName,
+        message: err.message,
+        stack: err.stack,
+      });
+    }
   }
 
   private reset = (): void => {
-    this.setState({ error: null });
+    this.setState({ error: null, errorInfo: null });
   };
 
   render(): ReactNode {
     const { children, title = "Something went wrong" } = this.props;
-    const { error } = this.state;
+    const { error, errorInfo } = this.state;
 
     if (error) {
+      const envelopeHint = friendlyEnvelopeHint(error.message);
       return (
         <Panel
           elevated
@@ -57,18 +86,40 @@ export class MCAErrorBoundary extends Component<MCAErrorBoundaryProps, State> {
         >
           <p className="text-mca-body font-semibold text-mca-error-text-strong">{title}</p>
           <p className="mt-mca-sm text-mca-caption text-mca-ink-muted">
-            This section hit an unexpected error. You can try again, or reload the page if the problem
-            continues.
+            This section hit an unexpected error. Use Retry to remount this area, or return home to keep
+            browsing.
           </p>
-          {process.env.NODE_ENV === "development" ? (
-            <pre className="mt-mca-md max-h-32 overflow-auto rounded-mca-block border border-mca-border/80 bg-mca-surface-elevated/50 p-mca-sm text-[11px] text-mca-ink-subtle">
-              {error.message}
-            </pre>
+          {envelopeHint ? (
+            <p className="mt-mca-sm text-mca-caption text-mca-ink-body">{envelopeHint}</p>
           ) : null}
-          <div className="mt-mca-lg">
-            <Button type="button" variant="secondary" onClick={this.reset}>
-              Try again
+          {process.env.NODE_ENV === "development" ? (
+            <div className="mt-mca-md space-y-mca-xs rounded-mca-block border border-mca-border/80 bg-mca-surface-elevated/50 p-mca-sm text-left">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-mca-ink-subtle">
+                Diagnostics (dev only)
+              </p>
+              <p className="text-[11px] text-mca-ink-body">
+                <span className="text-mca-ink-subtle">Name:</span> {error.name}
+              </p>
+              <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words text-[11px] text-mca-ink-subtle">
+                {error.message}
+              </pre>
+              {errorInfo?.componentStack ? (
+                <pre className="max-h-24 overflow-auto text-[10px] text-mca-ink-subtle/90">
+                  {errorInfo.componentStack}
+                </pre>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="mt-mca-lg flex flex-wrap gap-mca-sm">
+            <Button type="button" variant="primary" onClick={this.reset}>
+              Retry
             </Button>
+            <Link
+              href="/"
+              className="inline-flex min-h-[2.75rem] touch-manipulation items-center justify-center rounded-mca-control border border-mca-field-border bg-mca-chrome px-mca-compact py-mca-sm text-sm font-semibold text-mca-ink-strong transition-[transform,box-shadow,background-color,border-color,color,opacity] duration-200 ease-mca-standard hover:bg-mca-border-subtle hover:border-mca-border-interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 focus-visible:ring-offset-2 focus-visible:ring-offset-mca-surface active:scale-[0.98]"
+            >
+              Return home
+            </Link>
           </div>
         </Panel>
       );

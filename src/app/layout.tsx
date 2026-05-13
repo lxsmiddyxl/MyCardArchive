@@ -8,6 +8,7 @@ import { InstallAppCta } from "@/components/pwa/install-app-cta";
 import { PwaRegister } from "@/components/pwa/pwa-register";
 import { GrowthShell } from "@/components/growth/growth-shell";
 import { A11yEnvironmentTelemetry } from "@/components/system/a11y-environment-telemetry";
+import { RootClientBoundary } from "@/components/system/root-client-boundary";
 import { RealtimeStatusBanner } from "@/components/system/realtime-status-banner";
 import { ensureProfileAndPublic } from "@/lib/supabase/ensureProfile";
 import { createClient } from "@/lib/supabase/server";
@@ -174,7 +175,9 @@ export default async function RootLayout({
           </header>
           <RealtimeStatusBanner />
           <main className="mca-main-min-h mx-auto max-w-6xl min-w-0 flex-1 overflow-x-hidden px-mca-base py-mca-md max-md:pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-mca-lg md:pb-mca-md">
-            <MobileAppShell>{children}</MobileAppShell>
+            <RootClientBoundary>
+              <MobileAppShell>{children}</MobileAppShell>
+            </RootClientBoundary>
           </main>
           <SiteFooter />
           <RealtimeDevtools />

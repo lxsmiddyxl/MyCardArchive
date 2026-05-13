@@ -23,6 +23,7 @@ import { cn } from "@/lib/ui/cn";
 import { useMicroFlash } from "@/lib/ui/use-micro-flash";
 import { McaVirtualList } from "@/components/ui/mca-virtual-list";
 import { TradeListSkeleton } from "@/components/ui/skeleton";
+import { MCAErrorBoundary } from "@/mca-ui/error-boundary";
 import Link from "next/link";
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -81,7 +82,9 @@ const TradeListRow = memo(function TradeListRow({
 export function TradesDashboardClient({ userId }: { userId: string }) {
   return (
     <AuthenticatedPresenceShell userId={userId}>
-      <TradesDashboardBody />
+      <MCAErrorBoundary componentName="TradesDashboard" surfaceName="trades">
+        <TradesDashboardBody />
+      </MCAErrorBoundary>
     </AuthenticatedPresenceShell>
   );
 }
