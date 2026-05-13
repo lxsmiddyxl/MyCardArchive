@@ -56,6 +56,8 @@ export const RATE_LIMITS = {
   communityPostMutation: { max: 36, windowMs: 60_000 },
   /** GET `/api/community/feed/v1` — read-only feed polling. */
   communityFeedRead: { max: 120, windowMs: 60_000 },
+  /** POST `/api/community/posts/report` — abuse protection. */
+  communityReportMutation: { max: 24, windowMs: 60_000 },
 } as const;
 
 /** In-memory snapshot for `/api/health/rate-limits` (suffixes match middleware buckets). */
@@ -76,5 +78,6 @@ export function getRateLimitHealthBuckets(): Record<
     { suffix: "pub-deck-view", max: RATE_LIMITS.publicDeckView.max },
     { suffix: "community-post-mut", max: RATE_LIMITS.communityPostMutation.max },
     { suffix: "community-feed-read", max: RATE_LIMITS.communityFeedRead.max },
+    { suffix: "community-report-mut", max: RATE_LIMITS.communityReportMutation.max },
   ]);
 }

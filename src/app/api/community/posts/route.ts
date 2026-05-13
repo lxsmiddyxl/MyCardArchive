@@ -1,5 +1,6 @@
 import { errorJson, validateSession, withContextId } from "@/lib/api/route-helpers";
 import { loadTopScanMilestonesByUserIds } from "@/lib/badges/load-top-scan-milestones";
+import { moderationTokensViolated } from "@/lib/community/content-guard";
 import type { CommunityPostDTO } from "@/lib/dto/catalog";
 import { enrichUsersWithFlair } from "@/lib/flair/enrich-user-flair-batch";
 import { presenceSnapshotFromFlair } from "@/lib/presence/flair-presence-fields";
@@ -196,6 +197,10 @@ async function POST_handler(request: Request) {
   const text = sanitizePlainTextUserInput(raw, MAX_BODY);
   if (!text) {
     return errorJson(ctx, "body required", 400);
+  }
+
+  if (moderationTokensViolated(text)) {
+    return errorJson(ctx, "This content cannot be posted.", 422);
   }
 
   const { data, error } = await supabase
