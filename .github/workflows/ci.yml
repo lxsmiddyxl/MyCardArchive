@@ -79,6 +79,8 @@ jobs:
           PORT: "3000"
           STABILITY_MODE: "1"
           PREDICTIVE_MODE: "1"
+          STABILITY_CI_PLACEHOLDER: "1"
+          HEALTH_CHECK_PATHS: "/api/health/core,/api/health/ui"
 
       - name: Upload stability report
         if: always()

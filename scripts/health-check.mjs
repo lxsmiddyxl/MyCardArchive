@@ -14,7 +14,7 @@ if (!baseArg) {
 }
 
 /** All first-party JSON health routes (aligned with stability-runner’s HTTP checks). */
-const paths = [
+const DEFAULT_PATHS = [
   "/api/health/core",
   "/api/health/realtime",
   "/api/health/telemetry",
@@ -23,6 +23,16 @@ const paths = [
   "/api/health/ui",
   "/api/health/region",
 ];
+
+const paths = (() => {
+  const raw = process.env.HEALTH_CHECK_PATHS?.trim();
+  if (!raw) return DEFAULT_PATHS;
+  const split = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return split.length > 0 ? split : DEFAULT_PATHS;
+})();
 
 async function main() {
   const results = {};
