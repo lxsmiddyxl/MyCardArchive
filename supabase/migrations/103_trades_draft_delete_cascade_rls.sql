@@ -59,3 +59,9 @@ create policy "trade_messages_delete_draft_creator"
   );
 
 grant delete on table public.trade_messages to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- RLS intent (Phase 29): authenticated users only see and mutate rows tied to auth.uid().
+-- Draft delete policies above exist so the app can roll back a draft trade without leaving
+-- orphan trade_items / trade_messages after FK CASCADE from public.trades.
+-- ---------------------------------------------------------------------------
