@@ -9,6 +9,8 @@ import {
   listSyncRetryHistory,
   resolveSyncConflict,
 } from "@/lib/mobile/offline-action-queue";
+import { GESTURE_AFFORDANCES, type GestureAffordanceId } from "@/lib/mobile/gesture-affordances";
+import { clearListLkg, LIST_LKG_KEYS, readListLkg } from "@/lib/offline/list-lkg-cache";
 import { mcaLog } from "@/lib/logging/mca-log-client";
 import { useCallback, useEffect, useState } from "react";
 
@@ -29,6 +31,21 @@ export function SyncCenterClient() {
   const queue = listOfflineActions();
   const retries = listSyncRetryHistory();
   const conflicts = listSyncConflicts();
+  const feedLkg = readListLkg(LIST_LKG_KEYS.feed);
+  const bindersLkg = readListLkg(LIST_LKG_KEYS.binders);
+
+  const onGesture = (id: GestureAffordanceId) => {
+    mcaLog.event("mobile.v4.gesture", { gestureId: id }, { componentName: "SyncCenterClient", surfaceName: "mobile" });
+    if (id === "swipe_refresh") refresh();
+  };
+
+  const onClearLkg = () => {
+    clearListLkg(LIST_LKG_KEYS.feed);
+    clearListLkg(LIST_LKG_KEYS.binders);
+    clearListLkg(LIST_LKG_KEYS.decks);
+    clearListLkg(LIST_LKG_KEYS.marketOffers);
+    refresh();
+  };
 
   const onResolve = (id: string) => {
     resolveSyncConflict(id);
@@ -52,6 +69,29 @@ export function SyncCenterClient() {
           Refresh
         </Button>
       </div>
+      <Panel className="border-mca-border bg-mca-surface/40 p-mca-md">
+        <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
+          Offline list cache
+        </p>
+        <p className="mt-mca-xs text-mca-caption text-mca-hint">
+          Last-known-good snapshots for feed and binders when you are offline.
+        </p>
+        <ul className="mt-mca-md space-y-mca-xs text-mca-caption text-mca-ink-body">
+          <li>Feed · {feedLkg ? `${feedLkg.items.length} items` : "none"}</li>
+          <li>Binders · {bindersLkg ? `${bindersLkg.items.length} items` : "none"}</li>
+        </ul>
+        <div className="mt-mca-md flex flex-wrap gap-mca-sm">
+          {(Object.keys(GESTURE_AFFORDANCES) as GestureAffordanceId[]).map((id) => (
+            <Button key={id} type="button" variant="secondary" onClick={() => onGesture(id)}>
+              {GESTURE_AFFORDANCES[id].label}
+            </Button>
+          ))}
+          <Button type="button" variant="secondary" onClick={onClearLkg}>
+            Clear cached lists
+          </Button>
+        </div>
+      </Panel>
+
       <Panel className="border-mca-border bg-mca-surface/40 p-mca-md">
         <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">
           Queued actions
