@@ -4,6 +4,7 @@ import { BINDER_SLOTS_PER_PAGE } from "@/lib/binders/constants";
 import { getMaxBinderPagesForUser } from "@/lib/binders/page-limits";
 import { resolveBinderRouteSession } from "@/lib/binders/binder-route-context";
 import { applyLayoutAssignments } from "@/lib/binders/binder-slot-ops";
+import { logBinderActivity } from "@/lib/binders/binder-activity";
 import { defineRoute } from "@/lib/server/api-route";
 import {
   computeAutoLayoutAssignments,
@@ -119,6 +120,13 @@ async function POST_handler(
   if (!applied.ok) {
     return errorJson(ctx, applied.message, 500, { code: ApiErrorCode.SUPABASE_QUERY });
   }
+
+  await logBinderActivity(supabase, {
+    binderId,
+    userId,
+    type: "layout_changed",
+    payload: { mode },
+  });
 
   return successJson(ctx, {
     ok: true,

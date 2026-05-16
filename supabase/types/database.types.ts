@@ -116,6 +116,126 @@ export type Database = {
           },
         ]
       }
+      binder_activity: {
+        Row: {
+          binder_id: string
+          created_at: string
+          id: string
+          payload: Json
+          type: string
+          user_id: string
+        }
+        Insert: {
+          binder_id: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          type: string
+          user_id: string
+        }
+        Update: {
+          binder_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "binder_activity_binder_id_fkey"
+            columns: ["binder_id"]
+            isOneToOne: false
+            referencedRelation: "binders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "binder_activity_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      binder_comments: {
+        Row: {
+          binder_id: string
+          created_at: string
+          id: string
+          text: string
+          user_id: string
+        }
+        Insert: {
+          binder_id: string
+          created_at?: string
+          id?: string
+          text: string
+          user_id: string
+        }
+        Update: {
+          binder_id?: string
+          created_at?: string
+          id?: string
+          text?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "binder_comments_binder_id_fkey"
+            columns: ["binder_id"]
+            isOneToOne: false
+            referencedRelation: "binders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "binder_comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      binder_reactions: {
+        Row: {
+          binder_id: string
+          created_at: string
+          emoji: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          binder_id: string
+          created_at?: string
+          emoji: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          binder_id?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "binder_reactions_binder_id_fkey"
+            columns: ["binder_id"]
+            isOneToOne: false
+            referencedRelation: "binders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "binder_reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       binders: {
         Row: {
           created_at: string
@@ -123,6 +243,8 @@ export type Database = {
           id: string
           name: string
           user_id: string
+          visibility: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
@@ -130,6 +252,8 @@ export type Database = {
           id?: string
           name: string
           user_id: string
+          visibility?: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
@@ -137,6 +261,8 @@ export type Database = {
           id?: string
           name?: string
           user_id?: string
+          visibility?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -3466,6 +3592,14 @@ export type Database = {
       }
       get_public_deck_owner_display: {
         Args: { p_deck_id: string }
+        Returns: string
+      }
+      get_public_binder_gate: {
+        Args: { p_binder_id: string }
+        Returns: Json
+      }
+      get_public_binder_owner_display: {
+        Args: { p_binder_id: string }
         Returns: string
       }
       get_deck_visibility: {

@@ -214,6 +214,12 @@ export default async function BinderDetailPage({ params }: PageProps) {
             Page view
           </Link>
           <Link
+            href={`/binders/${b.id}/settings`}
+            className="inline-flex items-center justify-center rounded-mca-card border border-mca-field-border bg-mca-surface-elevated/50 px-mca-comfortable py-mca-tight text-sm font-medium text-mca-ink-soft transition hover:border-mca-border-interactive hover:bg-mca-chrome"
+          >
+            Sharing
+          </Link>
+          <Link
             href={`/binders/${b.id}/add-card`}
             className="inline-flex items-center justify-center rounded-mca-card bg-mca-accent-strong/90 px-mca-comfortable py-mca-tight text-sm font-semibold text-mca-on-accent shadow-[0_4px_20px_-4px_rgba(245,158,11,0.45)] transition hover:bg-mca-accent"
           >
