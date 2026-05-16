@@ -15,6 +15,13 @@ import { InlineError } from "@/mca-ui/inline-error";
 import { Panel } from "@/mca-ui/panel";
 import { LoadingSpinner } from "@/mca-ui/loading-button";
 import { RemoteCardThumb } from "@/mca-ui/remote-card-thumb";
+import { ScanConfirmationPanel } from "@/components/scan/scan-confirmation-panel";
+import { ScanHistoryPanel } from "@/mca-ui/scan-history-panel";
+import { PendingOfflineScansPanel } from "@/mca-ui/pending-offline-scans-panel";
+import { rankingFromAutoMatch } from "@/lib/scanning/phase3/fallback-ranking";
+import type { ScanHistoryEntryDTO } from "@/lib/dto/scan-add";
+import { enqueuePendingScan } from "@/mca-utils/offline/cache";
+import { useOnlineStatus } from "@/lib/hooks/use-online-status";
 import { CardMetadataPanel } from "@/mca-ui/card-metadata-panel";
 import { CardConfidenceBadge } from "@/mca-ui/card-confidence-badge";
 import { resolveCatalogMatchConfidence } from "@/mca-utils/catalog/confidence";
@@ -149,6 +156,9 @@ export function ModelScanClient() {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
   const [visionConfigured, setVisionConfigured] = useState<boolean | null>(null);
+  const online = useOnlineStatus();
+  const [scanHistory, setScanHistory] = useState<ScanHistoryEntryDTO[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -197,6 +207,23 @@ export function ModelScanClient() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!online) return;
+    let cancelled = false;
+    setHistoryLoading(true);
+    void (async () => {
+      const r = await fetchJson<{ entries: ScanHistoryEntryDTO[] }>("/api/scan/history?limit=8", {
+        cache: "no-store",
+      });
+      if (cancelled) return;
+      if (r.kind === "ok") setScanHistory(r.data.entries);
+      setHistoryLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [online, result?.scan_event_id]);
 
   const applyFile = useCallback((next: File | null) => {
     if (next && !next.type.startsWith("image/")) return;
@@ -265,9 +292,30 @@ export function ModelScanClient() {
     } catch {
       window.clearTimeout(tid);
       if (runId !== scanV2SeqRef.current) return;
+      if (!navigator.onLine && file) {
+        try {
+          const buf = await file.arrayBuffer();
+          const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+          let backB64: string | null = null;
+          if (backFile) {
+            const bb = await backFile.arrayBuffer();
+            backB64 = btoa(String.fromCharCode(...new Uint8Array(bb)));
+          }
+          await enqueuePendingScan({
+            binderId: binderId || null,
+            imageBase64: b64,
+            backImageBase64: backB64,
+            mimeType: file.type || "image/jpeg",
+          });
+          setError("You are offline — scan queued. Retry when back online.");
+        } catch {
+          setError("Network error — could not reach scan service.");
+        }
+      } else {
+        setError("Network error — could not reach scan service.");
+      }
       setLoadingDetail(null);
       setPhase("error");
-      setError("Network error — check your connection and try again.");
       return;
     }
     window.clearTimeout(tid);
@@ -339,6 +387,9 @@ export function ModelScanClient() {
       ? buildAddCardHref(binderId.trim(), result.card, selectedMatch ?? null, result.scan_event_id)
       : "";
 
+  const scanRanking =
+    result?.ranking ?? (result?.auto_match ? rankingFromAutoMatch(result.auto_match) : null);
+
   const visionBand = result
     ? confidenceBand(result.vision_model.overall_confidence)
     : "weak";
@@ -359,6 +410,12 @@ export function ModelScanClient() {
         </p>
         <nav className="flex flex-wrap gap-mca-md pt-mca-sm text-sm" aria-label="Scan navigation">
           <Link
+            href="/scan/batch"
+            className="font-medium text-mca-ink-muted transition duration-200 ease-mca-standard hover:text-mca-accent"
+          >
+            Batch scan
+          </Link>
+          <Link
             href="/scan/text"
             className="font-medium text-mca-ink-muted transition duration-200 ease-mca-standard hover:text-mca-accent"
           >
@@ -372,6 +429,15 @@ export function ModelScanClient() {
           </Link>
         </nav>
       </header>
+
+      {!online ? <PendingOfflineScansPanel /> : null}
+      {online ? (
+        <ScanHistoryPanel
+          entries={scanHistory}
+          loading={historyLoading}
+          binderId={binderId || undefined}
+        />
+      ) : null}
 
       {visionConfigured === false ? (
         <aside
@@ -855,37 +921,6 @@ export function ModelScanClient() {
               </Panel>
             </div>
 
-            {selectedMatch && selectedMatch.card_name?.trim() ? (
-              <CardMetadataPanel
-                title="Catalog match preview"
-                data={{
-                  name: selectedMatch.card_name,
-                  setName: selectedMatch.set_name?.trim() ?? "",
-                  number: selectedMatch.number === "—" ? "" : selectedMatch.number,
-                  rarity: selectedMatch.rarity?.trim() ?? "",
-                  imageUrl: selectedMatch.image_url?.trim() ?? "",
-                }}
-                headerExtra={
-                  <CardConfidenceBadge
-                    band={
-                      resolveCatalogMatchConfidence({
-                        query: result.ocr_v1_5.extracted.number_guess || selectedMatch.card_name,
-                        hit: {
-                          id: selectedMatch.catalog_card_id ?? "",
-                          name: selectedMatch.card_name,
-                          set: selectedMatch.set_name ?? "",
-                          number: selectedMatch.number,
-                          rarity: selectedMatch.rarity,
-                          image_url: selectedMatch.image_url,
-                        },
-                        searchMode: "number",
-                      }).band
-                    }
-                  />
-                }
-              />
-            ) : null}
-
             <Field
               id="model-scan-binder"
               label="Binder for Add card"
@@ -916,8 +951,18 @@ export function ModelScanClient() {
               ) : null}
             </Field>
 
+            {scanRanking && binderId.trim() ? (
+              <ScanConfirmationPanel
+                ranking={scanRanking}
+                normalized={result.card}
+                scanEventId={result.scan_event_id}
+                binderId={binderId.trim()}
+                onScanNext={reset}
+              />
+            ) : null}
+
             <div className="flex flex-wrap gap-mca-sm">
-              {binderId.trim() && continueHref ? (
+              {binderId.trim() && continueHref && !scanRanking ? (
                 <Link
                   href={continueHref}
                   className={cn(
@@ -926,9 +971,7 @@ export function ModelScanClient() {
                 >
                   Continue to Add card
                 </Link>
-              ) : (
-                <p className="text-sm text-mca-ink-subtle">Select a binder to open Add card.</p>
-              )}
+              ) : null}
               <Button type="button" variant="secondary" onClick={reset}>
                 Scan another
               </Button>

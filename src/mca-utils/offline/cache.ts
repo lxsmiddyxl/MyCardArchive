@@ -5,11 +5,13 @@
 import type { CatalogCardHit } from "@/lib/dto/catalog";
 
 const DB_NAME = "mca-offline-cache-v2";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const SEARCH_STORE = "catalog_searches";
 const PENDING_STORE = "pending_card_adds";
+const PENDING_SCAN_STORE = "pending_scans";
 const MAX_SEARCH = 50;
 const MAX_PENDING = 40;
+const MAX_PENDING_SCANS = 12;
 const LEGACY_LS_KEY = "mca:pending-card-adds:v1";
 
 export type CachedCatalogSearch = {
@@ -29,8 +31,20 @@ export type PendingCardAdd = {
   syncAttempts?: number;
 };
 
+export type PendingScan = {
+  id: string;
+  binderId: string | null;
+  imageBase64: string;
+  backImageBase64: string | null;
+  mimeType: string;
+  createdAt: number;
+  lastError?: string | null;
+  syncAttempts?: number;
+};
+
 /** In-memory fallback when IndexedDB is unavailable (SSR, unit tests). */
 const memoryPending = new Map<string, PendingCardAdd>();
+const memoryPendingScans = new Map<string, PendingScan>();
 const memorySearch = new Map<string, CachedCatalogSearch>();
 
 function sortPending(rows: PendingCardAdd[]): PendingCardAdd[] {
@@ -60,6 +74,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(PENDING_STORE)) {
         db.createObjectStore(PENDING_STORE, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(PENDING_SCAN_STORE)) {
+        db.createObjectStore(PENDING_SCAN_STORE, { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -256,4 +273,105 @@ export async function markPendingCardAddError(id: string, message: string): Prom
 export async function pendingCountForBinder(binderId: string): Promise<number> {
   const rows = await listPendingCardAdds();
   return rows.filter((r) => r.binderId === binderId).length;
+}
+
+function sortPendingScans(rows: PendingScan[]): PendingScan[] {
+  return [...rows].sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function listPendingScans(): Promise<PendingScan[]> {
+  try {
+    const db = await openDb();
+    const rows = await new Promise<PendingScan[]>((resolve, reject) => {
+      const tx = db.transaction(PENDING_SCAN_STORE, "readonly");
+      const req = tx.objectStore(PENDING_SCAN_STORE).getAll();
+      req.onsuccess = () => resolve((req.result as PendingScan[]) ?? []);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return sortPendingScans(rows);
+  } catch {
+    return sortPendingScans([...memoryPendingScans.values()]);
+  }
+}
+
+export async function enqueuePendingScan(input: {
+  binderId?: string | null;
+  imageBase64: string;
+  backImageBase64?: string | null;
+  mimeType: string;
+}): Promise<string> {
+  const id = `scan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const row: PendingScan = {
+    id,
+    binderId: input.binderId?.trim() || null,
+    imageBase64: input.imageBase64,
+    backImageBase64: input.backImageBase64 ?? null,
+    mimeType: input.mimeType,
+    createdAt: Date.now(),
+    syncAttempts: 0,
+  };
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(PENDING_SCAN_STORE, "readwrite");
+      tx.objectStore(PENDING_SCAN_STORE).put(row);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    const all = await listPendingScans();
+    if (all.length > MAX_PENDING_SCANS) {
+      for (const drop of all.slice(0, all.length - MAX_PENDING_SCANS)) {
+        await removePendingScan(drop.id);
+      }
+    }
+  } catch {
+    memoryPendingScans.set(id, row);
+    if (memoryPendingScans.size > MAX_PENDING_SCANS) {
+      const sorted = sortPendingScans([...memoryPendingScans.values()]);
+      for (const drop of sorted.slice(0, memoryPendingScans.size - MAX_PENDING_SCANS)) {
+        memoryPendingScans.delete(drop.id);
+      }
+    }
+  }
+  return id;
+}
+
+export async function removePendingScan(id: string): Promise<void> {
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(PENDING_SCAN_STORE, "readwrite");
+      tx.objectStore(PENDING_SCAN_STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    memoryPendingScans.delete(id);
+  }
+}
+
+export async function markPendingScanError(id: string, message: string): Promise<void> {
+  const rows = await listPendingScans();
+  const row = rows.find((r) => r.id === id);
+  if (!row) return;
+  const next: PendingScan = {
+    ...row,
+    lastError: message,
+    syncAttempts: (row.syncAttempts ?? 0) + 1,
+  };
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(PENDING_SCAN_STORE, "readwrite");
+      tx.objectStore(PENDING_SCAN_STORE).put(next);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    memoryPendingScans.set(id, next);
+  }
 }

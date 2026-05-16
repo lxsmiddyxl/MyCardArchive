@@ -5,6 +5,7 @@
 import type { CatalogFormSelection } from "@/lib/catalog/catalog-form-hydration";
 import type { CatalogCardHit, AddCardPrefillPayload } from "@/lib/dto/catalog";
 import { setNameFromCatalogEmbed } from "@/lib/catalog/catalog-rows";
+import type { RankedScanCandidate } from "@/lib/scanning/phase3/types";
 import type { AutoMatchResult } from "@/lib/types/auto-match";
 
 export type HydratedCardMetadata = {
@@ -76,18 +77,30 @@ export function hydrateFromCatalogHit(hit: CatalogCardHit): HydratedCardMetadata
 export function hydrateFromScanBestMatch(
   bm: NonNullable<AutoMatchResult["best_match"]>
 ): HydratedCardMetadata {
+  return hydrateFromRankedCandidate({
+    ...bm,
+    catalog_card_id: bm.catalog_card_id?.trim() ?? "",
+    variantGroup: "standard",
+    setSymbolScore: 0,
+    ocrNumberScore: 0,
+    fuzzyNameScore: 0,
+    imageSimilarityScore: 0,
+  });
+}
+
+export function hydrateFromRankedCandidate(c: RankedScanCandidate): HydratedCardMetadata {
   return {
-    name: bm.card_name,
-    setId: "",
-    setName: bm.set_name?.trim() ?? "",
-    number: bm.number === "—" ? "" : bm.number,
-    rarity: bm.rarity?.trim() ?? "",
-    imageUrl: bm.image_url?.trim() ?? "",
+    name: c.card_name,
+    setId: c.set_id?.trim() ?? "",
+    setName: c.set_name?.trim() ?? "",
+    number: c.number === "—" ? "" : c.number,
+    rarity: c.rarity?.trim() ?? "",
+    imageUrl: c.image_url?.trim() ?? "",
     supertype: "",
     subtypes: [],
     type: "",
-    tcgplayerId: bm.catalog_card_id?.trim() ?? "",
-    catalog_card_id: bm.catalog_card_id?.trim() ?? "",
+    tcgplayerId: c.catalog_card_id?.trim() ?? "",
+    catalog_card_id: c.catalog_card_id?.trim() ?? "",
   };
 }
 

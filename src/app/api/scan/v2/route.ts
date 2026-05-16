@@ -13,6 +13,11 @@ import { parseCardFromOcrText } from "@/lib/scanning/v1/parse-text";
 import { runCardOcr } from "@/lib/scanning/v1/ocr";
 import type { ScanV25PersistedPayload, ScanV2PersistedPayload } from "@/lib/scanning/types";
 import { runV25VisualIntel } from "@/lib/scanning/v2_5/visual-intelligence";
+import { bufferToGray } from "@/lib/scanning/phase3/to-gray";
+import { runNumberOcrFallback } from "@/lib/scanning/phase3/number-ocr-fallback";
+import { rankScanCandidates, rankingToAutoMatch } from "@/lib/scanning/phase3/rank-candidates";
+import { historyImageFromRanking, insertScanHistory } from "@/lib/scanning/phase3/scan-history";
+import type { NumberOcrPass } from "@/mca-utils/scan/numberFallback";
 import { createClient } from "@/lib/supabase/server";
 import {
   assertCanCreateScan,
@@ -130,9 +135,31 @@ async function POST_handler(request: Request) {
 
   const { fused, meta } = fuseVisionWithCatalog(vision, ocrCatalog);
   const fallback = meta.fallback_to_ocr_only;
-  const effectiveMatch: ScanMatchResult = fallback
+  const baseMatch: ScanMatchResult = fallback
     ? jsonSafeAutoMatch(ocrCatalog)
     : jsonSafeAutoMatch(fused);
+
+  const gray = await bufferToGray(imageBuffer);
+  const numberPasses: NumberOcrPass[] = [
+    ...(extracted.number_guess?.trim()
+      ? [{ label: "primary", number: extracted.number_guess.trim(), weight: 1 }]
+      : []),
+    ...(vision.card_number_guess?.trim()
+      ? [{ label: "vision", number: vision.card_number_guess.trim(), weight: 0.9 }]
+      : []),
+    ...(await runNumberOcrFallback(imageBuffer, backBuffer)),
+  ];
+
+  const ranking = rankScanCandidates({
+    autoMatch: baseMatch,
+    gray,
+    nameQuery: vision.card_name_guess || extracted.name_guess || "",
+    numberPasses,
+    knownSetIds: baseMatch.matches
+      .map((m) => m.set_id)
+      .filter((id): id is string => Boolean(id?.trim())),
+  });
+  const effectiveMatch: ScanMatchResult = rankingToAutoMatch(ranking);
 
   let normalized = normalizedCardFromExtracted(extracted, effectiveMatch);
   if (!effectiveMatch.best_match) {
@@ -157,6 +184,7 @@ async function POST_handler(request: Request) {
         version: 2.5,
         pipeline: fallback ? "scan_v2_5_ocr_fallback" : "scan_v2_5_hybrid",
         auto_match: effectiveMatch,
+        ranking,
         normalized,
         ocr_v1_5: {
           extracted,
@@ -171,6 +199,7 @@ async function POST_handler(request: Request) {
         version: 2,
         pipeline: v2Pipeline,
         auto_match: effectiveMatch,
+        ranking,
         normalized,
         ocr_v1_5: {
           extracted,
@@ -207,6 +236,14 @@ async function POST_handler(request: Request) {
 
   const scanEventId = scanRow.id;
 
+  await insertScanHistory(supabase, {
+    userId: session.userId,
+    imageUrl: historyImageFromRanking(ranking),
+    bestCatalogCardId: ranking.topCandidate?.catalog_card_id ?? null,
+    confidence: ranking.topCandidate?.confidence ?? 0,
+    scanEventId,
+  });
+
   if (tier && !isUnlimitedScans(tier.scan_limit)) {
     const usedAfter = usedBeforeScan + 1;
     const { error: bonusErr } = await supabase.rpc("consume_bonus_scan_if_needed", {
@@ -232,6 +269,7 @@ async function POST_handler(request: Request) {
     scan_event_id: scanEventId,
     extracted,
     auto_match: effectiveMatch,
+    ranking,
     ocr_v1_5: persisted.ocr_v1_5,
     vision_model: vision,
     fusion: meta,

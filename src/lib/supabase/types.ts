@@ -20,4 +20,5 @@ import type { Database } from "../../../supabase/types/database.types";
 export type BinderRow = Database["public"]["Tables"]["binders"]["Row"];
 export type CardRow = Database["public"]["Tables"]["cards"]["Row"];
 export type ScanEventRow = Database["public"]["Tables"]["scan_events"]["Row"];
+export type ScanHistoryRow = Database["public"]["Tables"]["scan_history"]["Row"];
 export type UserTierRow = Database["public"]["Tables"]["user_tiers"]["Row"];

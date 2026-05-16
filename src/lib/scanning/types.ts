@@ -1,6 +1,7 @@
 import type { NormalizedCard } from "@/lib/ai/normalize-card";
 import type { ScanV25Pipeline, ScanV25VisualIntel } from "@/lib/scanning/v2_5/types";
 import type { ScanV2FusionMeta, ScanV2VisionPrediction } from "@/lib/scanning/v2/vision-types";
+import type { ScanRankingResult } from "@/lib/scanning/phase3/types";
 import type { AutoMatchResult } from "@/lib/types/auto-match";
 
 /** OCR + heuristics output before catalog matching (Scanning v1). */
@@ -41,6 +42,7 @@ export type ScanV2PersistedPayload = {
   version: 2;
   pipeline: "scan_v2_hybrid" | "scan_v2_ocr_fallback";
   auto_match: AutoMatchResult;
+  ranking?: ScanRankingResult;
   normalized: NormalizedCard;
   ocr_v1_5: {
     extracted: ScanV1ExtractedText;
@@ -55,6 +57,7 @@ export type ScanV25PersistedPayload = {
   version: 2.5;
   pipeline: ScanV25Pipeline;
   auto_match: AutoMatchResult;
+  ranking?: ScanRankingResult;
   normalized: NormalizedCard;
   ocr_v1_5: {
     extracted: ScanV1ExtractedText;

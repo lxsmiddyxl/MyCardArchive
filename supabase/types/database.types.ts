@@ -1627,6 +1627,51 @@ export type Database = {
           },
         ]
       }
+      scan_history: {
+        Row: {
+          best_catalog_card_id: string | null
+          confidence: number
+          created_at: string
+          id: string
+          image_url: string | null
+          scan_event_id: string | null
+          user_id: string
+        }
+        Insert: {
+          best_catalog_card_id?: string | null
+          confidence?: number
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          scan_event_id?: string | null
+          user_id: string
+        }
+        Update: {
+          best_catalog_card_id?: string | null
+          confidence?: number
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          scan_event_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scan_history_scan_event_id_fkey"
+            columns: ["scan_event_id"]
+            isOneToOne: false
+            referencedRelation: "scan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scan_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sets: {
         Row: {
           created_at: string | null
