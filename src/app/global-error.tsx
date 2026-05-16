@@ -2,6 +2,7 @@
 
 import { AppErrorFallback } from "@/components/app-error-fallback";
 import { mcaLog } from "@/lib/logging/mca-log-client";
+import { captureClientException } from "@/mca-utils/errors/capture-client";
 import { useEffect, useRef } from "react";
 
 export default function GlobalError({
@@ -21,7 +22,11 @@ export default function GlobalError({
       { message: error.message, digest: error.digest },
       { componentName: "GlobalError", surfaceName: "root" }
     );
-  }, [error.digest, error.message]);
+    captureClientException(error, {
+      route: "global-error",
+      extra: { digest: error.digest },
+    });
+  }, [error]);
 
   return (
     <html lang="en" className="dark">

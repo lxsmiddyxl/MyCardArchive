@@ -1,3 +1,4 @@
+import { apexHostFromWww, shouldRedirectWwwToApex } from "@/lib/seo/canonical-url";
 import { type NextRequest, NextResponse } from "next/server";
 import {
   RATE_LIMITS,
@@ -14,6 +15,14 @@ function isMaintenanceModeEnabled(): boolean {
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const method = request.method;
+
+  const host = request.headers.get("host");
+  if (shouldRedirectWwwToApex(host)) {
+    const url = request.nextUrl.clone();
+    url.host = apexHostFromWww(host!);
+    url.protocol = "https:";
+    return NextResponse.redirect(url, 308);
+  }
 
   if (isMaintenanceModeEnabled()) {
     const allow =
@@ -219,6 +228,57 @@ export async function middleware(request: NextRequest) {
       request,
       "community-react-mut",
       RATE_LIMITS.communityReactMutation
+    );
+    if (blocked) return blocked;
+  }
+
+  if (
+    (pathname === "/api/profile/update" ||
+      pathname === "/api/users/profile/update" ||
+      pathname === "/api/profile/avatar") &&
+    method !== "GET" &&
+    method !== "HEAD" &&
+    method !== "OPTIONS"
+  ) {
+    const blocked = rateLimitedResponse(
+      request,
+      "profile-mut",
+      RATE_LIMITS.profileMutation
+    );
+    if (blocked) return blocked;
+  }
+
+  if (pathname.startsWith("/api/onboarding") && method === "POST") {
+    const blocked = rateLimitedResponse(
+      request,
+      "onboarding-mut",
+      RATE_LIMITS.onboardingMutation
+    );
+    if (blocked) return blocked;
+  }
+
+  if (
+    (pathname.endsWith("/comment") || pathname.endsWith("/comments")) &&
+    pathname.startsWith("/api/binders/") &&
+    method === "POST"
+  ) {
+    const blocked = rateLimitedResponse(
+      request,
+      "binder-comment",
+      RATE_LIMITS.binderCommentMutation
+    );
+    if (blocked) return blocked;
+  }
+
+  if (
+    pathname.includes("/react") &&
+    pathname.startsWith("/api/binders/") &&
+    method === "POST"
+  ) {
+    const blocked = rateLimitedResponse(
+      request,
+      "binder-reaction",
+      RATE_LIMITS.binderReactionMutation
     );
     if (blocked) return blocked;
   }

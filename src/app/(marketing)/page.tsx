@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+/** ISR — marketing homepage (Launch Prep Phase 3). */
+export const revalidate = 3600;
+
 export const metadata: Metadata = mcaMarketingMetadata({
   title: "MyCardArchive — Pokémon TCG binders, scans & collector profiles",
   description:

@@ -3,6 +3,8 @@ import { errorJson, withContextId } from "@/lib/api/route-helpers";
 import { mcaLog } from "@/lib/logging/mca-log-server";
 import { shouldFlagSlowApiHandler } from "@/lib/server/api-handler-slow";
 import { logServerError } from "@/lib/server/observability";
+import { captureServerException } from "@/mca-utils/errors/capture-server";
+import { logApiTiming, traceIdFromRequest } from "@/mca-utils/logging/trace";
 
 const MCA_API_TEL = { componentName: "defineRoute", surfaceName: "api" } as const;
 
@@ -28,15 +30,22 @@ export function defineRoute(
   return async (request, context) => {
     const started = Date.now();
     const errorCtx = withContextId();
+    const traceId = traceIdFromRequest(request);
     try {
       const res = await handler(request, context);
       recordSlowApiHandler(routeLabel, started);
+      logApiTiming(routeLabel, Date.now() - started, traceId);
       return res;
     } catch (err) {
       logServerError({
         scope: "api",
         route: routeLabel,
         err,
+        correlationId: errorCtx.contextId,
+      });
+      captureServerException(err, {
+        scope: "api",
+        route: routeLabel,
         correlationId: errorCtx.contextId,
       });
       return errorJson(errorCtx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });
@@ -52,15 +61,22 @@ export function defineRouteSimple(
   return async (request, _context) => {
     const started = Date.now();
     const errorCtx = withContextId();
+    const traceId = traceIdFromRequest(request);
     try {
       const res = await handler(request);
       recordSlowApiHandler(routeLabel, started);
+      logApiTiming(routeLabel, Date.now() - started, traceId);
       return res;
     } catch (err) {
       logServerError({
         scope: "api",
         route: routeLabel,
         err,
+        correlationId: errorCtx.contextId,
+      });
+      captureServerException(err, {
+        scope: "api",
+        route: routeLabel,
         correlationId: errorCtx.contextId,
       });
       return errorJson(errorCtx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });
@@ -79,12 +95,18 @@ export function defineRouteNoArgs(
     try {
       const res = await handler();
       recordSlowApiHandler(routeLabel, started);
+      logApiTiming(routeLabel, Date.now() - started, errorCtx.contextId);
       return res;
     } catch (err) {
       logServerError({
         scope: "api",
         route: routeLabel,
         err,
+        correlationId: errorCtx.contextId,
+      });
+      captureServerException(err, {
+        scope: "api",
+        route: routeLabel,
         correlationId: errorCtx.contextId,
       });
       return errorJson(errorCtx, "Internal server error", 500, { code: ApiErrorCode.INTERNAL });

@@ -1,5 +1,17 @@
+const SITE_HOST = "mycardarchive.com";
+const EMBED_FRAME_ANCESTORS =
+  process.env.MCA_EMBED_ALLOWLIST?.trim()
+    ? process.env.MCA_EMBED_ALLOWLIST.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((e) => (e.startsWith("http") ? e : `https://${e}`))
+        .join(" ")
+    : `https://${SITE_HOST} https://www.${SITE_HOST}`;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  poweredByHeader: false,
+  compress: true,
   /** Hide Next.js dev toolbar indicators (floating “N” / compile spinner noise). */
   devIndicators: {
     buildActivity: false,
@@ -28,6 +40,12 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: `www.${SITE_HOST}` }],
+        destination: `https://${SITE_HOST}/:path*`,
+        permanent: true,
+      },
       { source: "/dashboard/tier", destination: "/tier", permanent: true },
       { source: "/dashboard/scan", destination: "/scan", permanent: true },
       { source: "/dashboard", destination: "/feed", permanent: true },
@@ -73,6 +91,36 @@ const nextConfig = {
           },
         ],
       },
+      {
+        source: "/",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, s-maxage=3600, stale-while-revalidate=86400",
+          },
+        ],
+      },
+      {
+        source: "/features/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, s-maxage=3600, stale-while-revalidate=86400",
+          },
+        ],
+      },
+      {
+        source: "/embed/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: `frame-ancestors ${EMBED_FRAME_ANCESTORS}`,
+          },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Access-Control-Allow-Methods", value: "GET, HEAD, OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Content-Type" },
+        ],
+      },
     ];
   },
   images: {
@@ -86,6 +134,16 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "images.pokemontcg.io",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: SITE_HOST,
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: `www.${SITE_HOST}`,
         pathname: "/**",
       },
     ],

@@ -8,11 +8,9 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
   try {
-    const { assertRequiredPublicEnv } = await import("./lib/server/env-guards");
-    const { assertProductionEnvParity } = await import("./lib/server/env-parity");
+    const { validateProductionEnv } = await import("./mca-utils/env/validateEnv");
     if (process.env.NODE_ENV === "production") {
-      assertRequiredPublicEnv();
-      assertProductionEnvParity();
+      validateProductionEnv({ throwOnMissing: true });
     }
   } catch (e) {
     logServerError({ scope: "system", route: "instrumentation.register", err: e });

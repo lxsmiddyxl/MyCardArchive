@@ -64,6 +64,14 @@ export const RATE_LIMITS = {
   marketV3OfferMutation: { max: 48, windowMs: 60_000 },
   /** POST `/api/community/posts/react` — reaction toggles (Phase 86). */
   communityReactMutation: { max: 60, windowMs: 60_000 },
+  /** POST profile / users profile updates (Launch Prep Phase 3). */
+  profileMutation: { max: 24, windowMs: 60_000 },
+  /** POST onboarding steps (Launch Prep Phase 3). */
+  onboardingMutation: { max: 40, windowMs: 60_000 },
+  /** POST binder comments (Launch Prep Phase 3). */
+  binderCommentMutation: { max: 36, windowMs: 60_000 },
+  /** POST binder reactions (Launch Prep Phase 3). */
+  binderReactionMutation: { max: 72, windowMs: 60_000 },
 } as const;
 
 /** In-memory snapshot for `/api/health/rate-limits` (suffixes match middleware buckets). */
@@ -86,5 +94,9 @@ export function getRateLimitHealthBuckets(): Record<
     { suffix: "community-feed-read", max: RATE_LIMITS.communityFeedRead.max },
     { suffix: "community-report-mut", max: RATE_LIMITS.communityReportMutation.max },
     { suffix: "market-v3-discover-read", max: RATE_LIMITS.marketV3DiscoverRead.max },
+    { suffix: "profile-mut", max: RATE_LIMITS.profileMutation.max },
+    { suffix: "onboarding-mut", max: RATE_LIMITS.onboardingMutation.max },
+    { suffix: "binder-comment", max: RATE_LIMITS.binderCommentMutation.max },
+    { suffix: "binder-reaction", max: RATE_LIMITS.binderReactionMutation.max },
   ]);
 }

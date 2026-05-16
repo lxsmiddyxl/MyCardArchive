@@ -34,7 +34,9 @@
     "test:e2e:matrix": "playwright test tests/e2e",
     "rate-limit:smoke": "node scripts/rate-limit-smoke.mjs",
     "scale:smoke": "node scripts/scale-smoke.mjs",
-    "launch:check": "node scripts/launch-check.mjs"
+    "launch:check": "node scripts/launch-check.mjs",
+    "supabase:prepare": "node scripts/supabase-prepare.mjs",
+    "dns:check": "node scripts/dns-check.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

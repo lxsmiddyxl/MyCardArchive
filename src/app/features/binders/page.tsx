@@ -3,6 +3,8 @@ import { FEATURE_PAGES } from "@/mca-ui/marketing/marketing-content";
 import { mcaMarketingMetadata } from "@/lib/seo/marketing-metadata";
 import type { Metadata } from "next";
 
+export const revalidate = 3600;
+
 const config = FEATURE_PAGES.find((p) => p.slug === "binders")!;
 
 export const metadata: Metadata = mcaMarketingMetadata({
