@@ -8,9 +8,14 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
   try {
-    const { validateProductionEnv } = await import("./mca-utils/env/validateEnv");
+    const { loadProductionEnv } = await import("./mca-utils/env/load");
+    const { assertRequiredProductionEnv } = await import("./mca-utils/env/required");
     if (process.env.NODE_ENV === "production") {
-      validateProductionEnv({ throwOnMissing: true });
+      loadProductionEnv({ throwOnError: true });
+      const check = assertRequiredProductionEnv();
+      if (!check.ok) {
+        throw new Error(check.errors.join("; "));
+      }
     }
   } catch (e) {
     logServerError({ scope: "system", route: "instrumentation.register", err: e });

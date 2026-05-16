@@ -7,6 +7,9 @@
 # testing
 /coverage
 /test-results/
+loadtest-report.json
+load-report.json
+rollback.json
 
 # next.js
 /.next/

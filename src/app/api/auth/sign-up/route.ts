@@ -3,10 +3,13 @@ import { mcaLog } from "@/lib/logging/mca-log-server";
 import { defineRouteSimple } from "@/lib/server/api-route";
 import { NextResponse } from "next/server";
 
+import { assertSignupInviteAllowed, consumeSignupInvite } from "@/lib/invites/signup-invite-gate";
+
 type SignupBody = {
   email?: string;
   password?: string;
   emailRedirectTo?: string;
+  inviteCode?: string;
 };
 
 function envMissing(): boolean {
@@ -86,6 +89,18 @@ async function POST_handler(request: Request) {
     );
   }
 
+  const inviteCheck = await assertSignupInviteAllowed({
+    email,
+    inviteCodeFromBody: body.inviteCode,
+  });
+  if (!inviteCheck.ok) {
+    mcaLog.event("auth.signup", { ok: false, reason: inviteCheck.reason }, telemetryCtx);
+    return NextResponse.json(
+      { ok: false, reason: inviteCheck.reason, error: inviteCheck.message },
+      { status: 403 }
+    );
+  }
+
   try {
     const supabase = createClient();
     const { data, error } = await supabase.auth.signUp({
@@ -101,6 +116,10 @@ async function POST_handler(request: Request) {
         { ok: false, reason: mapped.reason, error: mapped.message, raw: error.message },
         { status: mapped.status }
       );
+    }
+
+    if (data.user?.id && inviteCheck.code) {
+      await consumeSignupInvite(inviteCheck.code, data.user.id);
     }
 
     const requiresEmailConfirmation = !data.session;

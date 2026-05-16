@@ -32,6 +32,7 @@ export function SignupForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNextPath(searchParams.get("next"));
+  const inviteCode = searchParams.get("invite")?.trim().toUpperCase() ?? "";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -94,6 +95,7 @@ export function SignupForm({
           email: emailTrimmed,
           password,
           emailRedirectTo,
+          ...(inviteCode ? { inviteCode } : {}),
         }),
       });
       if (r.kind !== "ok") {
@@ -183,6 +185,11 @@ export function SignupForm({
       )}
 
       <form onSubmit={handleSubmit} className="mt-mca-lg space-y-mca-base">
+        {inviteCode ? (
+          <p className="rounded-mca-control border border-mca-border bg-mca-surface-paper/50 px-mca-compact py-mca-sm text-sm text-mca-ink-muted">
+            Invite code: <span className="font-mono text-mca-ink-strong">{inviteCode}</span>
+          </p>
+        ) : null}
         <div>
           <label
             htmlFor="email"

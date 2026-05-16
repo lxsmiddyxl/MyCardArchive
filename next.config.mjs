@@ -1,4 +1,5 @@
 const SITE_HOST = "mycardarchive.com";
+const CANONICAL_ORIGIN = `https://${SITE_HOST}`;
 const EMBED_FRAME_ANCESTORS =
   process.env.MCA_EMBED_ALLOWLIST?.trim()
     ? process.env.MCA_EMBED_ALLOWLIST.split(",")
@@ -12,6 +13,9 @@ const EMBED_FRAME_ANCESTORS =
 const nextConfig = {
   poweredByHeader: false,
   compress: true,
+  env: {
+    MCA_CANONICAL_ORIGIN: CANONICAL_ORIGIN,
+  },
   /** Hide Next.js dev toolbar indicators (floating “N” / compile spinner noise). */
   devIndicators: {
     buildActivity: false,

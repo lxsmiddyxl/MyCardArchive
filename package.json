@@ -36,7 +36,12 @@
     "scale:smoke": "node scripts/scale-smoke.mjs",
     "launch:check": "node scripts/launch-check.mjs",
     "supabase:prepare": "node scripts/supabase-prepare.mjs",
-    "dns:check": "node scripts/dns-check.mjs"
+    "dns:check": "node scripts/dns-check.mjs",
+    "deploy:production": "node scripts/deploy-production.mjs",
+    "loadtest": "node scripts/load-tests/run.mjs",
+    "verify:analytics": "node scripts/verify-analytics.mjs",
+    "verify:errors": "node scripts/verify-errors.mjs",
+    "launch:checklist": "node scripts/launch-checklist.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

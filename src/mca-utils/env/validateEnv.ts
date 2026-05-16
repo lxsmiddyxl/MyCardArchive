@@ -1,5 +1,6 @@
-import { assertProductionEnvParity, getEnvParityReport } from "@/lib/server/env-parity";
 import { assertRequiredPublicEnv, hasServiceRoleKey } from "@/lib/server/env-guards";
+import { getEnvParityReport } from "@/lib/server/env-parity";
+import { loadProductionEnv } from "@/mca-utils/env/load";
 
 export type EnvValidationResult = {
   ok: boolean;
@@ -25,10 +26,14 @@ export function validateProductionEnv(opts?: { throwOnMissing?: boolean }): EnvV
   }
 
   if (throwOnMissing && report.missingRequired.length > 0) {
-    assertRequiredPublicEnv();
-    assertProductionEnvParity();
+    loadProductionEnv({ throwOnError: true });
   } else if (report.missingRequired.length === 0) {
     assertRequiredPublicEnv();
+    try {
+      loadProductionEnv({ throwOnError: false });
+    } catch {
+      /* schema optional in dev */
+    }
   }
 
   return {

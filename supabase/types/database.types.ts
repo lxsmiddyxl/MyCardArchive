@@ -3718,6 +3718,48 @@ export type Database = {
           },
         ]
       }
+      invite_codes: {
+        Row: {
+          id: string
+          code: string
+          created_by: string
+          used_by: string | null
+          used_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          created_by: string
+          used_by?: string | null
+          used_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          code?: string
+          created_by?: string
+          used_by?: string | null
+          used_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invite_codes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invite_codes_used_by_fkey"
+            columns: ["used_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       internal_unlimited: {
         Row: {
           created_at: string

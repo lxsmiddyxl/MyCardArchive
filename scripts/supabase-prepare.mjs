@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
 
-const EXPECTED_MAX_MIGRATION = 119;
+const EXPECTED_MAX_MIGRATION = 120;
 const STORAGE_BUCKETS_SPEC = ["profile-images", "binder-covers", "exports"];
 const STORAGE_BUCKETS_REPO = ["avatars"];
 const EMAIL_TEMPLATE_MARKERS = ["magic link", "reset", "recovery", "confirm"];
@@ -70,7 +70,7 @@ async function main() {
     ok: readiness.hasLatest && readiness.highest >= EXPECTED_MAX_MIGRATION,
     migrationFiles: files.length,
     highestMigration: readiness.highest,
-    hasMigration119: readiness.hasLatest,
+    hasMigration120: readiness.hasLatest,
     numberedGaps: readiness.gapCount,
     gapSample: readiness.gapsSample,
     migrationsWithRlsOrPolicies: scan.rlsCount,

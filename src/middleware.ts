@@ -1,3 +1,8 @@
+import {
+  isInviteGateEnabled,
+  MCA_INVITE_COOKIE,
+  normalizeInviteCode,
+} from "@/lib/invites/invite-config";
 import { apexHostFromWww, shouldRedirectWwwToApex } from "@/lib/seo/canonical-url";
 import { type NextRequest, NextResponse } from "next/server";
 import {
@@ -248,6 +253,15 @@ export async function middleware(request: NextRequest) {
     if (blocked) return blocked;
   }
 
+  if (pathname.startsWith("/api/invites") && method !== "GET" && method !== "HEAD") {
+    const blocked = rateLimitedResponse(
+      request,
+      "invite-mut",
+      RATE_LIMITS.onboardingMutation
+    );
+    if (blocked) return blocked;
+  }
+
   if (pathname.startsWith("/api/onboarding") && method === "POST") {
     const blocked = rateLimitedResponse(
       request,
@@ -281,6 +295,21 @@ export async function middleware(request: NextRequest) {
       RATE_LIMITS.binderReactionMutation
     );
     if (blocked) return blocked;
+  }
+
+  if (
+    isInviteGateEnabled() &&
+    (pathname === "/auth/sign-up" || pathname === "/signup" || pathname === "/create-account") &&
+    method === "GET"
+  ) {
+    const hasCookie = Boolean(request.cookies.get(MCA_INVITE_COOKIE)?.value);
+    const hasQuery = Boolean(normalizeInviteCode(request.nextUrl.searchParams.get("invite") ?? ""));
+    if (!hasCookie && !hasQuery) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/invite";
+      url.searchParams.set("next", pathname);
+      return NextResponse.redirect(url, 307);
+    }
   }
 
   return await updateSession(request);
