@@ -1,0 +1,22 @@
+{
+  "id": "binder-interactions",
+  "title": "Binder interactions",
+  "description": "Opens, page changes, slot views",
+  "metrics": [
+    {
+      "label": "Binder open",
+      "event": "analytics.binder_open",
+      "value": 0
+    },
+    {
+      "label": "Page change",
+      "event": "analytics.binder_page_change",
+      "value": 0
+    },
+    {
+      "label": "Slot view",
+      "event": "analytics.binder_slot_view",
+      "value": 0
+    }
+  ]
+}

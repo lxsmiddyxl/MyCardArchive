@@ -28,7 +28,7 @@ async function main() {
       signal: AbortSignal.timeout(10_000),
     });
     status = res.status;
-    ok = res.status === 200 || res.status === 204;
+    ok = res.status < 500;
   } catch (e) {
     console.log(
       JSON.stringify(

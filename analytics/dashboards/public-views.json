@@ -1,0 +1,22 @@
+{
+  "id": "public-views",
+  "title": "Public & embed views",
+  "description": "Public binder, embed, profile views",
+  "metrics": [
+    {
+      "label": "Public binder",
+      "event": "analytics.public_binder_view",
+      "value": 0
+    },
+    {
+      "label": "Embed view",
+      "event": "analytics.embed_view",
+      "value": 0
+    },
+    {
+      "label": "Profile view",
+      "event": "analytics.profile_view",
+      "value": 0
+    }
+  ]
+}

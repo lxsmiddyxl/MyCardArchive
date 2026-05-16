@@ -1,0 +1,10 @@
+{
+  "id": "onboarding",
+  "title": "Onboarding funnel",
+  "description": "Steps from signup through first binder and scan tutorial",
+  "metrics": [
+    { "label": "Signup started", "event": "auth.signup", "value": 100 },
+    { "label": "Email confirmed", "event": "onboarding_step", "step": "confirm", "value": 72 },
+    { "label": "Onboarding complete", "event": "onboarding_step", "step": "complete", "value": 58 }
+  ]
+}

@@ -41,7 +41,11 @@
     "loadtest": "node scripts/load-tests/run.mjs",
     "verify:analytics": "node scripts/verify-analytics.mjs",
     "verify:errors": "node scripts/verify-errors.mjs",
-    "launch:checklist": "node scripts/launch-checklist.mjs"
+    "launch:checklist": "node scripts/launch-checklist.mjs",
+    "deploy:live": "node scripts/deploy-live.mjs",
+    "audit:lighthouse": "node scripts/lighthouse-audit.mjs",
+    "analytics:dashboard": "node scripts/analytics-dashboard.mjs",
+    "error:dashboard": "node scripts/error-dashboard.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

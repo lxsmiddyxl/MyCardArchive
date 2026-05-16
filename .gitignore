@@ -10,6 +10,7 @@
 loadtest-report.json
 load-report.json
 rollback.json
+reports/lighthouse/
 
 # next.js
 /.next/

@@ -18,6 +18,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Inter } from "next/font/google";
 import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
+import { PerformanceResourceHints } from "@/mca-utils/performance/resource-hints";
 import "@/styles/achievements.css";
 
 /**
@@ -172,6 +173,9 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className="dark bg-mca-surface">
+      <head>
+        <PerformanceResourceHints />
+      </head>
       <body
         className={`${inter.className} flex min-h-screen min-h-[100dvh] flex-col !bg-mca-surface !text-mca-ink-strong antialiased`}
       >

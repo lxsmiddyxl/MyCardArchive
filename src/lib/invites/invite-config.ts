@@ -22,6 +22,14 @@ export function normalizeInviteCode(raw: string): string {
   return raw.trim().toUpperCase().replace(/\s+/g, "");
 }
 
+export function inviteCodesToCsv(
+  rows: { code: string; created_at: string; used_at: string | null }[]
+): string {
+  const header = "code,created_at,used_at";
+  const lines = rows.map((r) => `${r.code},${r.created_at},${r.used_at ?? ""}`);
+  return [header, ...lines].join("\n");
+}
+
 export function generateInviteCode(): string {
   const bytes = new Uint8Array(5);
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {

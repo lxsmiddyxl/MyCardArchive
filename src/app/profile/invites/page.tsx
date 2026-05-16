@@ -1,4 +1,4 @@
-import { InviteCodeGenerator } from "@/mca-ui/invites/InviteCodeGenerator";
+import { InviteWavePanel } from "@/mca-ui/invites/InviteWavePanel";
 import { createClient } from "@/lib/supabase/server";
 import { isCurrentUserInternalUnlimited } from "@/lib/entitlements/internal-unlimited";
 import { isAdminEmail } from "@/lib/invites/invite-config";
@@ -24,8 +24,8 @@ export default async function ProfileInvitesPage() {
   if (!internal && !admin) redirect("/profile");
 
   return (
-    <div className="mx-auto max-w-lg px-mca-base py-mca-xl">
-      <InviteCodeGenerator />
+    <div className="mx-auto max-w-2xl px-mca-base py-mca-xl">
+      <InviteWavePanel />
     </div>
   );
 }

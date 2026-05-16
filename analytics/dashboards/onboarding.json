@@ -1,0 +1,22 @@
+{
+  "id": "onboarding",
+  "title": "Onboarding funnel",
+  "description": "Signup through onboarding complete",
+  "metrics": [
+    {
+      "label": "Signup started",
+      "event": "auth.signup",
+      "value": 0
+    },
+    {
+      "label": "Onboarding step",
+      "event": "onboarding_step",
+      "value": 0
+    },
+    {
+      "label": "Onboarding complete",
+      "event": "onboarding_step",
+      "value": 0
+    }
+  ]
+}

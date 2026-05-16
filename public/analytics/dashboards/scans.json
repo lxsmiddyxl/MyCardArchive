@@ -1,0 +1,9 @@
+{
+  "id": "scans",
+  "title": "Scan success rate",
+  "description": "Vision scan outcomes",
+  "metrics": [
+    { "label": "Scan success", "event": "analytics.scan_success", "value": 78 },
+    { "label": "Scan failure", "event": "analytics.scan_failure", "value": 22 }
+  ]
+}

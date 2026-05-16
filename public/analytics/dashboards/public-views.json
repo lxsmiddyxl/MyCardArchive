@@ -1,0 +1,10 @@
+{
+  "id": "public-views",
+  "title": "Public & embed views",
+  "description": "Shared binder and embed traffic",
+  "metrics": [
+    { "label": "Public binder view", "event": "analytics.public_binder_view", "value": 1200 },
+    { "label": "Embed view", "event": "analytics.embed_view", "value": 340 },
+    { "label": "Profile view", "event": "analytics.profile_view", "value": 560 }
+  ]
+}
