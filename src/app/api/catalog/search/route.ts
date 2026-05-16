@@ -55,6 +55,10 @@ function normalizeRpcHits(raw: unknown): CatalogCardHit[] {
           : typeof o.set_id === "string"
             ? o.set_id
             : "";
+    const subtypesRaw = o.subtypes;
+    const subtypes = Array.isArray(subtypesRaw)
+      ? subtypesRaw.filter((s): s is string => typeof s === "string")
+      : undefined;
     out.push({
       id,
       name,
@@ -63,19 +67,23 @@ function normalizeRpcHits(raw: unknown): CatalogCardHit[] {
       number: typeof o.number === "string" ? o.number : "",
       rarity: typeof o.rarity === "string" ? o.rarity : null,
       image_url: typeof o.image_url === "string" ? o.image_url : null,
+      supertype: typeof o.supertype === "string" ? o.supertype : null,
+      subtypes,
+      tcgplayer_id: typeof o.tcgplayer_id === "string" ? o.tcgplayer_id : id,
     });
   }
   return out;
 }
 
 /**
- * GET `?q=` — catalog card search (Feed v1 RPC: fuzzy + ILIKE + optional `set_id`).
+ * GET `?q=` or `?query=` — catalog card search (Feed v1 RPC: fuzzy + ILIKE + optional `set_id`).
  * Optional: `set_id`, `limit` (max 40). `?name=` is treated like `q`.
  */
 async function GET_handler(request: Request) {
   const ctx = withContextId();
   const { searchParams } = new URL(request.url);
   const query =
+    searchParams.get("query")?.trim() ??
     searchParams.get("q")?.trim() ??
     searchParams.get("name")?.trim() ??
     "";
@@ -84,7 +92,7 @@ async function GET_handler(request: Request) {
   const limit = Math.min(40, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 24));
 
   if (query.length < 1) {
-    return errorJson(ctx, "q query is required", 400, { code: ApiErrorCode.BAD_REQUEST, results: [] });
+    return errorJson(ctx, "query (or q) is required", 400, { code: ApiErrorCode.BAD_REQUEST, results: [] });
   }
 
   const supabase = createClient();
@@ -104,7 +112,9 @@ async function GET_handler(request: Request) {
 
   let qb = supabase
     .from("catalog_cards")
-    .select("id, set_id, name, number, rarity, image_small, image_large, catalog_sets(name)")
+    .select(
+      "id, set_id, name, number, rarity, supertype, subtypes, image_small, image_large, catalog_sets(name)"
+    )
     .ilike("name", `%${escapeIlike(query)}%`)
     .limit(limit);
 
@@ -133,6 +143,9 @@ async function GET_handler(request: Request) {
       rarity: row.rarity,
       number: row.number,
       image_url: row.image_large ?? row.image_small ?? null,
+      supertype: row.supertype,
+      subtypes: row.subtypes,
+      tcgplayer_id: row.id,
     };
   });
 

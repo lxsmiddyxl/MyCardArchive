@@ -2,14 +2,27 @@
 
 import { CardImageUpload } from "@/components/cards/card-image-upload";
 import { requestBinderSurfacesRefresh } from "@/lib/binders/binder-surfaces-refresh";
+import {
+  catalogDetailToSelection,
+  catalogHitToSelection,
+  isCatalogFormLocked,
+  type CatalogCardDetailRow,
+  type CatalogFormSelection,
+} from "@/lib/catalog/catalog-form-hydration";
+import {
+  buildCatalogSearchUrl,
+  CATALOG_AUTOCOMPLETE_DEBOUNCE_MS,
+  parseCatalogSearchResults,
+} from "@/lib/catalog/search";
 import type { AddCardPrefillPayload, CatalogCardHit, CatalogSetHit } from "@/lib/dto/catalog";
 import type { BinderAddMutationResponseDTO } from "@/lib/dto/scan-add";
 import { fetchJson, fetchJsonErrorMessage, fetchJsonUserFacingMessage } from "@/lib/client";
 import { Field } from "@/mca-ui/field";
+import { CatalogCardPreview } from "@/mca-ui/catalog-card-preview";
+import { CatalogCombobox } from "@/mca-ui/catalog-combobox";
 import { InlineError } from "@/mca-ui/inline-error";
-import { LoadingButton, LoadingSpinner } from "@/mca-ui/loading-button";
+import { LoadingButton } from "@/mca-ui/loading-button";
 import { Panel } from "@/mca-ui/panel";
-import { RemoteCardThumb } from "@/mca-ui/remote-card-thumb";
 import pokemonData from "@/data/pokemon_sets.json";
 import { cn } from "@/lib/ui/cn";
 import Link from "next/link";
@@ -29,7 +42,6 @@ type CardFormProps = {
   cardLimitReached?: boolean;
 };
 
-type CatalogSearchHit = CatalogCardHit;
 type CatalogSetScopeRow = CatalogSetHit;
 
 const RARITY_OPTIONS = [
@@ -40,9 +52,6 @@ const RARITY_OPTIONS = [
   "Secret Rare",
 ] as const;
 
-const CATALOG_ROW_H = 62;
-const CATALOG_VIEWPORT = 208;
-
 function rarityForSelect(raw: string | null | undefined): string {
   const t = typeof raw === "string" ? raw.trim() : "";
   if (!t) return "";
@@ -50,86 +59,50 @@ function rarityForSelect(raw: string | null | undefined): string {
   return hit ?? "";
 }
 
-const CatalogHitRow = memo(function CatalogHitRow({
-  hit,
-  onPick,
-}: {
-  hit: CatalogSearchHit;
-  onPick: (h: CatalogSearchHit) => void;
-}) {
-  return (
-    <li role="presentation" className="border-b border-mca-border/80 last:border-0" style={{ height: CATALOG_ROW_H }}>
-      <button
-        type="button"
-        role="option"
-        aria-selected={false}
-        onClick={() => onPick(hit)}
-        className="flex h-full w-full gap-mca-compact px-mca-compact py-mca-tight text-left transition-all duration-200 ease-mca-standard hover:bg-mca-surface-elevated/80"
-      >
-        <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-mca-control border border-mca-border bg-mca-surface-elevated">
-          {hit.image_url ? (
-            <RemoteCardThumb
-              src={hit.image_url}
-              alt=""
-              sizes="40px"
-              className="object-cover"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-[8px] text-mca-hint">—</div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-mca-ink-strong">
-            {hit.name} <span className="font-mono text-mca-ink-subtle">#{hit.number}</span>
-          </p>
-          <p className="truncate text-xs text-mca-ink-subtle">
-            {hit.set}
-            {hit.rarity ? ` · ${hit.rarity}` : ""}
-          </p>
-        </div>
-      </button>
-    </li>
-  );
-});
+function applySelectionToForm(
+  sel: CatalogFormSelection,
+  setters: {
+    setName: (v: string) => void;
+    setNameQuery: (v: string) => void;
+    setNumber: (v: string) => void;
+    setRarity: (v: string) => void;
+    setImageUrl: (v: string) => void;
+    setCatalogCardId: (v: string | null) => void;
+    setSetMode: (v: "preset" | "custom") => void;
+    setPresetId: (v: string) => void;
+    setSetField: (v: string) => void;
+    setSupertype: (v: string) => void;
+    setSubtypes: (v: string) => void;
+    setType: (v: string) => void;
+    setTcgplayerId: (v: string) => void;
+    setCatalogSelection: (v: CatalogFormSelection | null) => void;
+  }
+) {
+  setters.setName(sel.name);
+  setters.setNameQuery(sel.name);
+  setters.setNumber(sel.number);
+  setters.setRarity(rarityForSelect(sel.rarity));
+  setters.setImageUrl(sel.imageUrl);
+  setters.setCatalogCardId(sel.catalogCardId);
+  setters.setSupertype(sel.supertype);
+  setters.setSubtypes(sel.subtypes.join(", "));
+  setters.setType(sel.type);
+  setters.setTcgplayerId(sel.tcgplayerId);
 
-function CatalogHitsVirtualList({
-  hits,
-  onPick,
-}: {
-  hits: CatalogSearchHit[];
-  onPick: (h: CatalogSearchHit) => void;
-}) {
-  const [scrollTop, setScrollTop] = useState(0);
-  const total = hits.length * CATALOG_ROW_H;
-  const start = Math.max(0, Math.floor(scrollTop / CATALOG_ROW_H) - 2);
-  const end = Math.min(
-    hits.length,
-    Math.ceil((scrollTop + CATALOG_VIEWPORT) / CATALOG_ROW_H) + 2
-  );
-  const slice = hits.slice(start, end);
+  const match = POKEMON_SETS.find((s) => s.id === sel.setId || s.name === sel.setName);
+  if (match) {
+    setters.setSetMode("preset");
+    setters.setPresetId(match.id);
+    setters.setSetField(match.name);
+  } else if (sel.setName) {
+    setters.setSetMode("custom");
+    setters.setSetField(sel.setName);
+  }
 
-  return (
-    <div
-      className="mt-mca-sm max-h-52 overflow-auto rounded-mca-card border border-mca-border bg-mca-surface/50"
-      onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
-    >
-      <div className="relative" style={{ height: total }}>
-        <ul
-          className="absolute inset-x-0 top-0"
-          role="listbox"
-          aria-label="Catalog suggestions"
-          style={{ transform: `translateY(${start * CATALOG_ROW_H}px)` }}
-        >
-          {slice.map((hit) => (
-            <CatalogHitRow key={hit.id} hit={hit} onPick={onPick} />
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
+  setters.setCatalogSelection(sel);
 }
 
-export function CardForm({
+export const CardForm = memo(function CardForm({
   binderId,
   initialValues,
   scanEventId = null,
@@ -146,13 +119,26 @@ export function CardForm({
   const [catalogCardId, setCatalogCardId] = useState<string | null>(
     initialValues?.catalog_card_id?.trim() || null
   );
+  const [supertype, setSupertype] = useState(initialValues?.supertype ?? "");
+  const [subtypes, setSubtypes] = useState(
+    Array.isArray(initialValues?.subtypes) ? initialValues!.subtypes!.join(", ") : ""
+  );
+  const [type, setType] = useState(initialValues?.supertype ?? "");
+  const [tcgplayerId, setTcgplayerId] = useState(initialValues?.catalog_card_id ?? "");
+
   const [nameQuery, setNameQuery] = useState(initialValues?.name ?? "");
   const [debouncedQuery, setDebouncedQuery] = useState(initialValues?.name ?? "");
-  const [catalogHits, setCatalogHits] = useState<CatalogSearchHit[]>([]);
+  const [catalogHits, setCatalogHits] = useState<CatalogCardHit[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogErr, setCatalogErr] = useState<string | null>(null);
+  const [activeHitIndex, setActiveHitIndex] = useState(-1);
+  const [catalogSelection, setCatalogSelection] = useState<CatalogFormSelection | null>(null);
+  const [manualEdit, setManualEdit] = useState(false);
+
   const [catalogSetsForScope, setCatalogSetsForScope] = useState<CatalogSetScopeRow[]>([]);
-  const [catalogSearchSetId, setCatalogSearchSetId] = useState("");
+  const [catalogSearchSetId, setCatalogSearchSetId] = useState(
+    initialValues?.set_id?.trim() ?? ""
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [setMode, setSetMode] = useState<"preset" | "custom">("custom");
@@ -160,8 +146,10 @@ export function CardForm({
   const [frontFile, setFrontFile] = useState<File | null>(null);
   const [backFile, setBackFile] = useState<File | null>(null);
 
+  const fieldsLocked = isCatalogFormLocked(catalogSelection, manualEdit);
+
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedQuery(nameQuery), 280);
+    const t = window.setTimeout(() => setDebouncedQuery(nameQuery), CATALOG_AUTOCOMPLETE_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
   }, [nameQuery]);
 
@@ -206,6 +194,14 @@ export function CardForm({
     }
     if (initialValues.catalog_card_id != null && initialValues.catalog_card_id.trim()) {
       setCatalogCardId(initialValues.catalog_card_id.trim());
+      setTcgplayerId(initialValues.catalog_card_id.trim());
+    }
+    if (initialValues.supertype) {
+      setSupertype(initialValues.supertype);
+      setType(initialValues.supertype);
+    }
+    if (Array.isArray(initialValues.subtypes)) {
+      setSubtypes(initialValues.subtypes.join(", "));
     }
     const sn = initialValues.set_name?.trim();
     if (sn) {
@@ -219,11 +215,47 @@ export function CardForm({
         setSetField(sn);
       }
     }
+    if (initialValues.set_id?.trim()) {
+      setCatalogSearchSetId(initialValues.set_id.trim());
+    }
   }, [initialValues]);
 
   useEffect(() => {
+    if (!initialValues?.catalog_card_id?.trim()) return;
+    let cancelled = false;
+    void (async () => {
+      const r = await fetchJson<{ card: CatalogCardDetailRow }>(
+        `/api/catalog/cards/${encodeURIComponent(initialValues.catalog_card_id!.trim())}`,
+        { cache: "no-store" }
+      );
+      if (cancelled || r.kind !== "ok") return;
+      const sel = catalogDetailToSelection(r.data.card);
+      applySelectionToForm(sel, {
+        setName,
+        setNameQuery,
+        setNumber,
+        setRarity,
+        setImageUrl,
+        setCatalogCardId,
+        setSetMode,
+        setPresetId,
+        setSetField,
+        setSupertype,
+        setSubtypes,
+        setType,
+        setTcgplayerId,
+        setCatalogSelection,
+      });
+      setManualEdit(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialValues?.catalog_card_id]);
+
+  useEffect(() => {
     const q = debouncedQuery.trim();
-    if (q.length < 1) {
+    if (fieldsLocked || q.length < 1) {
       setCatalogHits([]);
       setCatalogErr(null);
       setCatalogLoading(false);
@@ -234,23 +266,19 @@ export function CardForm({
     setCatalogLoading(true);
     setCatalogErr(null);
 
-    (async () => {
+    void (async () => {
       try {
-        const sp = new URLSearchParams({ q, limit: "36" });
-        if (catalogSearchSetId.trim()) {
-          sp.set("set_id", catalogSearchSetId.trim());
-        }
-        const r = await fetchJson<{ results: CatalogSearchHit[] }>(
-          `/api/catalog/search?${sp.toString()}`,
-          { cache: "no-store" }
-        );
+        const url = buildCatalogSearchUrl(q, {
+          setId: catalogSearchSetId.trim() || undefined,
+        });
+        const r = await fetchJson<{ results: CatalogCardHit[] }>(url, { cache: "no-store" });
         if (cancelled) return;
         if (r.kind !== "ok") {
           setCatalogHits([]);
           setCatalogErr(fetchJsonErrorMessage(r));
           return;
         }
-        setCatalogHits(Array.isArray(r.data.results) ? r.data.results : []);
+        setCatalogHits(parseCatalogSearchResults(r.data));
       } finally {
         if (!cancelled) setCatalogLoading(false);
       }
@@ -259,30 +287,48 @@ export function CardForm({
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, catalogSearchSetId]);
+  }, [debouncedQuery, catalogSearchSetId, fieldsLocked]);
 
-  const applyCatalogHit = useCallback((hit: CatalogSearchHit) => {
-    setName(hit.name);
-    setNameQuery(hit.name);
-    setNumber(hit.number ?? "");
-    const setLabel = hit.set?.trim() ?? "";
-    if (setLabel) {
-      const match = POKEMON_SETS.find((s) => s.name === setLabel);
-      if (match) {
-        setSetMode("preset");
-        setPresetId(match.id);
-        setSetField(match.name);
-      } else {
-        setSetMode("custom");
-        setSetField(setLabel);
-      }
-    }
-    setRarity(rarityForSelect(hit.rarity));
-    const img = hit.image_url?.trim() || "";
-    setImageUrl(img);
-    setCatalogCardId(hit.id);
-    setDebouncedQuery("");
+  const applyCatalogHit = async (hit: CatalogCardHit) => {
     setCatalogHits([]);
+    setCatalogErr(null);
+    setActiveHitIndex(-1);
+    setManualEdit(false);
+
+    const r = await fetchJson<{ card: CatalogCardDetailRow }>(
+      `/api/catalog/cards/${encodeURIComponent(hit.id)}`,
+      { cache: "no-store" }
+    );
+    const sel =
+      r.kind === "ok" ? catalogDetailToSelection(r.data.card) : catalogHitToSelection(hit);
+    applySelectionToForm(sel, {
+      setName,
+      setNameQuery,
+      setNumber,
+      setRarity,
+      setImageUrl,
+      setCatalogCardId,
+      setSetMode,
+      setPresetId,
+      setSetField,
+      setSupertype,
+      setSubtypes,
+      setType,
+      setTcgplayerId,
+      setCatalogSelection,
+    });
+  };
+
+  const enableManualEdit = useCallback(() => {
+    setManualEdit(true);
+    setCatalogHits([]);
+  }, []);
+
+  const clearCatalogLink = useCallback(() => {
+    setCatalogSelection(null);
+    setCatalogCardId(null);
+    setManualEdit(true);
+    setTcgplayerId("");
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -297,6 +343,13 @@ export function CardForm({
     if (!trimmedName) {
       setError("Card name is required.");
       return;
+    }
+
+    if (!fieldsLocked && !manualEdit) {
+      const needsRarity = !rarity.trim();
+      if (needsRarity && !catalogCardId) {
+        /* optional rarity for manual entry */
+      }
     }
 
     setLoading(true);
@@ -358,258 +411,313 @@ export function CardForm({
     router.refresh();
   }
 
-  const inputClass =
-    "mca-input mt-0 w-full rounded-mca-card disabled:opacity-60";
+  const inputClass = cn(
+    "mca-input mt-0 w-full rounded-mca-card disabled:cursor-not-allowed disabled:opacity-60",
+    fieldsLocked && "bg-mca-surface/60"
+  );
+
+  const showNoResults =
+    !catalogLoading &&
+    debouncedQuery.trim().length >= 1 &&
+    catalogHits.length === 0 &&
+    !catalogErr &&
+    !fieldsLocked;
 
   return (
     <Panel elevated className="max-w-lg border-mca-border bg-mca-surface-elevated/40 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
       <form onSubmit={handleSubmit} className="space-y-mca-md">
-      {scanEventId ? (
-        <p className="rounded-mca-card border border-mca-border-subtle/80 bg-mca-surface/40 px-mca-base py-mca-compact text-xs leading-relaxed text-mca-ink-muted">
-          This card is linked to a scan. Fields may be prefilled from catalog auto-match — edit freely
-          before saving.
-        </p>
-      ) : null}
+        {scanEventId ? (
+          <p className="rounded-mca-card border border-mca-border-subtle/80 bg-mca-surface/40 px-mca-base py-mca-compact text-xs leading-relaxed text-mca-ink-muted">
+            This card is linked to a scan. Fields may be prefilled from catalog auto-match — edit
+            freely before saving.
+          </p>
+        ) : null}
 
-      {cardLimitReached ? (
-        <p className="rounded-mca-card border border-mca-warning-surface-border/50 bg-mca-warning-surface/25 px-mca-base py-mca-compact text-sm text-mca-warning-tint">
-          You&apos;ve reached your card limit.
-          <Link
-            href="/tier"
-            className="ms-mca-xs font-semibold text-mca-accent underline-offset-2 hover:underline"
-          >
-            View plans and upgrade
-          </Link>
-          .
-        </p>
-      ) : null}
+        {cardLimitReached ? (
+          <p className="rounded-mca-card border border-mca-warning-surface-border/50 bg-mca-warning-surface/25 px-mca-base py-mca-compact text-sm text-mca-warning-tint">
+            You&apos;ve reached your card limit.
+            <Link
+              href="/tier"
+              className="ms-mca-xs font-semibold text-mca-accent underline-offset-2 hover:underline"
+            >
+              View plans and upgrade
+            </Link>
+            .
+          </p>
+        ) : null}
 
-      <Field id="card-name" label="Card name">
-        <input
+        <Field
           id="card-name"
-          value={nameQuery}
-          onChange={(e) => {
-            setName(e.target.value);
-            setNameQuery(e.target.value);
-          }}
-          required
-          disabled={loading || cardLimitReached}
-          className={cn(inputClass)}
-          placeholder="e.g. Charizard"
-        />
-        {catalogCardId ? (
-          <p className="mt-mca-xs text-xs text-mca-accent-strong/85">
-            Linked catalog id:{" "}
-            <span className="font-mono text-mca-ink-muted">{catalogCardId}</span>
-            <button
-              type="button"
-              className="ms-mca-sm text-mca-ink-subtle underline-offset-2 hover:text-mca-ink-body hover:underline"
-              onClick={() => setCatalogCardId(null)}
-            >
-              Clear link
-            </button>
-          </p>
-        ) : null}
-      </Field>
-
-      <Field
-        id="catalog-add-search-scope"
-        label="Catalog search scope"
-        hint="Optional — narrows catalog matches to one expansion. When your Pokémon TCG preset id matches the catalog (e.g. base1), this updates automatically."
-      >
-        <div className="flex flex-col gap-mca-sm sm:flex-row sm:items-stretch">
-          <select
-            id="catalog-add-search-scope"
-            value={catalogSearchSetId}
-            onChange={(e) => setCatalogSearchSetId(e.target.value)}
-            disabled={loading || cardLimitReached}
-            className={cn(inputClass)}
-          >
-            <option value="">All catalog sets</option>
-            {catalogSetsForScope.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-              </option>
-            ))}
-          </select>
-          <Link
-            href="/catalog/cards/search"
-            className="inline-flex shrink-0 items-center justify-center rounded-mca-card border border-mca-field-border bg-mca-chrome/50 px-mca-base py-mca-tight text-center text-xs font-semibold text-mca-accent-strong/90 transition duration-200 ease-mca-standard hover:border-mca-accent-border/40 hover:text-mca-accent sm:w-auto"
-          >
-            Full catalog search
-          </Link>
-        </div>
-      </Field>
-
-      <div className="space-y-mca-sm" aria-live="polite" aria-busy={catalogLoading}>
-        {catalogErr ? (
-          <InlineError className="text-xs">{catalogErr}</InlineError>
-        ) : null}
-        {catalogLoading ? (
-          <div className="flex min-h-[2rem] items-center gap-mca-sm text-xs text-mca-ink-subtle">
-            <LoadingSpinner className="size-4 text-mca-accent/90" />
-            Searching catalog…
-          </div>
-        ) : null}
-        {!catalogLoading &&
-        debouncedQuery.trim().length >= 1 &&
-        catalogHits.length === 0 &&
-        !catalogErr ? (
-          <p className="text-xs text-mca-ink-subtle">
-            No results for &quot;{debouncedQuery.trim()}&quot;.
-          </p>
-        ) : null}
-        {catalogHits.length > 0 ? (
-          catalogHits.length > 10 ? (
-            <CatalogHitsVirtualList hits={catalogHits} onPick={applyCatalogHit} />
-          ) : (
-            <ul
-              className="max-h-52 overflow-auto rounded-mca-card border border-mca-border bg-mca-surface/50"
-              role="listbox"
-              aria-label="Catalog suggestions"
-            >
-              {catalogHits.map((hit) => (
-                <CatalogHitRow key={hit.id} hit={hit} onPick={applyCatalogHit} />
-              ))}
-            </ul>
-          )
-        ) : null}
-      </div>
-
-      <div className="grid gap-mca-base sm:grid-cols-2">
-        <Field id="card-number" label="Number">
-          <input
-            id="card-number"
-            value={number}
-            onChange={(e) => setNumber(e.target.value)}
-            disabled={loading || cardLimitReached}
-            className={cn(inputClass)}
-          />
-        </Field>
-        <Field
-          id="card-set-preset"
-          label="Pokémon TCG set"
-          hint="Pick a known expansion or choose Custom set for other games."
+          label="Card name"
+          hint="Search the Pokémon TCG catalog or enter a name manually."
         >
-          <select
-            id="card-set-preset"
-            value={setMode === "preset" ? presetId : CUSTOM_SET_VALUE}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === CUSTOM_SET_VALUE) {
-                setSetMode("custom");
-                return;
+          <CatalogCombobox
+            id="card-name"
+            value={nameQuery}
+            onValueChange={(v) => {
+              setName(v);
+              setNameQuery(v);
+              if (catalogSelection && v !== catalogSelection.name) {
+                setCatalogSelection(null);
+                setCatalogCardId(null);
+                setManualEdit(true);
               }
-              setSetMode("preset");
-              setPresetId(v);
-              const s = POKEMON_SETS.find((x) => x.id === v);
-              if (s) setSetField(s.name);
             }}
+            hits={catalogHits}
+            loading={catalogLoading}
+            error={catalogErr}
+            showNoResults={showNoResults}
+            activeIndex={activeHitIndex}
+            onActiveIndexChange={setActiveHitIndex}
+            onPick={(hit) => void applyCatalogHit(hit)}
+            onManualEditRequest={enableManualEdit}
             disabled={loading || cardLimitReached}
-            className={cn(inputClass)}
-          >
-            <option value={CUSTOM_SET_VALUE}>Custom set (any TCG)</option>
-            {POKEMON_SETS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          />
+          {catalogSelection && !manualEdit ? (
+            <p className="mt-mca-xs text-xs text-mca-ink-subtle">
+              Catalog match applied.{" "}
+              <button
+                type="button"
+                className="font-semibold text-mca-accent underline-offset-2 hover:underline"
+                onClick={enableManualEdit}
+              >
+                Edit manually
+              </button>
+              {" · "}
+              <button
+                type="button"
+                className="text-mca-ink-muted underline-offset-2 hover:text-mca-ink-body hover:underline"
+                onClick={clearCatalogLink}
+              >
+                Clear catalog link
+              </button>
+            </p>
+          ) : manualEdit && catalogCardId ? (
+            <p className="mt-mca-xs text-xs text-mca-ink-subtle">
+              Manual edit mode — fields are unlocked.
+            </p>
+          ) : null}
         </Field>
-        <Field id="card-rarity" label="Rarity" className="sm:col-span-2">
-          <select
-            id="card-rarity"
-            value={rarity}
-            onChange={(e) => setRarity(e.target.value)}
-            disabled={loading || cardLimitReached}
-            className={cn(inputClass)}
-          >
-            <option value="">Select rarity</option>
-            {RARITY_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
 
-      {setMode === "custom" ? (
+        {catalogSelection && !manualEdit ? (
+          <CatalogCardPreview selection={catalogSelection} />
+        ) : null}
+
         <Field
-          id="card-set-custom"
-          label="Custom set name"
-          hint="Used when your card is not from the list above (e.g. Magic, sports)."
+          id="catalog-add-search-scope"
+          label="Catalog search scope"
+          hint="Optional — narrows autocomplete to one expansion."
+        >
+          <div className="flex flex-col gap-mca-sm sm:flex-row sm:items-stretch">
+            <select
+              id="catalog-add-search-scope"
+              value={catalogSearchSetId}
+              onChange={(e) => setCatalogSearchSetId(e.target.value)}
+              disabled={loading || cardLimitReached || fieldsLocked}
+              className={cn(inputClass)}
+            >
+              <option value="">All catalog sets</option>
+              {catalogSetsForScope.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.name}
+                </option>
+              ))}
+            </select>
+            <Link
+              href="/catalog/cards/search"
+              className="inline-flex shrink-0 items-center justify-center rounded-mca-card border border-mca-field-border bg-mca-chrome/50 px-mca-base py-mca-tight text-center text-xs font-semibold text-mca-accent-strong/90 transition duration-200 ease-mca-standard hover:border-mca-accent-border/40 hover:text-mca-accent sm:w-auto"
+            >
+              Full catalog search
+            </Link>
+          </div>
+        </Field>
+
+        <div className="grid gap-mca-base sm:grid-cols-2">
+          <Field id="card-number" label="Number">
+            <input
+              id="card-number"
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
+              disabled={loading || cardLimitReached || fieldsLocked}
+              readOnly={fieldsLocked}
+              className={cn(inputClass)}
+            />
+          </Field>
+          <Field
+            id="card-set-preset"
+            label="Pokémon TCG set"
+            hint="Pick a known expansion or choose Custom set for other games."
+          >
+            <select
+              id="card-set-preset"
+              value={setMode === "preset" ? presetId : CUSTOM_SET_VALUE}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === CUSTOM_SET_VALUE) {
+                  setSetMode("custom");
+                  return;
+                }
+                setSetMode("preset");
+                setPresetId(v);
+                const s = POKEMON_SETS.find((x) => x.id === v);
+                if (s) setSetField(s.name);
+              }}
+              disabled={loading || cardLimitReached || fieldsLocked}
+              className={cn(inputClass)}
+            >
+              <option value={CUSTOM_SET_VALUE}>Custom set (any TCG)</option>
+              {POKEMON_SETS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field id="card-rarity" label="Rarity" className="sm:col-span-2">
+            <select
+              id="card-rarity"
+              value={rarity}
+              onChange={(e) => setRarity(e.target.value)}
+              disabled={loading || cardLimitReached || fieldsLocked}
+              className={cn(inputClass)}
+            >
+              <option value="">Select rarity</option>
+              {RARITY_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        {(supertype || subtypes || type || tcgplayerId) && (
+          <div className="grid gap-mca-base sm:grid-cols-2">
+            <Field id="card-supertype" label="Supertype">
+              <input
+                id="card-supertype"
+                value={supertype}
+                onChange={(e) => setSupertype(e.target.value)}
+                disabled={loading || cardLimitReached || fieldsLocked}
+                readOnly={fieldsLocked}
+                className={cn(inputClass)}
+              />
+            </Field>
+            <Field id="card-type" label="Type">
+              <input
+                id="card-type"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                disabled={loading || cardLimitReached || fieldsLocked}
+                readOnly={fieldsLocked}
+                className={cn(inputClass)}
+              />
+            </Field>
+            <Field id="card-subtypes" label="Subtypes" className="sm:col-span-2">
+              <input
+                id="card-subtypes"
+                value={subtypes}
+                onChange={(e) => setSubtypes(e.target.value)}
+                disabled={loading || cardLimitReached || fieldsLocked}
+                readOnly={fieldsLocked}
+                className={cn(inputClass)}
+                placeholder="e.g. Basic, VMAX"
+              />
+            </Field>
+            {tcgplayerId ? (
+              <Field id="card-external-id" label="Catalog id" className="sm:col-span-2">
+                <input
+                  id="card-external-id"
+                  value={tcgplayerId}
+                  readOnly
+                  disabled
+                  className={cn(inputClass, "font-mono text-mca-caption")}
+                />
+              </Field>
+            ) : null}
+          </div>
+        )}
+
+        {setMode === "custom" ? (
+          <Field
+            id="card-set-custom"
+            label="Custom set name"
+            hint="Used when your card is not from the list above (e.g. Magic, sports)."
+          >
+            <input
+              id="card-set-custom"
+              value={setField}
+              onChange={(e) => setSetField(e.target.value)}
+              disabled={loading || cardLimitReached || fieldsLocked}
+              readOnly={fieldsLocked}
+              className={cn(inputClass)}
+              placeholder="e.g. Custom product line"
+            />
+          </Field>
+        ) : null}
+
+        <div className="grid gap-mca-lg sm:grid-cols-2">
+          <CardImageUpload
+            id="card-img-front"
+            label="Front photo"
+            hint="Optional — saved as full resolution + a 300px thumbnail for binders."
+            file={frontFile}
+            onFileChange={setFrontFile}
+            disabled={loading || cardLimitReached}
+          />
+          <CardImageUpload
+            id="card-img-back"
+            label="Back photo"
+            hint="Optional — back face for your binder detail view."
+            file={backFile}
+            onFileChange={setBackFile}
+            disabled={loading || cardLimitReached}
+          />
+        </div>
+
+        <Field
+          id="card-image-url"
+          label="Image URL (optional)"
+          hint={
+            frontFile
+              ? "Cleared while a front photo is selected — upload runs after save."
+              : fieldsLocked
+                ? "From catalog — unlock with Edit manually to change."
+                : "External artwork URL if you are not uploading a front photo."
+          }
         >
           <input
-            id="card-set-custom"
-            value={setField}
-            onChange={(e) => setSetField(e.target.value)}
-            disabled={loading || cardLimitReached}
+            id="card-image-url"
+            type="url"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            disabled={loading || cardLimitReached || Boolean(frontFile) || fieldsLocked}
+            readOnly={fieldsLocked}
             className={cn(inputClass)}
-            placeholder="e.g. Custom product line"
           />
         </Field>
-      ) : null}
 
-      <div className="grid gap-mca-lg sm:grid-cols-2">
-        <CardImageUpload
-          id="card-img-front"
-          label="Front photo"
-          hint="Optional — saved as full resolution + a 300px thumbnail for binders."
-          file={frontFile}
-          onFileChange={setFrontFile}
-          disabled={loading || cardLimitReached}
-        />
-        <CardImageUpload
-          id="card-img-back"
-          label="Back photo"
-          hint="Optional — back face for your binder detail view."
-          file={backFile}
-          onFileChange={setBackFile}
-          disabled={loading || cardLimitReached}
-        />
-      </div>
+        {error ? <InlineError className="text-sm">{error}</InlineError> : null}
 
-      <Field
-        id="card-image-url"
-        label="Image URL (optional)"
-        hint={
-          frontFile
-            ? "Cleared while a front photo is selected — upload runs after save."
-            : "External artwork URL if you are not uploading a front photo."
-        }
-      >
-        <input
-          id="card-image-url"
-          type="url"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          disabled={loading || cardLimitReached || Boolean(frontFile)}
-          className={cn(inputClass)}
-        />
-      </Field>
-
-      {error ? <InlineError className="text-sm">{error}</InlineError> : null}
-
-      <div className="flex flex-wrap gap-mca-compact pt-mca-sm">
-        <Link
-          href={`/binders/${binderId}`}
-          className={cn(
-            "inline-flex flex-1 items-center justify-center rounded-mca-control border border-mca-field-border bg-mca-chrome px-mca-comfortable py-mca-tight text-sm font-semibold text-mca-ink-strong transition-all duration-200 ease-mca-standard hover:bg-mca-border-subtle sm:flex-none"
-          )}
-        >
-          Cancel
-        </Link>
-        <LoadingButton
-          type="submit"
-          isLoading={loading}
-          disabled={cardLimitReached}
-          className="inline-flex flex-1 items-center justify-center rounded-mca-control border border-mca-accent-border/50 bg-mca-accent-strong/90 px-mca-comfortable py-mca-tight text-sm font-semibold text-mca-on-accent shadow-mca-panel transition-all duration-200 ease-mca-standard hover:bg-mca-accent/95 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
-        >
-          Add card
-        </LoadingButton>
-      </div>
+        <div className="flex flex-wrap gap-mca-compact pt-mca-sm">
+          <Link
+            href={`/binders/${binderId}`}
+            className={cn(
+              "inline-flex flex-1 items-center justify-center rounded-mca-control border border-mca-field-border bg-mca-chrome px-mca-comfortable py-mca-tight text-sm font-semibold text-mca-ink-strong transition-all duration-200 ease-mca-standard hover:bg-mca-border-subtle sm:flex-none"
+            )}
+          >
+            Cancel
+          </Link>
+          <LoadingButton
+            type="submit"
+            isLoading={loading}
+            disabled={cardLimitReached}
+            className="inline-flex flex-1 items-center justify-center rounded-mca-control border border-mca-accent-border/50 bg-mca-accent-strong/90 px-mca-comfortable py-mca-tight text-sm font-semibold text-mca-on-accent shadow-mca-panel transition-all duration-200 ease-mca-standard hover:bg-mca-accent/95 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+          >
+            Add card
+          </LoadingButton>
+        </div>
       </form>
     </Panel>
   );
-}
+});

@@ -10,6 +10,10 @@ export type CatalogCardHit = {
   number: string;
   rarity: string | null;
   image_url: string | null;
+  supertype?: string | null;
+  subtypes?: string[];
+  /** Catalog primary key (Pokémon TCG API id) — shown as external id when present. */
+  tcgplayer_id?: string | null;
 };
 
 export type CatalogSetHit = {
@@ -32,8 +36,11 @@ export type AddCardPrefillPayload = {
   number?: string;
   rarity?: string;
   set_name?: string | null;
+  set_id?: string | null;
   image_url?: string | null;
   catalog_card_id?: string | null;
+  supertype?: string | null;
+  subtypes?: string[];
   scan_event_id?: string | null;
   auto_match?: ScanMatchResult | null;
 };

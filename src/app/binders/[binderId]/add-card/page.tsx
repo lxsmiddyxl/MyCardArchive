@@ -90,6 +90,9 @@ function catalogRowToInitial(row: {
   name: string;
   number: string;
   rarity: string | null;
+  set_id: string;
+  supertype: string | null;
+  subtypes: string[];
   image_small: string | null;
   image_large: string | null;
   catalog_sets?: { name: string } | { name: string }[] | null;
@@ -101,6 +104,9 @@ function catalogRowToInitial(row: {
     image_url: row.image_large ?? row.image_small ?? null,
     catalog_card_id: row.id,
     set_name: firstCatSetName(row),
+    set_id: row.set_id,
+    supertype: row.supertype,
+    subtypes: row.subtypes,
   };
 }
 
@@ -193,7 +199,7 @@ async function AddCardPageInner({ params, searchParams }: PageProps) {
         const { data: cat } = await supabase
           .from("catalog_cards")
           .select(
-            "id, name, number, rarity, image_small, image_large, catalog_sets(name)"
+            "id, name, number, rarity, set_id, supertype, subtypes, image_small, image_large, catalog_sets(name)"
           )
           .eq("id", bm.catalog_card_id.trim())
           .maybeSingle();
@@ -227,7 +233,7 @@ async function AddCardPageInner({ params, searchParams }: PageProps) {
     const { data: cat } = await supabase
       .from("catalog_cards")
       .select(
-        "id, name, number, rarity, image_small, image_large, catalog_sets(name)"
+        "id, name, number, rarity, set_id, supertype, subtypes, image_small, image_large, catalog_sets(name)"
       )
       .eq("id", catalogIdQ.trim())
       .maybeSingle();
