@@ -306,6 +306,16 @@ body {
   }
 }
 
+@keyframes mca-holo-shine {
+  0%,
+  100% {
+    transform: translateX(-30%);
+  }
+  50% {
+    transform: translateX(30%);
+  }
+}
+
 @keyframes mca-skeleton-shimmer {
   0% {
     background-position: 100% 0;

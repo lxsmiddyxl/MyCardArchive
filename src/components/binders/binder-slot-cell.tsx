@@ -10,7 +10,9 @@ import { useCallback } from "@/lib/perf/memo";
 import type { DragEvent, KeyboardEvent, ReactNode } from "react";
 import { memo, useState } from "react";
 
-const DRAG_MIME = "application/x-mycardarchive-binder-slot";
+import { BINDER_SLOT_DRAG_MIME, readSlotDragPayload, serializeSlotDragPayload } from "@/mca-utils/binders/dragAndDrop";
+
+const DRAG_MIME = BINDER_SLOT_DRAG_MIME;
 
 export type SlotCardLite = {
   id: string;
@@ -97,26 +99,9 @@ function BinderSlotCellInner({
       e.preventDefault();
       if (busy) return;
       onClearDragOver();
-      let raw = e.dataTransfer.getData(DRAG_MIME);
-      if (!raw) {
-        try {
-          raw = e.dataTransfer.getData("text/plain");
-        } catch {
-          /* ignore */
-        }
-      }
-      if (!raw) return;
-      try {
-        const from = JSON.parse(raw) as { page: number; slot: number };
-        if (
-          typeof from.page === "number" &&
-          typeof from.slot === "number" &&
-          !(from.page === page && from.slot === slotIndex)
-        ) {
-          onMove(from, { page, slot: slotIndex });
-        }
-      } catch {
-        /* ignore */
+      const from = readSlotDragPayload(e.dataTransfer);
+      if (from && !(from.page === page && from.slot === slotIndex)) {
+        onMove(from, { page, slot: slotIndex });
       }
     },
     [busy, onClearDragOver, onMove, page, slotIndex]
@@ -125,7 +110,7 @@ function BinderSlotCellInner({
   const dragPayload = useCallback(
     (e: DragEvent) => {
       e.stopPropagation();
-      const payload = JSON.stringify({ page, slot: slotIndex });
+      const payload = serializeSlotDragPayload({ page, slot: slotIndex });
       e.dataTransfer.setData(DRAG_MIME, payload);
       e.dataTransfer.setData("text/plain", payload);
       e.dataTransfer.effectAllowed = "move";
