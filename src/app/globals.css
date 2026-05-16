@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Embed routes: hide global chrome for iframe-friendly binder previews */
+body:has(.mca-embed-root) header,
+body:has(.mca-embed-root) footer,
+body:has(.mca-embed-root) [data-mca-mobile-shell] {
+  display: none !important;
+}
+
+body:has(.mca-embed-root) main {
+  max-width: none;
+  padding: 0;
+}
+
 /**
  * MyCardArchive design tokens (Phase 6).
  * Numeric palette / spacing source of truth: `src/styles/tokens/` (Phase 33).

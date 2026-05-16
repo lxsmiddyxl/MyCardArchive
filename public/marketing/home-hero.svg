@@ -1,0 +1,56 @@
+<!-- MyCardArchive Phase 25 — homepage hero. Export PNG: 1920×640 (or @2x). No UI text. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 640" fill="none" role="img" aria-labelledby="mh-t"><title id="mh-t">MyCardArchive marketing home hero</title>
+  <defs>
+    <linearGradient id="mh-bg" x1="0" y1="0" x2="1920" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#09090b"/>
+      <stop offset="0.45" stop-color="#18181b"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="mh-glow" x1="1200" y1="400" x2="1880" y2="620" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#047857" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#065f46" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="mh-sh" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="24" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect width="1920" height="640" fill="url(#mh-bg)"/>
+  <ellipse cx="1520" cy="520" rx="520" ry="200" fill="url(#mh-glow)"/>
+  <g opacity="0.15" stroke="#34d399" stroke-width="2">
+    <path d="M120 560c240-40 480-40 720 0" stroke-linecap="round"/>
+  </g>
+  <!-- Binder motif (left) -->
+  <g filter="url(#mh-sh)">
+    <rect x="96" y="120" width="72" height="400" rx="20" fill="#18181b" stroke="#3f3f46" stroke-width="2"/>
+    <circle cx="132" cy="180" r="9" fill="#047857" stroke="#34d399" stroke-width="1.75"/>
+    <circle cx="132" cy="240" r="9" fill="#047857" stroke="#34d399" stroke-width="1.75"/>
+    <circle cx="132" cy="300" r="9" fill="#047857" stroke="#34d399" stroke-width="1.75"/>
+    <circle cx="132" cy="360" r="9" fill="#047857" stroke="#34d399" stroke-width="1.75"/>
+    <rect x="108" y="428" width="48" height="6" rx="3" fill="#3f3f46"/>
+    <rect x="108" y="444" width="36" height="6" rx="3" fill="#52525b"/>
+  </g>
+  <!-- Card stack center -->
+  <g filter="url(#mh-sh)">
+    <rect x="340" y="160" width="280" height="380" rx="32" fill="#27272a" stroke="#52525b" stroke-width="2.5" transform="rotate(-7 480 350)"/>
+    <rect x="420" y="120" width="300" height="400" rx="34" fill="#18181b" stroke="#3f3f46" stroke-width="2.5"/>
+    <rect x="460" y="200" width="220" height="280" rx="22" fill="#3f3f46" fill-opacity="0.4"/>
+    <rect x="500" y="240" width="140" height="12" rx="6" fill="#10b981" fill-opacity="0.35"/>
+    <rect x="500" y="268" width="100" height="8" rx="4" fill="#52525b" fill-opacity="0.8"/>
+    <rect x="500" y="288" width="120" height="8" rx="4" fill="#52525b" fill-opacity="0.55"/>
+  </g>
+  <!-- Deck stack (right) -->
+  <g filter="url(#mh-sh)">
+    <rect x="1180" y="220" width="260" height="340" rx="28" fill="#27272a" stroke="#52525b" stroke-width="2" transform="rotate(9 1310 390)"/>
+    <rect x="1220" y="200" width="260" height="340" rx="28" fill="#3f3f46" stroke="#71717a" stroke-width="2" transform="rotate(4 1350 370)"/>
+    <rect x="1260" y="180" width="260" height="340" rx="28" fill="#18181b" stroke="#a1a1aa" stroke-width="2.5"/>
+    <path d="M1360 380c32-18 72-18 104 0" stroke="#34d399" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <!-- Sparkles -->
+  <circle cx="880" cy="100" r="10" fill="#f59e0b" fill-opacity="0.35"/>
+  <path d="M880 84v32M864 100h32" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="1700" cy="140" r="7" fill="#fbbf24" fill-opacity="0.4"/>
+  <path d="M1700 128v24M1688 140h24" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="260" cy="80" r="5" fill="#34d399" fill-opacity="0.5"/>
+  <!-- Premium framing arc -->
+  <rect x="40" y="40" width="1840" height="560" rx="56" fill="none" stroke="#3f3f46" stroke-width="1.5" stroke-opacity="0.45"/>
+</svg>

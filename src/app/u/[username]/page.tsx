@@ -1,5 +1,6 @@
 import { aggregateProfileStats } from "@/lib/binders/profile-stats";
 import { parseProfileTheme } from "@/lib/binders/portfolio-types";
+import { mcaPublicShareMetadata } from "@/lib/seo/public-share-metadata";
 import { getProfileFollowCounts, isFollowing } from "@/lib/social/user-follow";
 import { createClient } from "@/lib/supabase/server";
 import { UserProfilePage } from "@/mca-ui/profile/UserProfilePage";
@@ -9,8 +10,26 @@ import { notFound } from "next/navigation";
 type PageProps = { params: { username: string } };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const handle = params.username?.trim().replace(/^@/, "") ?? "";
-  return { title: handle ? `@${handle}` : "Collector profile" };
+  const handle = params.username?.trim().replace(/^@/, "").toLowerCase() ?? "";
+  if (!handle) return { title: "Collector profile" };
+
+  const supabase = createClient();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, display_name, handle, bio")
+    .ilike("handle", handle)
+    .maybeSingle();
+
+  const label = profile?.display_name?.trim() || (profile?.handle ? `@${profile.handle}` : `@${handle}`);
+  const description =
+    profile?.bio?.trim() || `Collector profile for ${label} on MyCardArchive.`;
+
+  return mcaPublicShareMetadata({
+    title: `${label} · Collector profile`,
+    description,
+    path: `/u/${handle}`,
+    ogImagePath: profile?.id ? `/user/${profile.id}/opengraph-image` : undefined,
+  });
 }
 
 export default async function UserProfileRoute({ params }: PageProps) {

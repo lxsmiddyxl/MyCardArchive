@@ -1,0 +1,18 @@
+<!-- MyCardArchive Phase 25  trading feature. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" fill="none" role="img" aria-labelledby="mtf-t"><title id="mtf-t">Trading feature artwork</title>
+  <defs>
+    <linearGradient id="mtf-bg" x1="40" y1="0" x2="600" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#09090b"/>
+      <stop offset="1" stop-color="#18181b"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" rx="32" fill="url(#mtf-bg)"/>
+  <rect x="40" y="40" width="560" height="320" rx="28" fill="none" stroke="#3f3f46" stroke-width="1.5" stroke-opacity="0.55"/>
+  <rect x="96" y="96" width="200" height="260" rx="24" fill="#3f3f46" stroke="#a1a1aa" stroke-width="2" transform="rotate(-8 196 226)"/>
+  <rect x="344" y="96" width="200" height="260" rx="24" fill="#52525b" stroke="#d4d4d8" stroke-width="2" transform="rotate(8 444 226)"/>
+  <path d="M298 200h44" stroke="#fbbf24" stroke-width="5" stroke-linecap="round"/>
+  <path d="M308 186l20 14-20 14" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="320" cy="120" r="28" fill="#f59e0b" fill-opacity="0.12" stroke="#fbbf24" stroke-width="2"/>
+  <path d="M320 100v40M300 120h40" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round" opacity="0.85"/>
+  <ellipse cx="320" cy="340" rx="120" ry="16" fill="#065f46" fill-opacity="0.2"/>
+</svg>

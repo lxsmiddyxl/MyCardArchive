@@ -131,7 +131,17 @@ export const metadata: Metadata = {
     template: "%s · MyCardArchive",
   },
   description:
-    "Collect, organize, and scan trading cards with binders and tier limits.",
+    "Collect, organize, and scan Pokémon TCG cards with digital binders, intelligent scanning, and collector profiles.",
+  openGraph: {
+    type: "website",
+    siteName: "MyCardArchive",
+    locale: "en_US",
+    images: [{ url: "/marketing/og/home-hero.svg", width: 1200, height: 630, alt: "MyCardArchive" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@MyCardArchive",
+  },
 };
 
 export default async function RootLayout({

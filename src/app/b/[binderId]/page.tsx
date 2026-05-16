@@ -4,7 +4,9 @@ import {
   getBinderSubscriberCount,
   isSubscribedToBinder,
 } from "@/lib/binders/binder-subscriptions";
+import { mcaPublicShareMetadata } from "@/lib/seo/public-share-metadata";
 import { loadPublicBinder } from "@/lib/public-binder/load-public-binder";
+import { BinderEmbedCode } from "@/mca-ui/marketing/BinderEmbedCode";
 import { tryCreateAnonServerClient } from "@/lib/supabase/anon-server";
 import { createClient } from "@/lib/supabase/server";
 import { PublicBinderPage } from "@/mca-ui/binder/PublicBinderPage";
@@ -19,10 +21,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const binderId = params.binderId?.trim() ?? "";
   const loaded = await loadPublicBinder(binderId);
   if (!loaded.ok) return { title: "Binder" };
-  return {
-    title: `${loaded.data.binder.name} · Binder`,
-    description: loaded.data.binder.description ?? undefined,
-  };
+  const name = loaded.data.binder.name;
+  const description =
+    loaded.data.binder.description?.trim() ||
+    `View ${name} on MyCardArchive — a public Pokémon TCG binder.`;
+  return mcaPublicShareMetadata({
+    title: `${name} · Binder`,
+    description,
+    path: `/b/${binderId}`,
+    ogImagePath: `/binder/${binderId}/opengraph-image`,
+  });
 }
 
 export default async function PublicBinderRoute({ params }: PageProps) {
@@ -97,6 +105,7 @@ export default async function PublicBinderRoute({ params }: PageProps) {
           </h2>
           <PublicBinderSlots page={0} slots={previewSlots} />
         </section>
+        <BinderEmbedCode binderId={data.binder.id} />
       </div>
     </BinderPaperBackdrop>
   );

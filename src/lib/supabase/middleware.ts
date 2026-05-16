@@ -185,6 +185,10 @@ export async function updateSession(request: NextRequest) {
 
   }
 
+  if (user && pathname === "/") {
+    return NextResponse.redirect(new URL("/binders", request.url));
+  }
+
   if (user && !pathname.startsWith("/api")) {
     try {
       const flags = await loadOnboardingFlags(

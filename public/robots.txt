@@ -1,0 +1,8 @@
+# Static fallback; dynamic rules are served from src/app/robots.ts in production.
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dev/
+Disallow: /mobile/
+Disallow: /internal/
+Disallow: /embed/

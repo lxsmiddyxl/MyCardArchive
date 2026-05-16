@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { mcaAbsoluteUrl } from "@/lib/seo/site-url";
 
 export type McaSegmentSeoInput = {
   title: string;
@@ -12,6 +13,7 @@ export type McaSegmentSeoInput = {
  */
 export function mcaSegmentMetadata(input: McaSegmentSeoInput): Metadata {
   const path = input.path.startsWith("/") ? input.path : `/${input.path}`;
+  const url = mcaAbsoluteUrl(path);
   return {
     title: input.title,
     description: input.description,
@@ -19,8 +21,14 @@ export function mcaSegmentMetadata(input: McaSegmentSeoInput): Metadata {
     openGraph: {
       title: input.title,
       description: input.description,
-      url: path,
+      url,
       type: "website",
+      siteName: "MyCardArchive",
+    },
+    twitter: {
+      card: "summary",
+      title: input.title,
+      description: input.description,
     },
   };
 }

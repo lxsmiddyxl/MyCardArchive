@@ -14,6 +14,8 @@ const EXEMPT_PREFIXES = [
   "/binders/create",
   "/scan",
   "/profile/edit",
+  "/features",
+  "/embed",
 ] as const;
 
 /** Paths that should not trigger a forced redirect to /onboarding. */
