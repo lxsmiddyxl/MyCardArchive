@@ -2,6 +2,8 @@
 
 import { RemoteCardThumb } from "@/mca-ui/remote-card-thumb";
 import { Panel } from "@/mca-ui/panel";
+import type { BinderAccent } from "@/lib/binders/binder-accent";
+import { MCA_MOTION_PANEL } from "@/lib/ui/mca-motion";
 import { cn } from "@/lib/ui/cn";
 
 export type CardMetadataPanelData = {
@@ -20,6 +22,7 @@ export type CardMetadataPanelProps = {
   className?: string;
   headerExtra?: React.ReactNode;
   footer?: React.ReactNode;
+  accent?: BinderAccent;
 };
 
 export function CardMetadataPanel({
@@ -28,13 +31,18 @@ export function CardMetadataPanel({
   className,
   headerExtra,
   footer,
+  accent,
 }: CardMetadataPanelProps) {
   return (
     <Panel
       className={cn(
-        "border-mca-accent-border/40 bg-mca-accent-border/10 p-mca-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]",
+        "p-mca-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]",
+        accent?.borderClass ?? "border-mca-accent-border/40",
+        accent?.surfaceClass ?? "bg-mca-accent-border/10",
+        MCA_MOTION_PANEL,
         className
       )}
+      style={accent?.color ? { borderColor: `${accent.color}66` } : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-mca-sm">
         <p className="text-mca-label font-semibold uppercase tracking-wide text-mca-ink-subtle">

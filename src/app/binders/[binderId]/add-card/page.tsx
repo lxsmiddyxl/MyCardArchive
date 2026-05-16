@@ -239,10 +239,11 @@ async function AddCardPageInner({ params, searchParams }: PageProps) {
     };
   }
 
-  if (nextInSetQ === "1" && initialValues?.number && !initialValues.name) {
+  if (nextInSetQ === "1" && initialValues?.number) {
     initialValues = {
       ...initialValues,
-      name: initialValues.number,
+      highlight_number: initialValues.number,
+      name: initialValues.name ?? initialValues.number,
     };
   }
 

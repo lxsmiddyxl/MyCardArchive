@@ -5,30 +5,37 @@ import { CATALOG_AUTOCOMPLETE_LIMIT } from "@/lib/catalog/search";
 import { Input, mcaInputClassName } from "@/mca-ui/input";
 import { LoadingSpinner } from "@/mca-ui/loading-button";
 import { RemoteCardThumb } from "@/mca-ui/remote-card-thumb";
+import { MCA_MOTION_DROPDOWN } from "@/lib/ui/mca-motion";
 import { cn } from "@/lib/ui/cn";
 import { memo, useId } from "react";
 
 export const CatalogAutocompleteRow = memo(function CatalogAutocompleteRow({
   hit,
   active,
+  highlighted,
   onPick,
+  rowId,
 }: {
   hit: CatalogCardHit;
   active: boolean;
+  highlighted?: boolean;
   onPick: (h: CatalogCardHit) => void;
+  rowId?: string;
 }) {
   return (
-    <li role="presentation" className="border-b border-mca-border/80 last:border-0">
+    <li role="presentation" className="border-b border-mca-border/80 last:border-0" id={rowId}>
       <button
         type="button"
         role="option"
-        aria-selected={active}
+        aria-selected={active || highlighted}
         onClick={() => onPick(hit)}
         className={cn(
           "flex h-[52px] w-full gap-mca-sm px-mca-compact py-mca-tight text-left transition-all duration-200 ease-mca-standard",
-          active
-            ? "bg-mca-accent-border/15"
-            : "hover:bg-mca-surface-elevated/80"
+          highlighted
+            ? "bg-mca-warning-surface/30 ring-2 ring-inset ring-mca-warning-surface-border/60"
+            : active
+              ? "bg-mca-accent-border/15"
+              : "hover:bg-mca-surface-elevated/80"
         )}
       >
         <div className="relative h-8 w-[23px] shrink-0 overflow-hidden rounded-mca-control border border-mca-border bg-mca-surface-elevated">
@@ -115,6 +122,10 @@ export function CatalogCombobox({
 
   const trimmed = value.trim();
   const openList = trimmed.length > 0 && (loading || hits.length > 0 || showNoResults || Boolean(error));
+  const activeOptionId =
+    activeIndex >= 0 && hits[activeIndex]
+      ? `${listId}-option-${hits[activeIndex]!.id}`
+      : undefined;
 
   return (
     <div className="relative">
@@ -124,6 +135,8 @@ export function CatalogCombobox({
         aria-expanded={openList}
         aria-controls={openList ? listId : undefined}
         aria-autocomplete="list"
+        aria-haspopup="listbox"
+        aria-activedescendant={openList && activeOptionId ? activeOptionId : undefined}
         value={value}
         onChange={(e) => {
           onValueChange(e.target.value);
@@ -138,7 +151,10 @@ export function CatalogCombobox({
 
       {openList ? (
         <div
-          className="absolute z-20 mt-mca-xs w-full overflow-hidden rounded-mca-card border border-mca-border bg-mca-surface-elevated shadow-mca-panel"
+          className={cn(
+            "absolute z-20 mt-mca-xs w-full overflow-hidden rounded-mca-card border border-mca-border bg-mca-surface-elevated shadow-mca-panel",
+            MCA_MOTION_DROPDOWN
+          )}
           id={listId}
         >
           {error ? (
@@ -181,6 +197,7 @@ export function CatalogCombobox({
                   key={hit.id}
                   hit={hit}
                   active={i === activeIndex}
+                  rowId={`${listId}-option-${hit.id}`}
                   onPick={onPick}
                 />
               ))}

@@ -3,9 +3,11 @@
 import type { CatalogCardHit } from "@/lib/dto/catalog";
 import type { SuggestionGroup } from "@/lib/catalog/suggestions";
 import { CatalogAutocompleteRow } from "@/mca-ui/catalog-combobox";
+import type { BinderAccent } from "@/lib/binders/binder-accent";
+import { MCA_MOTION_PANEL } from "@/lib/ui/mca-motion";
 import { cn } from "@/lib/ui/cn";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type CatalogSuggestionsStripProps = {
   groups: SuggestionGroup[];
@@ -15,6 +17,8 @@ export type CatalogSuggestionsStripProps = {
   setId?: string | null;
   setName?: string | null;
   onJumpToNumber?: (number: string) => void;
+  highlightCardId?: string | null;
+  accent?: BinderAccent;
 };
 
 function SuggestionSkeleton() {
@@ -37,8 +41,19 @@ export function CatalogSuggestionsStrip({
   setId,
   setName,
   onJumpToNumber,
+  highlightCardId,
+  accent,
 }: CatalogSuggestionsStripProps) {
   const [jumpNumber, setJumpNumber] = useState("");
+  const stripRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!highlightCardId?.trim()) return;
+    const el = stripRef.current?.querySelector(`[data-suggestion-hit="${highlightCardId}"]`);
+    if (el && "scrollIntoView" in el) {
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [highlightCardId, groups, loading]);
 
   if (!loading && groups.length === 0 && !setId) return null;
 
@@ -46,13 +61,23 @@ export function CatalogSuggestionsStrip({
 
   return (
     <div
+      ref={stripRef}
+      role="region"
+      aria-label="Smart catalog suggestions"
       className={cn(
-        "space-y-mca-sm rounded-mca-card border border-mca-border-subtle/80 bg-mca-surface/30 p-mca-compact",
+        "space-y-mca-sm rounded-mca-card border p-mca-compact",
+        accent?.borderClass ?? "border-mca-border-subtle/80",
+        accent?.surfaceClass ?? "bg-mca-surface/30",
+        MCA_MOTION_PANEL,
         className
       )}
+      style={accent?.color ? { borderColor: `${accent.color}44` } : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-mca-sm">
-        <p className="text-xs font-semibold uppercase tracking-wide text-mca-ink-subtle">
+        <p
+          className="text-xs font-semibold uppercase tracking-wide text-mca-ink-subtle"
+          style={accent?.color ? { color: accent.color } : undefined}
+        >
           Smart suggestions
         </p>
         {showSetLink ? (
@@ -83,6 +108,7 @@ export function CatalogSuggestionsStrip({
               onChange={(e) => setJumpNumber(e.target.value)}
               placeholder="e.g. 121"
               className="mca-input mt-mca-xs w-full rounded-mca-control px-mca-sm py-mca-tight text-sm"
+              aria-label="Jump to card number in suggestions"
             />
           </label>
           <button
@@ -104,7 +130,12 @@ export function CatalogSuggestionsStrip({
         <p className="text-xs text-mca-ink-muted">No suggestions yet — search or pick a catalog card.</p>
       ) : (
         groups.map((group) => (
-          <SuggestionGroupBlock key={group.id} group={group} onPick={onPick} />
+          <SuggestionGroupBlock
+            key={group.id}
+            group={group}
+            onPick={onPick}
+            highlightCardId={highlightCardId}
+          />
         ))
       )}
     </div>
@@ -114,16 +145,25 @@ export function CatalogSuggestionsStrip({
 function SuggestionGroupBlock({
   group,
   onPick,
+  highlightCardId,
 }: {
   group: SuggestionGroup;
   onPick: (hit: CatalogCardHit) => void;
+  highlightCardId?: string | null;
 }) {
   return (
     <div className="space-y-mca-xs">
       <p className="text-xs font-medium text-mca-ink-body">{group.title}</p>
-      <ul className="overflow-hidden rounded-mca-control border border-mca-border/80">
+      <ul className="max-h-[min(260px,52px*5)] overflow-auto rounded-mca-control border border-mca-border/80">
         {group.hits.map((hit) => (
-          <CatalogAutocompleteRow key={hit.id} hit={hit} active={false} onPick={onPick} />
+          <div key={hit.id} data-suggestion-hit={hit.id}>
+            <CatalogAutocompleteRow
+              hit={hit}
+              active={false}
+              highlighted={highlightCardId === hit.id}
+              onPick={onPick}
+            />
+          </div>
         ))}
       </ul>
     </div>

@@ -18,16 +18,20 @@ export function CardConfidenceBadge({
   band: CatalogMatchConfidenceBand;
   className?: string;
 }) {
+  const label = catalogMatchConfidenceLabel(band);
   return (
     <span
+      role="status"
+      aria-live="polite"
       className={cn(
         "inline-flex items-center rounded-mca-pill border px-mca-sm py-mca-trace text-[10px] font-semibold uppercase tracking-wide",
         BAND_STYLES[band],
         className
       )}
-      title={catalogMatchConfidenceLabel(band)}
+      title={label}
     >
-      {catalogMatchConfidenceLabel(band)}
+      <span aria-hidden>{label}</span>
+      <span className="sr-only">Catalog match confidence: {label}</span>
     </span>
   );
 }

@@ -15,7 +15,7 @@ import {
   enqueuePendingCardAdd,
   listPendingCardAdds,
   removePendingCardAdd,
-} from "@/mca-utils/offline/pending-card-add";
+} from "@/mca-utils/offline/cache";
 
 describe("manual add autocomplete phase 3", () => {
   it("scores high confidence on exact number match", () => {
@@ -100,22 +100,13 @@ describe("manual add autocomplete phase 3", () => {
     expect(catalogSearchCacheKey("pikachu", "name", "sv1")).toBe("name|sv1|pikachu");
   });
 
-  it("queues offline pending card adds when localStorage is available", () => {
-    if (typeof localStorage === "undefined") {
-      const id = enqueuePendingCardAdd("binder-1", { name: "Test", binder_id: "binder-1" });
-      expect(id.length).toBeGreaterThan(0);
-      return;
-    }
-    const before = listPendingCardAdds().length;
-    const id = enqueuePendingCardAdd("binder-1", { name: "Test", binder_id: "binder-1" });
-    const after = listPendingCardAdds();
-    expect(after.length).toBeGreaterThanOrEqual(before);
-    if (after.some((r) => r.id === id)) {
-      removePendingCardAdd(id);
-      expect(listPendingCardAdds().some((r) => r.id === id)).toBe(false);
-    } else {
-      expect(id.length).toBeGreaterThan(0);
-    }
+  it("queues offline pending card adds in IndexedDB", async () => {
+    const id = await enqueuePendingCardAdd("binder-1", { name: "Test", binder_id: "binder-1" });
+    expect(id.length).toBeGreaterThan(0);
+    const rows = await listPendingCardAdds();
+    expect(rows.some((r) => r.id === id)).toBe(true);
+    await removePendingCardAdd(id);
+    expect((await listPendingCardAdds()).some((r) => r.id === id)).toBe(false);
   });
 
   it("resolves confidence bands for number search", () => {

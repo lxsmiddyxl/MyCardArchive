@@ -1,6 +1,7 @@
 "use client";
 
 import type { CatalogFormSelection } from "@/lib/catalog/catalog-form-hydration";
+import type { BinderAccent } from "@/lib/binders/binder-accent";
 import {
   CardMetadataPanel,
   type CardMetadataPanelData,
@@ -24,11 +25,13 @@ export function CatalogCardPreview({
   className,
   headerExtra,
   footer,
+  accent,
 }: {
   selection: CatalogFormSelection;
   className?: string;
   headerExtra?: React.ReactNode;
   footer?: React.ReactNode;
+  accent?: BinderAccent;
 }) {
   return (
     <CardMetadataPanel
@@ -36,6 +39,7 @@ export function CatalogCardPreview({
       className={className}
       headerExtra={headerExtra}
       footer={footer}
+      accent={accent}
     />
   );
 }

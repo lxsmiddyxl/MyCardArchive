@@ -43,6 +43,15 @@ export type AddCardPrefillPayload = {
   subtypes?: string[];
   scan_event_id?: string | null;
   auto_match?: ScanMatchResult | null;
+  /** Scroll/highlight this catalog card in suggestions (next-in-set flow). */
+  highlight_number?: string | null;
+};
+
+export type CardHistoryEntryDTO = {
+  card_id: string;
+  binder_id: string;
+  binder_name: string;
+  created_at: string;
 };
 
 export type CardSummaryDTO = {

@@ -34,6 +34,9 @@ import { CatalogCombobox } from "@/mca-ui/catalog-combobox";
 import { CatalogSuggestionsStrip } from "@/mca-ui/catalog-suggestions-strip";
 import { CardConfidenceBadge } from "@/mca-ui/card-confidence-badge";
 import { CardVariantSelector } from "@/mca-ui/card-variant-selector";
+import { CardHistoryPanel } from "@/mca-ui/card-history-panel";
+import { BinderSetInsights } from "@/mca-ui/binder-set-insights";
+import { PendingOfflinePanel } from "@/mca-ui/pending-offline-panel";
 import { InlineError } from "@/mca-ui/inline-error";
 import { LoadingButton } from "@/mca-ui/loading-button";
 import { Panel } from "@/mca-ui/panel";
@@ -51,11 +54,17 @@ import {
   resolveCatalogMatchConfidence,
   type CatalogMatchConfidenceBand,
 } from "@/mca-utils/catalog/confidence";
+import { resolveBinderAccent, type BinderAccent } from "@/lib/binders/binder-accent";
+import type { BinderRarityDistribution } from "@/lib/catalog/binder-rarity-hints";
+import { catalogHitMatchesNumber } from "@/lib/catalog/set-progress";
+import type { SetCompletionProgress } from "@/lib/catalog/set-progress";
+import type { CardHistoryEntryDTO } from "@/lib/dto/catalog";
 import {
   enqueuePendingCardAdd,
   pendingCountForBinder,
-} from "@/mca-utils/offline/pending-card-add";
+} from "@/mca-utils/offline/cache";
 import { flushPendingCardAdds } from "@/mca-utils/offline/flush-pending-card-adds";
+import { MCA_MOTION_PANEL } from "@/lib/ui/mca-motion";
 
 const POKEMON_SETS = pokemonData.sets as readonly { id: string; name: string }[];
 const CUSTOM_SET_VALUE = "__custom__";
@@ -67,6 +76,7 @@ type CardFormProps = {
   initialValues?: CardFormInitialValues | null;
   scanEventId?: string | null;
   cardLimitReached?: boolean;
+  binderAccentColor?: string | null;
 };
 
 type CatalogSetScopeRow = CatalogSetHit;
@@ -134,8 +144,10 @@ export const CardForm = memo(function CardForm({
   initialValues,
   scanEventId = null,
   cardLimitReached = false,
+  binderAccentColor = null,
 }: CardFormProps) {
   const router = useRouter();
+  const binderAccent: BinderAccent = resolveBinderAccent(binderId, binderAccentColor);
   const [name, setName] = useState(initialValues?.name ?? "");
   const [number, setNumber] = useState(initialValues?.number ?? "");
   const [setField, setSetField] = useState("");
@@ -179,6 +191,16 @@ export const CardForm = memo(function CardForm({
     number: string;
     name: string;
   } | null>(null);
+  const [highlightCardId, setHighlightCardId] = useState<string | null>(null);
+  const [setProgress, setSetProgress] = useState<SetCompletionProgress | null>(null);
+  const [rarityDistribution, setRarityDistribution] = useState<BinderRarityDistribution | null>(
+    null
+  );
+  const [rareForBinder, setRareForBinder] = useState(false);
+  const [setInsightsLoading, setSetInsightsLoading] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState<CardHistoryEntryDTO[]>([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const online = useOnlineStatus();
 
@@ -196,12 +218,19 @@ export const CardForm = memo(function CardForm({
   const fieldsLocked = isCatalogFormLocked(catalogSelection, manualEdit);
 
   useEffect(() => {
-    setPendingOfflineCount(pendingCountForBinder(binderId));
+    void pendingCountForBinder(binderId).then(setPendingOfflineCount);
     if (!online) return;
     void flushPendingCardAdds().then(() => {
-      setPendingOfflineCount(pendingCountForBinder(binderId));
+      void pendingCountForBinder(binderId).then(setPendingOfflineCount);
     });
   }, [online, binderId]);
+
+  useEffect(() => {
+    const highlightNum = initialValues?.highlight_number?.trim();
+    if (!highlightNum) return;
+    setNameQuery(highlightNum);
+    setDebouncedQuery(highlightNum);
+  }, [initialValues?.highlight_number]);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQuery(nameQuery), CATALOG_AUTOCOMPLETE_DEBOUNCE_MS);
@@ -327,6 +356,70 @@ export const CardForm = memo(function CardForm({
       cancelled = true;
     };
   }, [initialValues?.catalog_card_id]);
+
+  useEffect(() => {
+    const setId = catalogSelection?.setId?.trim() || catalogSearchSetId.trim();
+    const cid = catalogCardId?.trim();
+    if (!setId || !online) {
+      setSetProgress(null);
+      setRarityDistribution(null);
+      setRareForBinder(false);
+      return;
+    }
+    let cancelled = false;
+    setSetInsightsLoading(true);
+    const url = `/api/binders/${encodeURIComponent(binderId)}/set-context?setId=${encodeURIComponent(setId)}${cid ? `&catalog_card_id=${encodeURIComponent(cid)}` : ""}`;
+    void (async () => {
+      const r = await fetchJson<{
+        set_progress: SetCompletionProgress;
+        rarity_distribution: BinderRarityDistribution;
+        rare_for_binder: boolean;
+      }>(url, { cache: "no-store" });
+      if (cancelled) return;
+      if (r.kind === "ok") {
+        setSetProgress(r.data.set_progress);
+        setRarityDistribution(r.data.rarity_distribution);
+        setRareForBinder(r.data.rare_for_binder);
+      }
+      setSetInsightsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [binderId, catalogSelection, catalogSearchSetId, catalogCardId, online]);
+
+  useEffect(() => {
+    const cid = catalogCardId?.trim();
+    if (!cid || !online) {
+      setHistoryEntries([]);
+      setHistoryTotal(0);
+      return;
+    }
+    let cancelled = false;
+    setHistoryLoading(true);
+    void (async () => {
+      const r = await fetchJson<{ entries: CardHistoryEntryDTO[]; total_copies: number }>(
+        `/api/cards/history?catalog_card_id=${encodeURIComponent(cid)}`,
+        { cache: "no-store" }
+      );
+      if (cancelled) return;
+      if (r.kind === "ok") {
+        setHistoryEntries(r.data.entries);
+        setHistoryTotal(r.data.total_copies);
+      }
+      setHistoryLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogCardId, online]);
+
+  useEffect(() => {
+    if (!initialValues?.highlight_number?.trim()) return;
+    const allHits = suggestionGroups.flatMap((g) => g.hits);
+    const id = catalogHitMatchesNumber(allHits, initialValues.highlight_number);
+    if (id) setHighlightCardId(id);
+  }, [suggestionGroups, initialValues?.highlight_number]);
 
   const applyCatalogHit = useCallback(async (hit: CatalogCardHit) => {
     setCatalogHits([]);
@@ -573,8 +666,9 @@ export const CardForm = memo(function CardForm({
     }
 
     if (!online) {
-      enqueuePendingCardAdd(binderId, body);
-      setPendingOfflineCount(pendingCountForBinder(binderId));
+      void enqueuePendingCardAdd(binderId, body).then(() => {
+        void pendingCountForBinder(binderId).then(setPendingOfflineCount);
+      });
       setLoading(false);
       setAddSuccess({
         setId: catalogSelection?.setId ?? catalogSearchSetId,
@@ -671,7 +765,11 @@ export const CardForm = memo(function CardForm({
           {nextHref ? (
             <Link
               href={nextHref}
-              className="inline-flex items-center justify-center rounded-mca-control border border-mca-accent-border/50 bg-mca-accent-strong/90 px-mca-compact py-mca-sm text-sm font-semibold text-mca-on-accent shadow-mca-panel transition duration-200 ease-mca-standard hover:bg-mca-accent/95"
+              className={cn(
+                "inline-flex items-center justify-center rounded-mca-control border px-mca-compact py-mca-sm text-sm font-semibold text-mca-on-accent shadow-mca-panel transition duration-200 ease-mca-standard",
+                binderAccent.buttonClass
+              )}
+              style={binderAccent.color ? { borderColor: `${binderAccent.color}88` } : undefined}
             >
               Add next card in set →
             </Link>
@@ -699,6 +797,8 @@ export const CardForm = memo(function CardForm({
           <p className="text-xs text-mca-ink-muted">Showing cached catalog results.</p>
         ) : null}
 
+        {!online ? <PendingOfflinePanel className="mt-mca-xs" /> : null}
+
         {scanEventId ? (
           <p className="rounded-mca-card border border-mca-border-subtle/80 bg-mca-surface/40 px-mca-base py-mca-compact text-xs leading-relaxed text-mca-ink-muted">
             This card is linked to a scan. Fields may be prefilled from catalog auto-match — edit
@@ -725,6 +825,8 @@ export const CardForm = memo(function CardForm({
           onPick={(hit) => void applyCatalogHit(hit)}
           setId={catalogSelection?.setId ?? catalogSearchSetId}
           setName={catalogSelection?.setName}
+          highlightCardId={highlightCardId}
+          accent={binderAccent}
           onJumpToNumber={(n) => {
             setNameQuery(n);
             setDebouncedQuery(n);
@@ -803,6 +905,24 @@ export const CardForm = memo(function CardForm({
           />
         ) : null}
 
+        {(catalogSelection?.setId || catalogSearchSetId) && catalogSelection ? (
+          <BinderSetInsights
+            setName={catalogSelection.setName}
+            progress={setProgress}
+            distribution={rarityDistribution}
+            rareForBinder={rareForBinder}
+            selectedRarity={catalogSelection.rarity}
+            accent={binderAccent}
+            loading={setInsightsLoading}
+          />
+        ) : null}
+
+        <CardHistoryPanel
+          totalCopies={historyTotal}
+          entries={historyEntries}
+          loading={historyLoading}
+        />
+
         {duplicateCount > 0 && catalogCardId && !allowDuplicateAdd ? (
           <div className="rounded-mca-card border border-mca-warning-surface-border/40 bg-mca-warning-surface/20 px-mca-base py-mca-compact text-sm text-mca-warning-tint">
             This card is already in this binder ({duplicateCount}{" "}
@@ -820,6 +940,8 @@ export const CardForm = memo(function CardForm({
         {catalogSelection && !manualEdit ? (
           <CatalogCardPreview
             selection={catalogSelection}
+            accent={binderAccent}
+            className={MCA_MOTION_PANEL}
             headerExtra={
               matchConfidence && (searchMode === "number" || autoDetectedFromNumber) ? (
                 <CardConfidenceBadge band={matchConfidence} />

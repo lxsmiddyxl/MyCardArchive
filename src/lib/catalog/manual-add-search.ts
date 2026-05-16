@@ -9,7 +9,7 @@ import {
   catalogSearchCacheKey,
   readCachedCatalogSearch,
   writeCachedCatalogSearch,
-} from "@/mca-utils/offline/catalog-search-cache";
+} from "@/mca-utils/offline/cache";
 
 export async function fetchCatalogSearchWithCache(input: {
   query: string;
