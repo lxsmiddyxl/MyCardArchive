@@ -496,6 +496,7 @@ export type Database = {
           body: string
           created_at: string
           id: string
+          thread_id: string | null
           updated_at: string
         }
         Insert: {
@@ -503,6 +504,7 @@ export type Database = {
           body: string
           created_at?: string
           id?: string
+          thread_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -510,6 +512,7 @@ export type Database = {
           body?: string
           created_at?: string
           id?: string
+          thread_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -531,6 +534,7 @@ export type Database = {
           description: string | null
           featured_card_ids: string[]
           id: string
+          long_form_body: string | null
           title: string
           updated_at: string
           user_id: string
@@ -543,6 +547,7 @@ export type Database = {
           description?: string | null
           featured_card_ids?: string[]
           id?: string
+          long_form_body?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -555,6 +560,7 @@ export type Database = {
           description?: string | null
           featured_card_ids?: string[]
           id?: string
+          long_form_body?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -563,6 +569,54 @@ export type Database = {
           {
             foreignKeyName: "collection_showcases_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      showcase_version_snapshots: {
+        Row: {
+          actor_id: string
+          created_at: string
+          description: string | null
+          id: string
+          long_form_body: string | null
+          seq: number
+          showcase_id: string
+          title: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          long_form_body?: string | null
+          seq: number
+          showcase_id: string
+          title: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          long_form_body?: string | null
+          seq?: number
+          showcase_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "showcase_version_snapshots_showcase_id_fkey"
+            columns: ["showcase_id"]
+            isOneToOne: false
+            referencedRelation: "collection_showcases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "showcase_version_snapshots_actor_id_fkey"
+            columns: ["actor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1334,6 +1388,38 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      market_trade_room_messages: {
+        Row: {
+          actor_id: string
+          body: string
+          created_at: string
+          id: string
+          thread_id: string
+        }
+        Insert: {
+          actor_id: string
+          body: string
+          created_at?: string
+          id?: string
+          thread_id: string
+        }
+        Update: {
+          actor_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_trade_room_messages_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       market_watchlist: {
         Row: {

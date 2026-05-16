@@ -202,6 +202,27 @@ export async function middleware(request: NextRequest) {
     if (blocked) return blocked;
   }
 
+  if (
+    (pathname === "/api/market/v3/offers/create" && method === "POST") ||
+    (pathname === "/api/market/v3/offers/respond" && method === "PATCH")
+  ) {
+    const blocked = rateLimitedResponse(
+      request,
+      "market-v3-offer-mut",
+      RATE_LIMITS.marketV3OfferMutation
+    );
+    if (blocked) return blocked;
+  }
+
+  if (pathname === "/api/community/posts/react" && method === "POST") {
+    const blocked = rateLimitedResponse(
+      request,
+      "community-react-mut",
+      RATE_LIMITS.communityReactMutation
+    );
+    if (blocked) return blocked;
+  }
+
   return await updateSession(request);
 }
 

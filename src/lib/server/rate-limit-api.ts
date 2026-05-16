@@ -60,6 +60,10 @@ export const RATE_LIMITS = {
   communityReportMutation: { max: 24, windowMs: 60_000 },
   /** GET `/api/market/v3/discover/*` — discovery polling (Phase 71). */
   marketV3DiscoverRead: { max: 90, windowMs: 60_000 },
+  /** POST/PATCH `/api/market/v3/offers/*` — offer negotiation (Phase 81). */
+  marketV3OfferMutation: { max: 48, windowMs: 60_000 },
+  /** POST `/api/community/posts/react` — reaction toggles (Phase 86). */
+  communityReactMutation: { max: 60, windowMs: 60_000 },
 } as const;
 
 /** In-memory snapshot for `/api/health/rate-limits` (suffixes match middleware buckets). */
