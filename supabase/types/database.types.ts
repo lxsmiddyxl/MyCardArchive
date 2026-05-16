@@ -197,6 +197,236 @@ export type Database = {
           },
         ]
       }
+      binder_collections: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "binder_collections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      binder_collection_items: {
+        Row: {
+          binder_id: string
+          collection_id: string
+          created_at: string
+          id: string
+          position: number
+        }
+        Insert: {
+          binder_id: string
+          collection_id: string
+          created_at?: string
+          id?: string
+          position?: number
+        }
+        Update: {
+          binder_id?: string
+          collection_id?: string
+          created_at?: string
+          id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "binder_collection_items_binder_id_fkey"
+            columns: ["binder_id"]
+            isOneToOne: false
+            referencedRelation: "binders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "binder_collection_items_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "binder_collections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      binder_groups: {
+        Row: {
+          cover_url: string | null
+          created_at: string
+          description: string | null
+          id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "binder_groups_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      binder_group_items: {
+        Row: {
+          binder_id: string
+          created_at: string
+          group_id: string
+          id: string
+          position: number
+        }
+        Insert: {
+          binder_id: string
+          created_at?: string
+          group_id: string
+          id?: string
+          position?: number
+        }
+        Update: {
+          binder_id?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "binder_group_items_binder_id_fkey"
+            columns: ["binder_id"]
+            isOneToOne: false
+            referencedRelation: "binders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "binder_group_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "binder_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      binder_links: {
+        Row: {
+          binder_id: string
+          created_at: string
+          id: string
+          label: string
+          target_binder_id: string
+        }
+        Insert: {
+          binder_id: string
+          created_at?: string
+          id?: string
+          label: string
+          target_binder_id: string
+        }
+        Update: {
+          binder_id?: string
+          created_at?: string
+          id?: string
+          label?: string
+          target_binder_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "binder_links_binder_id_fkey"
+            columns: ["binder_id"]
+            isOneToOne: false
+            referencedRelation: "binders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "binder_links_target_binder_id_fkey"
+            columns: ["target_binder_id"]
+            isOneToOne: false
+            referencedRelation: "binders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_showcase_items: {
+        Row: {
+          binder_id: string | null
+          created_at: string
+          group_id: string | null
+          id: string
+          position: number
+          user_id: string
+        }
+        Insert: {
+          binder_id?: string | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          position?: number
+          user_id: string
+        }
+        Update: {
+          binder_id?: string | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          position?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_showcase_items_binder_id_fkey"
+            columns: ["binder_id"]
+            isOneToOne: false
+            referencedRelation: "binders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_showcase_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "binder_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_showcase_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       binder_subscriptions: {
         Row: {
           binder_id: string
@@ -1681,6 +1911,8 @@ export type Database = {
           id: string
           joined_at: string
           location: string | null
+          profile_banner_url: string | null
+          profile_theme: string
           username: string | null
           website: string | null
         }
@@ -1697,6 +1929,8 @@ export type Database = {
           id?: string
           joined_at?: string
           location?: string | null
+          profile_banner_url?: string | null
+          profile_theme?: string
           username?: string | null
           website?: string | null
         }
@@ -1713,6 +1947,8 @@ export type Database = {
           id?: string
           joined_at?: string
           location?: string | null
+          profile_banner_url?: string | null
+          profile_theme?: string
           username?: string | null
           website?: string | null
         }

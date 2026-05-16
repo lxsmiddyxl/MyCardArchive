@@ -3,9 +3,12 @@ import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { parseBinderVisibility } from "@/lib/binders/binder-social-types";
 import { logServerError } from "@/lib/server/observability";
 import { createClient } from "@/lib/supabase/server";
+import { BinderExportButton } from "@/mca-ui/binder/BinderExportButton";
+import { BinderLinksPanel } from "@/mca-ui/binder/BinderLinksPanel";
 import { BinderVisibilitySelector } from "@/mca-ui/binder/BinderVisibilitySelector";
 import { Breadcrumb, NavBackLink } from "@/mca-ui";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 type PageProps = { params: { binderId: string } };
@@ -63,6 +66,14 @@ export default async function BinderSettingsPage({ params }: PageProps) {
           </p>
         </header>
         <BinderVisibilitySelector binderId={binderId} initialVisibility={visibility} />
+        <BinderExportButton binderId={binderId} />
+        <BinderLinksPanel binderId={binderId} editable />
+        <Link
+          href="/binders/collections"
+          className="inline-flex text-sm font-medium text-mca-accent-strong/90 hover:underline"
+        >
+          Manage collections & groups →
+        </Link>
       </div>
     </BinderPaperBackdrop>
   );

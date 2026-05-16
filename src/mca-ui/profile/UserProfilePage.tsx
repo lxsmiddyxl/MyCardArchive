@@ -3,9 +3,13 @@
 import { formatBinderActivityLabel } from "@/lib/binders/binder-activity";
 import { activityPayloadFromJson } from "@/lib/binders/binder-social-types";
 import type { Json } from "@/lib/supabase/types";
+import type { BinderProfileStats } from "@/lib/binders/profile-stats";
+import type { ProfileTheme } from "@/lib/binders/portfolio-types";
 import { FollowButton } from "@/mca-ui/profile/FollowButton";
 import { FollowersList } from "@/mca-ui/profile/FollowersList";
 import { FollowingList } from "@/mca-ui/profile/FollowingList";
+import { ProfileShowcase, type ShowcaseItem } from "@/mca-ui/profile/ProfileShowcase";
+import { ProfileStats } from "@/mca-ui/profile/ProfileStats";
 import { Panel } from "@/mca-ui/panel";
 import Link from "next/link";
 
@@ -18,6 +22,10 @@ export type UserProfilePageProps = {
   followingCount: number;
   viewerFollowing: boolean;
   canFollow: boolean;
+  profileTheme?: ProfileTheme;
+  bannerUrl?: string | null;
+  stats?: BinderProfileStats | null;
+  showcaseItems?: ShowcaseItem[];
   publicBinders: Array<{
     id: string;
     name: string;
@@ -49,13 +57,27 @@ export function UserProfilePage({
   followingCount,
   viewerFollowing,
   canFollow,
+  profileTheme = "color",
+  bannerUrl,
+  stats,
+  showcaseItems = [],
   publicBinders,
   recentActivity,
 }: UserProfilePageProps) {
   const label = displayName?.trim() || (username ? `@${username}` : "Collector");
+  const themeClass =
+    profileTheme === "dark"
+      ? "profile-theme-dark"
+      : profileTheme === "holo"
+        ? "profile-theme-holo"
+        : "profile-theme-color";
 
   return (
-    <div className="space-y-mca-section">
+    <div className={`space-y-mca-section ${themeClass}`}>
+      {bannerUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={bannerUrl} alt="" className="mb-mca-md h-32 w-full rounded-mca-card object-cover" />
+      ) : null}
       <header className="flex flex-col gap-mca-md border-b border-mca-border/80 pb-mca-lg sm:flex-row sm:items-center">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-mca-border-subtle bg-mca-chrome/50 text-lg font-semibold text-mca-ink-body">
           {avatarUrl ? (
@@ -88,6 +110,9 @@ export function UserProfilePage({
           <FollowingList username={username} />
         </div>
       ) : null}
+
+      {stats ? <ProfileStats stats={stats} /> : null}
+      <ProfileShowcase items={showcaseItems} />
 
       <Panel className="space-y-mca-md">
         <h2 className="text-sm font-semibold text-mca-ink-body">Public binders</h2>

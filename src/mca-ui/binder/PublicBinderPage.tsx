@@ -7,6 +7,7 @@ import { BinderActivityFeed } from "@/mca-ui/binder/BinderActivityFeed";
 import { BinderComments } from "@/mca-ui/binder/BinderComments";
 import { BinderReactions } from "@/mca-ui/binder/BinderReactions";
 import { BinderPresenceBar } from "@/mca-ui/binder/BinderPresenceBar";
+import { BinderLinksPanel } from "@/mca-ui/binder/BinderLinksPanel";
 import { BinderSubscribeButton } from "@/mca-ui/binder/BinderSubscribeButton";
 import { resolveBinderAccent } from "@/lib/binders/binder-accent";
 import type { BinderVisibility } from "@/lib/binders/binder-social-types";
@@ -133,6 +134,7 @@ export function PublicBinderPage({
         <BinderReactions binderId={binderId} canReact={canInteract} />
         <BinderComments binderId={binderId} canPost={canInteract} />
       </div>
+      <BinderLinksPanel binderId={binderId} />
       <BinderActivityFeed binderId={binderId} limit={8} />
     </div>
   );
