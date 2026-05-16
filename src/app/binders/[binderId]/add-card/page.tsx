@@ -150,6 +150,8 @@ async function AddCardPageInner({ params, searchParams }: PageProps) {
   const scanEventIdQ = firstParam(searchParams.scan_event_id);
   const catalogIdQ = firstParam(searchParams.catalog_card_id);
   const setNameQ = firstParam(searchParams.set_name);
+  const setIdQ = firstParam(searchParams.set_id);
+  const nextInSetQ = firstParam(searchParams.next_in_set);
 
   const scanEventId =
     scanEventIdQ && scanEventIdQ.trim().length > 0
@@ -233,6 +235,14 @@ async function AddCardPageInner({ params, searchParams }: PageProps) {
       ...(rarityQ !== undefined ? { rarity: rarityQ } : {}),
       ...(imageUrlQ !== undefined ? { image_url: imageUrlQ } : {}),
       ...(setNameQ !== undefined ? { set_name: setNameQ } : {}),
+      ...(setIdQ !== undefined ? { set_id: setIdQ } : {}),
+    };
+  }
+
+  if (nextInSetQ === "1" && initialValues?.number && !initialValues.name) {
+    initialValues = {
+      ...initialValues,
+      name: initialValues.number,
     };
   }
 

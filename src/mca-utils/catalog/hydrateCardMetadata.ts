@@ -2,8 +2,8 @@
  * Unified catalog metadata hydration for scan prefill + manual add (Phase 2).
  */
 
-import type { CatalogCardHit } from "@/lib/dto/catalog";
-import type { AddCardPrefillPayload } from "@/lib/dto/catalog";
+import type { CatalogFormSelection } from "@/lib/catalog/catalog-form-hydration";
+import type { CatalogCardHit, AddCardPrefillPayload } from "@/lib/dto/catalog";
 import { setNameFromCatalogEmbed } from "@/lib/catalog/catalog-rows";
 import type { AutoMatchResult } from "@/lib/types/auto-match";
 
@@ -102,6 +102,28 @@ export function toAddCardPrefillPayload(meta: HydratedCardMetadata): AddCardPref
     catalog_card_id: meta.catalog_card_id,
     supertype: meta.supertype || null,
     subtypes: meta.subtypes,
+  };
+}
+
+export function catalogFormSelectionToPanelData(
+  sel: CatalogFormSelection
+): {
+  name: string;
+  setName: string;
+  number: string;
+  rarity: string;
+  imageUrl: string;
+  supertype?: string;
+  subtypes?: string[];
+} {
+  return {
+    name: sel.name,
+    setName: sel.setName,
+    number: sel.number,
+    rarity: sel.rarity,
+    imageUrl: sel.imageUrl,
+    supertype: sel.supertype,
+    subtypes: sel.subtypes,
   };
 }
 

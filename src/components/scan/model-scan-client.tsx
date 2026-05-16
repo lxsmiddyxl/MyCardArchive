@@ -15,6 +15,9 @@ import { InlineError } from "@/mca-ui/inline-error";
 import { Panel } from "@/mca-ui/panel";
 import { LoadingSpinner } from "@/mca-ui/loading-button";
 import { RemoteCardThumb } from "@/mca-ui/remote-card-thumb";
+import { CardMetadataPanel } from "@/mca-ui/card-metadata-panel";
+import { CardConfidenceBadge } from "@/mca-ui/card-confidence-badge";
+import { resolveCatalogMatchConfidence } from "@/mca-utils/catalog/confidence";
 import { fetchJson, readResponseJson } from "@/lib/client";
 import { fetchWithRetry } from "@/lib/http/fetch-with-retry";
 import { cn } from "@/lib/ui/cn";
@@ -851,6 +854,37 @@ export function ModelScanClient() {
                 )}
               </Panel>
             </div>
+
+            {selectedMatch && selectedMatch.card_name?.trim() ? (
+              <CardMetadataPanel
+                title="Catalog match preview"
+                data={{
+                  name: selectedMatch.card_name,
+                  setName: selectedMatch.set_name?.trim() ?? "",
+                  number: selectedMatch.number === "—" ? "" : selectedMatch.number,
+                  rarity: selectedMatch.rarity?.trim() ?? "",
+                  imageUrl: selectedMatch.image_url?.trim() ?? "",
+                }}
+                headerExtra={
+                  <CardConfidenceBadge
+                    band={
+                      resolveCatalogMatchConfidence({
+                        query: result.ocr_v1_5.extracted.number_guess || selectedMatch.card_name,
+                        hit: {
+                          id: selectedMatch.catalog_card_id ?? "",
+                          name: selectedMatch.card_name,
+                          set: selectedMatch.set_name ?? "",
+                          number: selectedMatch.number,
+                          rarity: selectedMatch.rarity,
+                          image_url: selectedMatch.image_url,
+                        },
+                        searchMode: "number",
+                      }).band
+                    }
+                  />
+                }
+              />
+            ) : null}
 
             <Field
               id="model-scan-binder"

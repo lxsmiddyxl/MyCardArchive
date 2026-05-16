@@ -32,6 +32,8 @@ import { Field } from "@/mca-ui/field";
 import { CatalogCardPreview } from "@/mca-ui/catalog-card-preview";
 import { CatalogCombobox } from "@/mca-ui/catalog-combobox";
 import { CatalogSuggestionsStrip } from "@/mca-ui/catalog-suggestions-strip";
+import { CardConfidenceBadge } from "@/mca-ui/card-confidence-badge";
+import { CardVariantSelector } from "@/mca-ui/card-variant-selector";
 import { InlineError } from "@/mca-ui/inline-error";
 import { LoadingButton } from "@/mca-ui/loading-button";
 import { Panel } from "@/mca-ui/panel";
@@ -41,6 +43,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback } from "@/lib/perf/memo";
 import { useEffect, useState } from "react";
+import { useOnlineStatus } from "@/lib/hooks/use-online-status";
+import { fetchCatalogSearchWithCache } from "@/lib/catalog/manual-add-search";
+import { findMultiVariantGroups } from "@/lib/catalog/variants";
+import { buildNextInSetAddCardUrl } from "@/lib/catalog/next-in-set";
+import {
+  resolveCatalogMatchConfidence,
+  type CatalogMatchConfidenceBand,
+} from "@/mca-utils/catalog/confidence";
+import {
+  enqueuePendingCardAdd,
+  pendingCountForBinder,
+} from "@/mca-utils/offline/pending-card-add";
+import { flushPendingCardAdds } from "@/mca-utils/offline/flush-pending-card-adds";
 
 const POKEMON_SETS = pokemonData.sets as readonly { id: string; name: string }[];
 const CUSTOM_SET_VALUE = "__custom__";
@@ -152,6 +167,20 @@ export const CardForm = memo(function CardForm({
     ReturnType<typeof buildSuggestionGroups>
   >([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [variantOptions, setVariantOptions] = useState<CatalogCardHit[]>([]);
+  const [matchConfidence, setMatchConfidence] = useState<CatalogMatchConfidenceBand | null>(null);
+  const [duplicateCount, setDuplicateCount] = useState(0);
+  const [allowDuplicateAdd, setAllowDuplicateAdd] = useState(false);
+  const [usingCachedSearch, setUsingCachedSearch] = useState(false);
+  const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
+  const [addSuccess, setAddSuccess] = useState<{
+    setId: string;
+    setName: string;
+    number: string;
+    name: string;
+  } | null>(null);
+
+  const online = useOnlineStatus();
 
   const [catalogSetsForScope, setCatalogSetsForScope] = useState<CatalogSetScopeRow[]>([]);
   const [catalogSearchSetId, setCatalogSearchSetId] = useState(
@@ -167,9 +196,37 @@ export const CardForm = memo(function CardForm({
   const fieldsLocked = isCatalogFormLocked(catalogSelection, manualEdit);
 
   useEffect(() => {
+    setPendingOfflineCount(pendingCountForBinder(binderId));
+    if (!online) return;
+    void flushPendingCardAdds().then(() => {
+      setPendingOfflineCount(pendingCountForBinder(binderId));
+    });
+  }, [online, binderId]);
+
+  useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQuery(nameQuery), CATALOG_AUTOCOMPLETE_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
   }, [nameQuery]);
+
+  useEffect(() => {
+    const cid = catalogCardId?.trim();
+    if (!cid || !online) {
+      setDuplicateCount(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const r = await fetchJson<{ count: number; duplicate: boolean }>(
+        `/api/cards/duplicate-check?binderId=${encodeURIComponent(binderId)}&catalog_card_id=${encodeURIComponent(cid)}`,
+        { cache: "no-store" }
+      );
+      if (cancelled) return;
+      setDuplicateCount(r.kind === "ok" ? r.data.count : 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogCardId, binderId, online]);
 
   useEffect(() => {
     let cancelled = false;
@@ -283,6 +340,14 @@ export const CardForm = memo(function CardForm({
     );
     const sel =
       r.kind === "ok" ? catalogDetailToSelection(r.data.card) : catalogHitToSelection(hit);
+    const { band } = resolveCatalogMatchConfidence({
+      query: debouncedQuery.trim() || hit.name,
+      hit,
+      searchMode,
+      scopedSetId: catalogSearchSetId,
+    });
+    setMatchConfidence(band);
+    setAllowDuplicateAdd(false);
     applySelectionToForm(sel, {
       setName,
       setNameQuery,
@@ -299,7 +364,7 @@ export const CardForm = memo(function CardForm({
       setTcgplayerId,
       setCatalogSelection,
     });
-  }, []);
+  }, [debouncedQuery, catalogSearchSetId, searchMode]);
 
   useEffect(() => {
     const q = debouncedQuery.trim();
@@ -322,35 +387,59 @@ export const CardForm = memo(function CardForm({
 
     void (async () => {
       try {
-        const url = buildCatalogSearchUrlForMode(mode, q, {
-          setId: mode === "name" ? catalogSearchSetId.trim() || undefined : undefined,
+        const scopedSetId =
+          mode === "name" ? catalogSearchSetId.trim() || undefined : undefined;
+        const result = await fetchCatalogSearchWithCache({
+          query: q,
+          mode,
+          setId: scopedSetId,
           limit: resultCap,
+          offline: !online,
         });
-        const r = await fetchJson<{
-          results: CatalogCardHit[];
-          unique?: boolean;
-          set_id?: string | null;
-        }>(url, { cache: "no-store" });
         if (cancelled) return;
-        if (r.kind !== "ok") {
+        setUsingCachedSearch(result.fromCache);
+        if (result.error && result.hits.length === 0) {
           setCatalogHits([]);
-          setCatalogErr(fetchJsonErrorMessage(r));
+          setCatalogErr(result.error);
+          setVariantOptions([]);
           return;
         }
-        const hits = parseCatalogSearchResults(r.data, resultCap);
+        setCatalogErr(result.error);
+        const hits = result.hits;
         setCatalogHits(hits);
-        if (r.data.set_id?.trim()) {
-          setCatalogSearchSetId(r.data.set_id.trim());
+        const multi = findMultiVariantGroups(hits);
+        setVariantOptions(multi[0]?.variants ?? []);
+        if (result.set_id?.trim()) {
+          setCatalogSearchSetId(result.set_id.trim());
         }
         const unique =
           mode === "number" &&
-          (r.data.unique === true || hits.length === 1) &&
+          (result.unique === true || hits.length === 1) &&
           isAutoDetectNumberQuery(q);
         if (unique && hits[0]) {
           setAutoDetectedFromNumber(true);
+          const { band } = resolveCatalogMatchConfidence({
+            query: q,
+            hit: hits[0],
+            searchMode: mode,
+            scopedSetId: catalogSearchSetId,
+            autoDetected: true,
+          });
+          setMatchConfidence(band);
           await applyCatalogHit(hits[0]);
         } else {
           setAutoDetectedFromNumber(false);
+          if (hits[0] && (mode === "number" || mode === "set")) {
+            const { band } = resolveCatalogMatchConfidence({
+              query: q,
+              hit: hits[0],
+              searchMode: mode,
+              scopedSetId: catalogSearchSetId,
+            });
+            setMatchConfidence(band);
+          } else {
+            setMatchConfidence(null);
+          }
         }
       } finally {
         if (!cancelled) setCatalogLoading(false);
@@ -360,7 +449,7 @@ export const CardForm = memo(function CardForm({
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, catalogSearchSetId, fieldsLocked, applyCatalogHit]);
+  }, [debouncedQuery, catalogSearchSetId, fieldsLocked, applyCatalogHit, online]);
 
   useEffect(() => {
     const setId = catalogSelection?.setId?.trim() || catalogSearchSetId.trim();
@@ -483,6 +572,19 @@ export const CardForm = memo(function CardForm({
       body.catalog_card_id = catalogCardId.trim();
     }
 
+    if (!online) {
+      enqueuePendingCardAdd(binderId, body);
+      setPendingOfflineCount(pendingCountForBinder(binderId));
+      setLoading(false);
+      setAddSuccess({
+        setId: catalogSelection?.setId ?? catalogSearchSetId,
+        setName: catalogSelection?.setName ?? effectiveSetName,
+        number: number.trim(),
+        name: trimmedName,
+      });
+      return;
+    }
+
     const created = await fetchJson<BinderAddMutationResponseDTO>("/api/cards", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -509,16 +611,24 @@ export const CardForm = memo(function CardForm({
           `${fetchJsonUserFacingMessage(up)} Your Pokémon card was saved; you can add photos later from card details.`
         );
         requestBinderSurfacesRefresh(binderId);
-        router.push(`/binders/${binderId}`);
-        router.refresh();
+        setAddSuccess({
+          setId: catalogSelection?.setId ?? catalogSearchSetId,
+          setName: catalogSelection?.setName ?? effectiveSetName,
+          number: number.trim(),
+          name: trimmedName,
+        });
         return;
       }
     }
 
     setLoading(false);
     requestBinderSurfacesRefresh(binderId);
-    router.push(`/binders/${binderId}`);
-    router.refresh();
+    setAddSuccess({
+      setId: catalogSelection?.setId ?? catalogSearchSetId,
+      setName: catalogSelection?.setName ?? effectiveSetName,
+      number: number.trim(),
+      name: trimmedName,
+    });
   }
 
   const inputClass = cn(
@@ -533,9 +643,62 @@ export const CardForm = memo(function CardForm({
     !catalogErr &&
     !fieldsLocked;
 
+  if (addSuccess) {
+    const nextHref =
+      addSuccess.setId && addSuccess.number
+        ? buildNextInSetAddCardUrl({
+            binderId,
+            setId: addSuccess.setId,
+            number: addSuccess.number,
+            setName: addSuccess.setName,
+          })
+        : null;
+    return (
+      <Panel elevated className="max-w-lg border-mca-border bg-mca-surface-elevated/40 p-mca-md">
+        <p className="text-sm font-semibold text-mca-ink-strong">Card added</p>
+        <p className="mt-mca-xs text-sm text-mca-ink-muted">
+          {addSuccess.name}
+          {addSuccess.number ? ` · #${addSuccess.number}` : ""} is in your binder.
+          {!online ? " Saved offline — will sync when you reconnect." : null}
+        </p>
+        <div className="mt-mca-md flex flex-wrap gap-mca-compact">
+          <Link
+            href={`/binders/${binderId}`}
+            className="inline-flex items-center justify-center rounded-mca-control border border-mca-field-border bg-mca-chrome px-mca-compact py-mca-sm text-sm font-semibold text-mca-ink-strong transition duration-200 ease-mca-standard hover:bg-mca-border-subtle"
+          >
+            View binder
+          </Link>
+          {nextHref ? (
+            <Link
+              href={nextHref}
+              className="inline-flex items-center justify-center rounded-mca-control border border-mca-accent-border/50 bg-mca-accent-strong/90 px-mca-compact py-mca-sm text-sm font-semibold text-mca-on-accent shadow-mca-panel transition duration-200 ease-mca-standard hover:bg-mca-accent/95"
+            >
+              Add next card in set →
+            </Link>
+          ) : null}
+        </div>
+      </Panel>
+    );
+  }
+
   return (
     <Panel elevated className="max-w-lg border-mca-border bg-mca-surface-elevated/40 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
       <form onSubmit={handleSubmit} className="space-y-mca-md">
+        {!online ? (
+          <p
+            role="status"
+            className="rounded-mca-card border border-mca-warning-surface-border/50 bg-mca-warning-surface/25 px-mca-base py-mca-compact text-xs text-mca-warning-tint"
+          >
+            Offline — changes will sync later
+            {pendingOfflineCount > 0
+              ? ` (${pendingOfflineCount} card${pendingOfflineCount === 1 ? "" : "s"} queued)`
+              : ""}
+            . Showing cached catalog search when available.
+          </p>
+        ) : usingCachedSearch ? (
+          <p className="text-xs text-mca-ink-muted">Showing cached catalog results.</p>
+        ) : null}
+
         {scanEventId ? (
           <p className="rounded-mca-card border border-mca-border-subtle/80 bg-mca-surface/40 px-mca-base py-mca-compact text-xs leading-relaxed text-mca-ink-muted">
             This card is linked to a scan. Fields may be prefilled from catalog auto-match — edit
@@ -560,6 +723,12 @@ export const CardForm = memo(function CardForm({
           groups={suggestionGroups}
           loading={suggestionsLoading}
           onPick={(hit) => void applyCatalogHit(hit)}
+          setId={catalogSelection?.setId ?? catalogSearchSetId}
+          setName={catalogSelection?.setName}
+          onJumpToNumber={(n) => {
+            setNameQuery(n);
+            setDebouncedQuery(n);
+          }}
         />
 
         <Field
@@ -625,8 +794,38 @@ export const CardForm = memo(function CardForm({
           ) : null}
         </Field>
 
+        {variantOptions.length > 1 && catalogSelection && !manualEdit ? (
+          <CardVariantSelector
+            variants={variantOptions}
+            value={catalogCardId ?? variantOptions[0]!.id}
+            disabled={loading || cardLimitReached}
+            onChange={(hit) => void applyCatalogHit(hit)}
+          />
+        ) : null}
+
+        {duplicateCount > 0 && catalogCardId && !allowDuplicateAdd ? (
+          <div className="rounded-mca-card border border-mca-warning-surface-border/40 bg-mca-warning-surface/20 px-mca-base py-mca-compact text-sm text-mca-warning-tint">
+            This card is already in this binder ({duplicateCount}{" "}
+            {duplicateCount === 1 ? "copy" : "copies"}).
+            <button
+              type="button"
+              className="ms-mca-xs font-semibold text-mca-accent underline-offset-2 hover:underline"
+              onClick={() => setAllowDuplicateAdd(true)}
+            >
+              Add another copy
+            </button>
+          </div>
+        ) : null}
+
         {catalogSelection && !manualEdit ? (
-          <CatalogCardPreview selection={catalogSelection} />
+          <CatalogCardPreview
+            selection={catalogSelection}
+            headerExtra={
+              matchConfidence && (searchMode === "number" || autoDetectedFromNumber) ? (
+                <CardConfidenceBadge band={matchConfidence} />
+              ) : null
+            }
+          />
         ) : null}
 
         <Field
@@ -837,10 +1036,10 @@ export const CardForm = memo(function CardForm({
           <LoadingButton
             type="submit"
             isLoading={loading}
-            disabled={cardLimitReached}
+            disabled={cardLimitReached || (duplicateCount > 0 && !allowDuplicateAdd && Boolean(catalogCardId))}
             className="inline-flex flex-1 items-center justify-center rounded-mca-control border border-mca-accent-border/50 bg-mca-accent-strong/90 px-mca-comfortable py-mca-tight text-sm font-semibold text-mca-on-accent shadow-mca-panel transition-all duration-200 ease-mca-standard hover:bg-mca-accent/95 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
           >
-            Add card
+            {online ? "Add card" : "Save offline"}
           </LoadingButton>
         </div>
       </form>
