@@ -1,3 +1,4 @@
+import { BinderHomeBase } from "@/components/binders/binder-home-base";
 import { BinderFtue } from "@/components/binders/binder-ftue";
 import { BinderPaperBackdrop } from "@/components/artwork/artwork-surfaces";
 import { BinderTitleWithRings } from "@/components/artwork/binder-title-artwork";
@@ -214,6 +215,8 @@ export default async function BinderDetailPage({ params }: PageProps) {
           </Link>
         </div>
       </div>
+
+      <BinderHomeBase binderId={b.id} />
 
       <section aria-labelledby="binder-grid-heading">
         <h2

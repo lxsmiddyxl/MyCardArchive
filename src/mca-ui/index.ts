@@ -11,6 +11,9 @@ export { CardMetadataPanel, type CardMetadataPanelData } from "./card-metadata-p
 export { CardConfidenceBadge } from "./card-confidence-badge";
 export { CardHistoryPanel } from "./card-history-panel";
 export { BinderSetInsights } from "./binder-set-insights";
+export { BinderOverviewPanel } from "./binder/BinderOverviewPanel";
+export { BinderSetProgressList } from "./binder/BinderSetProgressList";
+export { BinderDistributionPanel } from "./binder/BinderDistributionPanel";
 export { PendingOfflinePanel } from "./pending-offline-panel";
 export { PendingOfflineScansPanel } from "./pending-offline-scans-panel";
 export { CardScanCandidates } from "./card-scan-candidates";
