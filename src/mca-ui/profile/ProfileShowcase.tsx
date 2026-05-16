@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyStateShowcase } from "@/mca-ui/empty-states/EmptyStateShowcase";
 import { Panel } from "@/mca-ui/panel";
 import Link from "next/link";
 
@@ -15,10 +16,13 @@ export type ShowcaseItem = {
 
 export type ProfileShowcaseProps = {
   items: ShowcaseItem[];
+  showEmpty?: boolean;
 };
 
-export function ProfileShowcase({ items }: ProfileShowcaseProps) {
-  if (!items.length) return null;
+export function ProfileShowcase({ items, showEmpty }: ProfileShowcaseProps) {
+  if (!items.length) {
+    return showEmpty ? <EmptyStateShowcase /> : null;
+  }
 
   return (
     <Panel className="space-y-mca-md">

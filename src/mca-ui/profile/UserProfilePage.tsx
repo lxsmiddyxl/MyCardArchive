@@ -26,6 +26,7 @@ export type UserProfilePageProps = {
   bannerUrl?: string | null;
   stats?: BinderProfileStats | null;
   showcaseItems?: ShowcaseItem[];
+  isOwnProfile?: boolean;
   publicBinders: Array<{
     id: string;
     name: string;
@@ -61,6 +62,7 @@ export function UserProfilePage({
   bannerUrl,
   stats,
   showcaseItems = [],
+  isOwnProfile = false,
   publicBinders,
   recentActivity,
 }: UserProfilePageProps) {
@@ -112,7 +114,7 @@ export function UserProfilePage({
       ) : null}
 
       {stats ? <ProfileStats stats={stats} /> : null}
-      <ProfileShowcase items={showcaseItems} />
+      <ProfileShowcase items={showcaseItems} showEmpty={isOwnProfile} />
 
       <Panel className="space-y-mca-md">
         <h2 className="text-sm font-semibold text-mca-ink-body">Public binders</h2>

@@ -11,6 +11,7 @@ import { Button } from "@/mca-ui/button";
 import { fetchJson } from "@/lib/client";
 import { MCA_MOTION_LIST_ITEM, MCA_MOTION_PANEL } from "@/lib/ui/mca-motion";
 import { cn } from "@/lib/ui/cn";
+import { EmptyStateScans } from "@/mca-ui/empty-states/EmptyStateScans";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -103,7 +104,9 @@ export function ScanHistoryPanel({
       </p>
     );
   }
-  if (displayEntries.length === 0) return null;
+  if (displayEntries.length === 0) {
+    return selfFetch ? <EmptyStateScans /> : null;
+  }
 
   return (
     <section

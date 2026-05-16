@@ -151,6 +151,7 @@ export default async function UserProfileRoute({ params }: PageProps) {
         bannerUrl={profile.profile_banner_url}
         stats={stats}
         showcaseItems={showcaseItems}
+        isOwnProfile={viewer?.id === profile.id}
         publicBinders={(publicBinders ?? []).map((b) => ({
           id: b.id,
           name: b.name,

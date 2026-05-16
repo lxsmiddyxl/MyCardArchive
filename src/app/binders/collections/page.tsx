@@ -1,5 +1,6 @@
 import { BinderCollectionsPanel } from "@/mca-ui/binder/BinderCollectionsPanel";
 import { BinderGroupEditor } from "@/mca-ui/binder/BinderGroupEditor";
+import { EmptyStateGroups } from "@/mca-ui/empty-states/EmptyStateGroups";
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
@@ -24,6 +25,7 @@ export default async function BinderCollectionsRoute() {
       </header>
       <BinderCollectionsPanel />
       <BinderGroupEditor />
+      <EmptyStateGroups />
     </div>
   );
 }

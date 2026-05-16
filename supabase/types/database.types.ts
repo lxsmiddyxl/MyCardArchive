@@ -1911,8 +1911,10 @@ export type Database = {
           id: string
           joined_at: string
           location: string | null
+          onboarding_complete: boolean
           profile_banner_url: string | null
           profile_theme: string
+          scan_tutorial_seen: boolean
           username: string | null
           website: string | null
         }
@@ -1929,8 +1931,10 @@ export type Database = {
           id?: string
           joined_at?: string
           location?: string | null
+          onboarding_complete?: boolean
           profile_banner_url?: string | null
           profile_theme?: string
+          scan_tutorial_seen?: boolean
           username?: string | null
           website?: string | null
         }
@@ -1947,8 +1951,10 @@ export type Database = {
           id?: string
           joined_at?: string
           location?: string | null
+          onboarding_complete?: boolean
           profile_banner_url?: string | null
           profile_theme?: string
+          scan_tutorial_seen?: boolean
           username?: string | null
           website?: string | null
         }

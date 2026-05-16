@@ -7,6 +7,7 @@ import { mcaLog } from "@/lib/logging/mca-log-client";
 import { getRealtimePostgresClient, subscribeToActivityLog } from "@/lib/realtime/channels";
 import { McaVirtualList } from "@/components/ui/mca-virtual-list";
 import { InlineError } from "@/mca-ui/inline-error";
+import { EmptyStateActivity } from "@/mca-ui/empty-states/EmptyStateActivity";
 import { Panel } from "@/mca-ui/panel";
 import { ActivityLogSkeleton } from "@/components/ui/skeleton";
 import {
@@ -188,7 +189,7 @@ export function ActivityLogClient() {
             <ActivityLogSkeleton rows={4} />
           </div>
         ) : rows.length === 0 ? (
-          <p className="text-mca-body text-mca-ink-subtle">No activity yet.</p>
+          <EmptyStateActivity />
         ) : rows.length <= 5 ? (
           <div
             ref={scrollParentRef}

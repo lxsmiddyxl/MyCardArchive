@@ -3,7 +3,6 @@
 import { SeasonalActivityPulse } from "@/components/activity-waves/seasonal-activity-pulse";
 import { SeasonalEventLiveBannerScan } from "@/components/seasonal/seasonal-event-live-banner";
 import { listActiveSeasonalEvents } from "@/lib/events/seasonal-events";
-import { FtueOverlay } from "@/components/onboarding/ftue-overlay";
 import { TierFeatureGateBadge } from "@/components/tier/tier-feature-gate-badge";
 import type { ScanPackOffer } from "@/components/billing/scan-pack-purchase-panel";
 import { ScanPackLimitModal } from "@/components/scan/scan-pack-limit-modal";
@@ -1199,16 +1198,6 @@ export default function ScanPage() {
         onClose={() => setUpgradeReason(null)}
       />
 
-      <FtueOverlay
-        storageKey="mca:ftue:scan"
-        surfaceName="scan"
-        title="Scan tips"
-      >
-        <p>
-          Use a well-lit, flat photo of the card front. You can run a scan without a binder, then add to a binder when
-          the fields look right. Monthly scan limits follow your plan on the Tier page.
-        </p>
-      </FtueOverlay>
     </div>
   );
 }

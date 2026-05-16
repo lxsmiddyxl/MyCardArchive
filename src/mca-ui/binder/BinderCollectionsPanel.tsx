@@ -5,6 +5,7 @@ import { Panel } from "@/mca-ui/panel";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BinderCollectionEditor } from "@/mca-ui/binder/BinderCollectionEditor";
+import { EmptyStateCollections } from "@/mca-ui/empty-states/EmptyStateCollections";
 
 type Collection = {
   id: string;
@@ -28,6 +29,7 @@ export function BinderCollectionsPanel() {
   return (
     <div className="space-y-mca-lg">
       <BinderCollectionEditor onChanged={setCollections} />
+      {collections.length === 0 ? <EmptyStateCollections /> : null}
       {collections.map((c) => (
         <Panel key={c.id} className="space-y-mca-sm">
           <h3 className="font-semibold text-mca-ink-body">{c.name}</h3>

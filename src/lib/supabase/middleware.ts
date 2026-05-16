@@ -7,6 +7,10 @@ import {
 } from "@/lib/auth/password-status";
 import { hasExpectedVerificationParams } from "@/lib/auth/verification-flow";
 import { ensureProfileAndPublic } from "@/lib/supabase/ensureProfile";
+import {
+  loadOnboardingFlags,
+  shouldRedirectToOnboarding,
+} from "@/mca-utils/onboarding/checkOnboarding";
 import type { Database } from "@/lib/supabase/types";
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
 import { type NextRequest, NextResponse } from "next/server";
@@ -177,6 +181,21 @@ export async function updateSession(request: NextRequest) {
     // Signed-in users with complete auth should not stay on auth marketing screens.
     if (!passwordMissing && isAuthMarketingScreen(pathname)) {
       return NextResponse.redirect(new URL("/feed", request.url));
+    }
+
+  }
+
+  if (user && !pathname.startsWith("/api")) {
+    try {
+      const flags = await loadOnboardingFlags(
+        supabase as SupabaseClient<Database>,
+        user.id
+      );
+      if (shouldRedirectToOnboarding(flags, pathname)) {
+        return NextResponse.redirect(new URL("/onboarding", request.url));
+      }
+    } catch {
+      /* non-blocking — allow request if profile read fails */
     }
   }
 

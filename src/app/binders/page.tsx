@@ -5,7 +5,7 @@ import { BinderShelfReveal } from "@/components/binders/binder-shelf-reveal";
 import { BinderShelfCard } from "@/components/binders/binder-shelf-card";
 import { OfflineReadOnlyStrip } from "@/components/offline/offline-read-only-strip";
 import { RetentionHintsStrip } from "@/components/retention/retention-hints-strip";
-import { SurfaceEmptyState } from "@/components/system/surface-states";
+import { EmptyStateBinders } from "@/mca-ui/empty-states/EmptyStateBinders";
 import { TierFeatureGateBadge } from "@/components/tier/tier-feature-gate-badge";
 import {
   getBinderCount,
@@ -126,7 +126,7 @@ export default async function BindersPage() {
               Create Binder
             </span>
           ) : (
-            <Link href="/binders/create" className={createClassName}>
+            <Link href="/binders/new" className={createClassName}>
               Create Binder
             </Link>
           )}
@@ -160,31 +160,7 @@ export default async function BindersPage() {
         </div>
       ) : null}
 
-      {!error && binders.length === 0 ? (
-        <SurfaceEmptyState
-          title="No binders yet"
-          description="Create your first binder to start a shelf—then add pages, drop cards into slots, and open any card for details or grading."
-          primaryAction={
-            atBinderLimit
-              ? undefined
-              : { href: "/binders/create", label: "Create Binder" }
-          }
-          secondaryMessage={
-            atBinderLimit ? (
-              <>
-                You&apos;ve reached your binder limit.{" "}
-                <Link
-                  href="/tier"
-                  className="font-semibold text-mca-accent underline-offset-2 hover:underline"
-                >
-                  Upgrade on the Tier page
-                </Link>{" "}
-                to add more.
-              </>
-            ) : undefined
-          }
-        />
-      ) : null}
+      {!error && binders.length === 0 ? <EmptyStateBinders atLimit={atBinderLimit} /> : null}
 
       {!error && binders.length > 0 ? (
         <BinderShelfReveal>

@@ -106,7 +106,7 @@ export function WelcomeLaunchClient() {
             </p>
             <div className="mt-mca-md flex flex-wrap gap-mca-compact">
               <Link
-                href="/binders/create"
+                href="/binders/new"
                 className="inline-flex min-h-[2.75rem] items-center justify-center rounded-mca-control border border-mca-field-border bg-mca-chrome px-mca-compact py-mca-sm text-sm font-semibold text-mca-ink-strong transition-all duration-200 ease-mca-standard hover:bg-mca-border-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mca-focus/60 active:scale-[0.98]"
               >
                 Create binder
