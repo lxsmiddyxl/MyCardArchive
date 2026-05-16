@@ -3,7 +3,7 @@ import { loadTopScanMilestonesByUserIds } from "@/lib/badges/load-top-scan-miles
 import type { FeedItemDTO } from "@/lib/dto/catalog";
 import { enrichUsersWithFlair } from "@/lib/flair/enrich-user-flair-batch";
 import { presenceSnapshotFromFlair } from "@/lib/presence/flair-presence-fields";
-import { rankFeedItemsV4 } from "@/lib/feed/engagement-v4";
+import { rankFeedItemsV5 } from "@/lib/feed/engagement-v5";
 import { loadFeedV3SupplementRows } from "@/lib/feed/feed-v3-supplement";
 import { buildFeedV3SupplementSignalLine } from "@/lib/feed/feed-v3-ui-copy";
 import { compositeReputation01 } from "@/lib/reputation/composite-score";
@@ -71,7 +71,7 @@ async function GET_handler(request: Request) {
     followingIds,
     mutualIds: [...mutualIds],
   });
-  const merged = [...(baseItems as Parameters<typeof rankFeedItemsV4>[1]), ...supplement];
+  const merged = [...(baseItems as Parameters<typeof rankFeedItemsV5>[1]), ...supplement];
   const actorIdsForRank = [
     ...new Set(
       (merged as { actor_id?: string }[])
@@ -103,11 +103,11 @@ async function GET_handler(request: Request) {
     }
   }
 
-  const { items: ranked, debug: rankDebug } = rankFeedItemsV4(
+  const { items: ranked, debug: rankDebug } = rankFeedItemsV5(
     session.userId,
-    merged as Parameters<typeof rankFeedItemsV4>[1],
+    merged as Parameters<typeof rankFeedItemsV5>[1],
     { useMl },
-    { reputationByActor }
+    { reputationByActor, trustByActor: reputationByActor }
   );
 
   if (debug && ranked.length === rankDebug.length) {
@@ -128,7 +128,10 @@ async function GET_handler(request: Request) {
     if (m) {
       hybridAcc += m.hybrid;
       if (m.personalized >= 0.18) persBoosts++;
-      if (m.v4) {
+      if (m.v5) {
+        predAcc += m.v5.interest_velocity;
+        affAcc += m.v5.showcase_engagement;
+      } else if (m.v4) {
         predAcc += m.v4.predicted_engagement;
         affAcc += m.v4.affinity;
       }
@@ -153,7 +156,7 @@ async function GET_handler(request: Request) {
       viewerId: session.userId,
       limit,
       itemCount: Array.isArray(items) ? items.length : 0,
-      ranking: "v4_engagement_v3sql",
+      ranking: "v5_engagement_v3sql",
     },
     CTX
   );
