@@ -1,3 +1,6 @@
+import { logBinderActivity } from "@/lib/binders/binder-activity";
+import { listBinderSubscriberUserIds } from "@/lib/binders/binder-subscriptions";
+import { notifySubscribersCardAdded } from "@/lib/notifications/binder-events";
 import { createClient } from "@/lib/supabase/route";
 import type { BinderSlotDTO } from "@/lib/dto/binder";
 import { errorJson, successJson, validateSession, withContextId } from "@/lib/api/route-helpers";
@@ -24,7 +27,7 @@ async function POST_handler(
 
     const { data: binder, error: bErr } = await supabase
       .from("binders")
-      .select("id")
+      .select("id, name")
       .eq("id", binderId)
       .eq("user_id", userId)
       .maybeSingle();
@@ -125,6 +128,28 @@ async function POST_handler(
 
     if (upErr) {
       return errorJson(ctx, upErr.message, 500);
+    }
+
+    if (cardId !== null) {
+      const cardName =
+        row && typeof row === "object" && row.cards && typeof row.cards === "object"
+          ? (row.cards as { name?: string }).name
+          : undefined;
+      await logBinderActivity(supabase, {
+        binderId,
+        userId,
+        type: "card_added",
+        payload: { card_name: cardName ?? null },
+      });
+      const subscriberIds = await listBinderSubscriberUserIds(supabase, binderId);
+      if (binder && subscriberIds.length) {
+        void notifySubscribersCardAdded(
+          subscriberIds,
+          binderId,
+          binder.name,
+          cardName
+        );
+      }
     }
 
     return successJson(ctx, {

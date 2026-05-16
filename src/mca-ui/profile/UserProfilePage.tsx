@@ -3,6 +3,9 @@
 import { formatBinderActivityLabel } from "@/lib/binders/binder-activity";
 import { activityPayloadFromJson } from "@/lib/binders/binder-social-types";
 import type { Json } from "@/lib/supabase/types";
+import { FollowButton } from "@/mca-ui/profile/FollowButton";
+import { FollowersList } from "@/mca-ui/profile/FollowersList";
+import { FollowingList } from "@/mca-ui/profile/FollowingList";
 import { Panel } from "@/mca-ui/panel";
 import Link from "next/link";
 
@@ -11,6 +14,10 @@ export type UserProfilePageProps = {
   username: string | null;
   bio: string | null;
   avatarUrl: string | null;
+  followerCount: number;
+  followingCount: number;
+  viewerFollowing: boolean;
+  canFollow: boolean;
   publicBinders: Array<{
     id: string;
     name: string;
@@ -38,6 +45,10 @@ export function UserProfilePage({
   username,
   bio,
   avatarUrl,
+  followerCount,
+  followingCount,
+  viewerFollowing,
+  canFollow,
   publicBinders,
   recentActivity,
 }: UserProfilePageProps) {
@@ -59,9 +70,24 @@ export function UserProfilePage({
           <h1 className="text-3xl font-semibold tracking-tight text-mca-ink">{label}</h1>
           {username ? <p className="text-sm text-mca-ink-muted">@{username}</p> : null}
           {bio ? <p className="mt-mca-sm max-w-2xl text-sm text-mca-ink-muted">{bio}</p> : null}
-          <p className="mt-mca-sm text-xs text-mca-ink-subtle">Followers coming in Phase 4</p>
+          <p className="mt-mca-sm text-sm text-mca-ink-muted">
+            <span className="font-medium text-mca-ink-body">{followerCount}</span> followers ·{" "}
+            <span className="font-medium text-mca-ink-body">{followingCount}</span> following
+          </p>
+          {username && canFollow ? (
+            <div className="mt-mca-sm">
+              <FollowButton username={username} initialFollowing={viewerFollowing} />
+            </div>
+          ) : null}
         </div>
       </header>
+
+      {username ? (
+        <div className="grid gap-mca-lg md:grid-cols-2">
+          <FollowersList username={username} />
+          <FollowingList username={username} />
+        </div>
+      ) : null}
 
       <Panel className="space-y-mca-md">
         <h2 className="text-sm font-semibold text-mca-ink-body">Public binders</h2>

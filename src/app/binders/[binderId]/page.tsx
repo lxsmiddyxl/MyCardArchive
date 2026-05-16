@@ -1,3 +1,4 @@
+import { BinderOwnerPresence } from "@/components/binders/binder-owner-presence";
 import { BinderHomeBase } from "@/components/binders/binder-home-base";
 import { BinderFtue } from "@/components/binders/binder-ftue";
 import { BinderPaperBackdrop } from "@/components/artwork/artwork-surfaces";
@@ -227,6 +228,8 @@ export default async function BinderDetailPage({ params }: PageProps) {
           </Link>
         </div>
       </div>
+
+      <BinderOwnerPresence binderId={b.id} />
 
       <BinderHomeBase binderId={b.id} />
 

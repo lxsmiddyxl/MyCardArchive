@@ -1,7 +1,9 @@
 import { ApiErrorCode } from "@/lib/api/api-error-codes";
 import { errorJson, successJson } from "@/lib/api/route-helpers";
 import { logBinderActivity } from "@/lib/binders/binder-activity";
+import { listBinderSubscriberUserIds } from "@/lib/binders/binder-subscriptions";
 import { resolveBinderRouteSession } from "@/lib/binders/binder-route-context";
+import { notifySubscribersVisibilityChanged } from "@/lib/notifications/binder-events";
 import {
   parseBinderVisibility,
   type BinderVisibility,
@@ -51,6 +53,21 @@ async function POST_handler(
     type: "visibility_changed",
     payload: { visibility },
   });
+
+  const { data: binderMeta } = await supabase
+    .from("binders")
+    .select("name")
+    .eq("id", binderId)
+    .maybeSingle();
+  const subscriberIds = await listBinderSubscriberUserIds(supabase, binderId);
+  if (binderMeta && subscriberIds.length) {
+    void notifySubscribersVisibilityChanged(
+      subscriberIds,
+      binderId,
+      binderMeta.name,
+      visibility
+    );
+  }
 
   return successJson(ctx, {
     binder_id: binderId,

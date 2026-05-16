@@ -1,6 +1,7 @@
 "use client";
 
 import { extractApiPayload } from "@/lib/client";
+import { ExploreActivityFeed } from "@/mca-ui/explore/ExploreActivityFeed";
 import { Panel } from "@/mca-ui/panel";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -90,6 +91,8 @@ export function BinderExplorePage() {
           ))}
         </div>
       </Panel>
+
+      <ExploreActivityFeed />
     </div>
   );
 }

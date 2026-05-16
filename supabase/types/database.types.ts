@@ -197,6 +197,42 @@ export type Database = {
           },
         ]
       }
+      binder_subscriptions: {
+        Row: {
+          binder_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          binder_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          binder_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "binder_subscriptions_binder_id_fkey"
+            columns: ["binder_id"]
+            isOneToOne: false
+            referencedRelation: "binders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "binder_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       binder_reactions: {
         Row: {
           binder_id: string
@@ -1585,6 +1621,7 @@ export type Database = {
           body: string | null
           created_at: string
           id: string
+          payload: Json
           read_at: string | null
           title: string
           trade_id: string | null
@@ -1595,6 +1632,7 @@ export type Database = {
           body?: string | null
           created_at?: string
           id?: string
+          payload?: Json
           read_at?: string | null
           title: string
           trade_id?: string | null
@@ -1605,6 +1643,7 @@ export type Database = {
           body?: string | null
           created_at?: string
           id?: string
+          payload?: Json
           read_at?: string | null
           title?: string
           trade_id?: string | null
@@ -3601,6 +3640,14 @@ export type Database = {
       get_public_binder_owner_display: {
         Args: { p_binder_id: string }
         Returns: string
+      }
+      get_profile_follow_counts: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
+      get_binder_subscriber_count: {
+        Args: { p_binder_id: string }
+        Returns: number
       }
       get_deck_visibility: {
         Args: { p_deck_id: string }

@@ -6,6 +6,8 @@ import { BinderSetProgressList } from "@/mca-ui/binder/BinderSetProgressList";
 import { BinderActivityFeed } from "@/mca-ui/binder/BinderActivityFeed";
 import { BinderComments } from "@/mca-ui/binder/BinderComments";
 import { BinderReactions } from "@/mca-ui/binder/BinderReactions";
+import { BinderPresenceBar } from "@/mca-ui/binder/BinderPresenceBar";
+import { BinderSubscribeButton } from "@/mca-ui/binder/BinderSubscribeButton";
 import { resolveBinderAccent } from "@/lib/binders/binder-accent";
 import type { BinderVisibility } from "@/lib/binders/binder-social-types";
 import type { BinderInsights } from "@/mca-utils/binders/binder-insights-types";
@@ -20,6 +22,9 @@ export type PublicBinderPageProps = {
   ownerHandle: string | null;
   insights: BinderInsights | null;
   canInteract: boolean;
+  subscriberCount: number;
+  initialSubscribed: boolean;
+  canSubscribe: boolean;
 };
 
 export function PublicBinderPage({
@@ -30,6 +35,9 @@ export function PublicBinderPage({
   ownerHandle,
   insights,
   canInteract,
+  subscriberCount,
+  initialSubscribed,
+  canSubscribe,
 }: PublicBinderPageProps) {
   const accent = resolveBinderAccent(binderId);
   const overview = insights?.overview ?? {
@@ -66,6 +74,17 @@ export function PublicBinderPage({
             <span className="font-medium text-mca-ink-body">{ownerDisplay}</span>
           )}
         </p>
+        <BinderPresenceBar binderId={binderId} mode="viewing" enabled={canInteract} />
+        <p className="text-sm text-mca-ink-muted">
+          <span className="font-medium text-mca-ink-body">{subscriberCount}</span> subscribers
+        </p>
+        {canSubscribe ? (
+          <BinderSubscribeButton
+            binderId={binderId}
+            initialSubscribed={initialSubscribed}
+            canSubscribe={canSubscribe}
+          />
+        ) : null}
         <div className="flex flex-wrap gap-mca-sm pt-mca-xs">
           <Link
             href={`/binders/${binderId}/missing`}

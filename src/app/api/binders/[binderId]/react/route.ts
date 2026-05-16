@@ -6,6 +6,7 @@ import {
   withContextId,
 } from "@/lib/api/route-helpers";
 import { isBinderShareable, parseBinderVisibility } from "@/lib/binders/binder-social-types";
+import { notifyBinderReaction } from "@/lib/notifications/binder-events";
 import { defineRoute } from "@/lib/server/api-route";
 import { createClient } from "@/lib/supabase/route";
 
@@ -39,7 +40,7 @@ async function POST_handler(
 
   const { data: binder } = await supabase
     .from("binders")
-    .select("id, visibility")
+    .select("id, visibility, user_id, name")
     .eq("id", binderId)
     .maybeSingle();
 
@@ -80,6 +81,23 @@ async function POST_handler(
 
   if (insErr) {
     return errorJson(ctx, insErr.message, 500, { code: ApiErrorCode.SUPABASE_QUERY });
+  }
+
+  const { data: actor } = await supabase
+    .from("social_public_profiles")
+    .select("display_name, username")
+    .eq("user_id", session.userId)
+    .maybeSingle();
+  if (binder) {
+    void notifyBinderReaction({
+      ownerUserId: binder.user_id,
+      actorId: session.userId,
+      actorDisplay:
+        actor?.display_name?.trim() || actor?.username?.trim() || "A collector",
+      binderId,
+      binderName: binder.name,
+      emoji,
+    });
   }
 
   return successJson(ctx, { active: true, emoji });

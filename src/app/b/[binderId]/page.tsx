@@ -1,5 +1,9 @@
 import { BinderPaperBackdrop } from "@/components/artwork/artwork-surfaces";
 import { PublicBinderSlots } from "@/components/binders/public-binder-slots";
+import {
+  getBinderSubscriberCount,
+  isSubscribedToBinder,
+} from "@/lib/binders/binder-subscriptions";
 import { loadPublicBinder } from "@/lib/public-binder/load-public-binder";
 import { tryCreateAnonServerClient } from "@/lib/supabase/anon-server";
 import { createClient } from "@/lib/supabase/server";
@@ -53,6 +57,11 @@ export default async function PublicBinderRoute({ params }: PageProps) {
     .eq("page_number", 0)
     .order("slot_index", { ascending: true });
 
+  const subscriberCount = await getBinderSubscriberCount(client, binderId);
+  const initialSubscribed = user
+    ? await isSubscribedToBinder(createClient(), user.id, binderId)
+    : false;
+
   const previewSlots = (slotRows ?? []).map((row) => {
     const card = row.cards as { id: string; name: string; image_url: string | null } | null;
     return {
@@ -75,6 +84,9 @@ export default async function PublicBinderRoute({ params }: PageProps) {
           ownerHandle={data.owner_handle}
           insights={data.insights}
           canInteract={Boolean(user)}
+          subscriberCount={subscriberCount}
+          initialSubscribed={initialSubscribed}
+          canSubscribe={Boolean(user && user.id !== data.owner_user_id)}
         />
         <section aria-labelledby="public-binder-preview">
           <h2
