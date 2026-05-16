@@ -2,6 +2,7 @@
 
 import { ProfileIdentityMapPanel } from "@/components/profile/profile-identity-map-panel";
 import { ProfilePersonaV2Panel } from "@/components/profile/profile-persona-v2-panel";
+import { CollectionStrengthPanel } from "@/components/profile/collection-strength-panel";
 import { ProfileReputationPanel } from "@/components/reputation/profile-reputation-panel";
 import { ProfileInfluencePanel } from "@/components/influence/profile-influence-panel";
 import { CollectorTimeline } from "@/components/activity/collector-timeline";
@@ -500,6 +501,7 @@ export const PublicProfileClient = memo(function PublicProfileClient({
           </Panel>
 
           {profile.reputation ? <ProfileReputationPanel block={profile.reputation} /> : null}
+          <CollectionStrengthPanel profileId={profile.userId} />
           {profile.influence ? <ProfileInfluencePanel block={profile.influence} /> : null}
           {profile.badgesV2 ? <ProfileBadgesPanel block={profile.badgesV2} /> : null}
 
