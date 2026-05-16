@@ -12,6 +12,7 @@ import {
 } from "@/lib/ai/real-scan";
 import { updateHaveListIndex } from "@/lib/matching/index-maintenance";
 import type { AutoMatchResult } from "@/lib/types/auto-match";
+import { hydrateFromScanBestMatch } from "@/mca-utils/catalog/hydrateCardMetadata";
 import { createClient } from "@/lib/supabase/server";
 import {
   assertCanCreateCard,
@@ -48,21 +49,23 @@ function cardFieldsFromAuto(
   catalog_card_id: string | null;
 } {
   const bm = autoMatch.best_match;
-  const name = bm?.card_name?.trim() || normalized.name.trim();
-  const numFromBm = bm?.number?.trim();
-  const numFromAi = normalized.number.trim();
-  const number =
-    (numFromBm && numFromBm !== "—" ? numFromBm : numFromAi) || null;
-  const rarityBm = bm?.rarity?.trim();
-  const rarityAi = normalized.rarity.trim();
-  const rarity =
-    (rarityBm && rarityBm.length > 0 ? rarityBm : rarityAi) || null;
-  const image_url = bm?.image_url ?? normalized.image_url;
-  const catalog_card_id =
-    bm?.catalog_card_id != null && String(bm.catalog_card_id).trim()
-      ? String(bm.catalog_card_id).trim()
-      : null;
-  return { name, number, rarity, image_url, catalog_card_id };
+  if (bm) {
+    const meta = hydrateFromScanBestMatch(bm);
+    return {
+      name: meta.name || normalized.name.trim(),
+      number: meta.number || normalized.number.trim() || null,
+      rarity: meta.rarity || normalized.rarity.trim() || null,
+      image_url: meta.imageUrl || normalized.image_url,
+      catalog_card_id: meta.catalog_card_id || null,
+    };
+  }
+  return {
+    name: normalized.name.trim(),
+    number: normalized.number.trim() || null,
+    rarity: normalized.rarity.trim() || null,
+    image_url: normalized.image_url,
+    catalog_card_id: null,
+  };
 }
 
 async function POST_handler(request: Request) {

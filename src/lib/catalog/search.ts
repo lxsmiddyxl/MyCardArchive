@@ -1,7 +1,13 @@
 import type { CatalogCardHit } from "@/lib/dto/catalog";
+import type { CatalogSearchMode } from "@/lib/catalog/search-modes";
+import {
+  buildNumberSearchUrl,
+  buildSetSearchUrl,
+} from "@/lib/catalog/search-modes";
 
 export const CATALOG_AUTOCOMPLETE_DEBOUNCE_MS = 200;
 export const CATALOG_AUTOCOMPLETE_LIMIT = 10;
+export const CATALOG_SET_SEARCH_LIMIT = 50;
 
 /** Build catalog search URL (`query` alias supported server-side). */
 export function buildCatalogSearchUrl(
@@ -14,6 +20,21 @@ export function buildCatalogSearchUrl(
     sp.set("set_id", opts.setId.trim());
   }
   return `/api/catalog/search?${sp.toString()}`;
+}
+
+export function buildCatalogSearchUrlForMode(
+  mode: CatalogSearchMode,
+  query: string,
+  opts?: { setId?: string; limit?: number }
+): string {
+  const q = query.trim();
+  if (mode === "set") {
+    return buildSetSearchUrl(q);
+  }
+  if (mode === "number") {
+    return buildNumberSearchUrl(q);
+  }
+  return buildCatalogSearchUrl(q, opts);
 }
 
 export function normalizeCatalogSearchHit(row: Record<string, unknown>): CatalogCardHit | null {
@@ -44,7 +65,10 @@ export function normalizeCatalogSearchHit(row: Record<string, unknown>): Catalog
   };
 }
 
-export function parseCatalogSearchResults(payload: unknown): CatalogCardHit[] {
+export function parseCatalogSearchResults(
+  payload: unknown,
+  max = CATALOG_AUTOCOMPLETE_LIMIT
+): CatalogCardHit[] {
   if (!payload || typeof payload !== "object") return [];
   const results = (payload as { results?: unknown }).results;
   if (!Array.isArray(results)) return [];
@@ -54,5 +78,5 @@ export function parseCatalogSearchResults(payload: unknown): CatalogCardHit[] {
     const hit = normalizeCatalogSearchHit(row as Record<string, unknown>);
     if (hit) out.push(hit);
   }
-  return out.slice(0, CATALOG_AUTOCOMPLETE_LIMIT);
+  return out.slice(0, max);
 }

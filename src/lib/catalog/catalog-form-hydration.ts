@@ -1,17 +1,11 @@
 import type { CatalogCardHit } from "@/lib/dto/catalog";
+import {
+  hydrateFromCatalogDetail,
+  hydrateFromCatalogHit,
+  type CatalogDetailInput,
+} from "@/mca-utils/catalog/hydrateCardMetadata";
 
-export type CatalogCardDetailRow = {
-  id: string;
-  name: string;
-  number: string;
-  rarity: string | null;
-  set_id: string;
-  supertype: string | null;
-  subtypes: string[];
-  image_small: string | null;
-  image_large: string | null;
-  catalog_sets?: { name: string } | { name: string }[] | null;
-};
+export type CatalogCardDetailRow = CatalogDetailInput;
 
 export type CatalogFormSelection = {
   catalogCardId: string;
@@ -28,52 +22,28 @@ export type CatalogFormSelection = {
   tcgplayerId: string;
 };
 
-function setNameFromEmbed(
-  embed: CatalogCardDetailRow["catalog_sets"],
-  fallbackSetId: string
-): string {
-  if (!embed) return fallbackSetId;
-  const row = Array.isArray(embed) ? embed[0] : embed;
-  return row?.name?.trim() || fallbackSetId;
+function hydratedToFormSelection(meta: ReturnType<typeof hydrateFromCatalogHit>): CatalogFormSelection {
+  return {
+    catalogCardId: meta.catalog_card_id,
+    name: meta.name,
+    number: meta.number,
+    rarity: meta.rarity,
+    setId: meta.setId,
+    setName: meta.setName,
+    imageUrl: meta.imageUrl,
+    supertype: meta.supertype,
+    subtypes: meta.subtypes,
+    type: meta.type,
+    tcgplayerId: meta.tcgplayerId,
+  };
 }
 
 export function catalogHitToSelection(hit: CatalogCardHit): CatalogFormSelection {
-  const setId = hit.set_id?.trim() ?? "";
-  const setName = hit.set?.trim() ?? setId;
-  const supertype = hit.supertype?.trim() ?? "";
-  const subtypes = hit.subtypes ?? [];
-  return {
-    catalogCardId: hit.id,
-    name: hit.name,
-    number: hit.number ?? "",
-    rarity: hit.rarity?.trim() ?? "",
-    setId,
-    setName,
-    imageUrl: hit.image_url?.trim() ?? "",
-    supertype,
-    subtypes,
-    type: supertype || subtypes[0] || "",
-    tcgplayerId: hit.tcgplayer_id?.trim() || hit.id,
-  };
+  return hydratedToFormSelection(hydrateFromCatalogHit(hit));
 }
 
 export function catalogDetailToSelection(row: CatalogCardDetailRow): CatalogFormSelection {
-  const setName = setNameFromEmbed(row.catalog_sets, row.set_id);
-  const supertype = row.supertype?.trim() ?? "";
-  const subtypes = Array.isArray(row.subtypes) ? row.subtypes : [];
-  return {
-    catalogCardId: row.id,
-    name: row.name,
-    number: row.number ?? "",
-    rarity: row.rarity?.trim() ?? "",
-    setId: row.set_id,
-    setName,
-    imageUrl: row.image_large ?? row.image_small ?? "",
-    supertype,
-    subtypes,
-    type: supertype || subtypes[0] || "",
-    tcgplayerId: row.id,
-  };
+  return hydratedToFormSelection(hydrateFromCatalogDetail(row));
 }
 
 export function isCatalogFormLocked(

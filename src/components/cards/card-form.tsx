@@ -10,16 +10,28 @@ import {
   type CatalogFormSelection,
 } from "@/lib/catalog/catalog-form-hydration";
 import {
-  buildCatalogSearchUrl,
+  buildCatalogSearchUrlForMode,
   CATALOG_AUTOCOMPLETE_DEBOUNCE_MS,
+  CATALOG_AUTOCOMPLETE_LIMIT,
+  CATALOG_SET_SEARCH_LIMIT,
   parseCatalogSearchResults,
 } from "@/lib/catalog/search";
+import {
+  buildSuggestionGroups,
+  shouldLoadSuggestions,
+} from "@/lib/catalog/suggestions";
+import {
+  classifyCatalogQuery,
+  isAutoDetectNumberQuery,
+  type CatalogSearchMode,
+} from "@/lib/catalog/search-modes";
 import type { AddCardPrefillPayload, CatalogCardHit, CatalogSetHit } from "@/lib/dto/catalog";
 import type { BinderAddMutationResponseDTO } from "@/lib/dto/scan-add";
 import { fetchJson, fetchJsonErrorMessage, fetchJsonUserFacingMessage } from "@/lib/client";
 import { Field } from "@/mca-ui/field";
 import { CatalogCardPreview } from "@/mca-ui/catalog-card-preview";
 import { CatalogCombobox } from "@/mca-ui/catalog-combobox";
+import { CatalogSuggestionsStrip } from "@/mca-ui/catalog-suggestions-strip";
 import { InlineError } from "@/mca-ui/inline-error";
 import { LoadingButton } from "@/mca-ui/loading-button";
 import { Panel } from "@/mca-ui/panel";
@@ -134,6 +146,12 @@ export const CardForm = memo(function CardForm({
   const [activeHitIndex, setActiveHitIndex] = useState(-1);
   const [catalogSelection, setCatalogSelection] = useState<CatalogFormSelection | null>(null);
   const [manualEdit, setManualEdit] = useState(false);
+  const [searchMode, setSearchMode] = useState<CatalogSearchMode>("name");
+  const [autoDetectedFromNumber, setAutoDetectedFromNumber] = useState(false);
+  const [suggestionGroups, setSuggestionGroups] = useState<
+    ReturnType<typeof buildSuggestionGroups>
+  >([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
   const [catalogSetsForScope, setCatalogSetsForScope] = useState<CatalogSetScopeRow[]>([]);
   const [catalogSearchSetId, setCatalogSearchSetId] = useState(
@@ -253,43 +271,7 @@ export const CardForm = memo(function CardForm({
     };
   }, [initialValues?.catalog_card_id]);
 
-  useEffect(() => {
-    const q = debouncedQuery.trim();
-    if (fieldsLocked || q.length < 1) {
-      setCatalogHits([]);
-      setCatalogErr(null);
-      setCatalogLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setCatalogLoading(true);
-    setCatalogErr(null);
-
-    void (async () => {
-      try {
-        const url = buildCatalogSearchUrl(q, {
-          setId: catalogSearchSetId.trim() || undefined,
-        });
-        const r = await fetchJson<{ results: CatalogCardHit[] }>(url, { cache: "no-store" });
-        if (cancelled) return;
-        if (r.kind !== "ok") {
-          setCatalogHits([]);
-          setCatalogErr(fetchJsonErrorMessage(r));
-          return;
-        }
-        setCatalogHits(parseCatalogSearchResults(r.data));
-      } finally {
-        if (!cancelled) setCatalogLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedQuery, catalogSearchSetId, fieldsLocked]);
-
-  const applyCatalogHit = async (hit: CatalogCardHit) => {
+  const applyCatalogHit = useCallback(async (hit: CatalogCardHit) => {
     setCatalogHits([]);
     setCatalogErr(null);
     setActiveHitIndex(-1);
@@ -317,11 +299,139 @@ export const CardForm = memo(function CardForm({
       setTcgplayerId,
       setCatalogSelection,
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    const q = debouncedQuery.trim();
+    if (fieldsLocked || q.length < 1) {
+      setCatalogHits([]);
+      setCatalogErr(null);
+      setCatalogLoading(false);
+      setSearchMode("name");
+      return;
+    }
+
+    const mode = classifyCatalogQuery(q);
+    setSearchMode(mode);
+    const resultCap =
+      mode === "set" ? CATALOG_SET_SEARCH_LIMIT : CATALOG_AUTOCOMPLETE_LIMIT;
+
+    let cancelled = false;
+    setCatalogLoading(true);
+    setCatalogErr(null);
+
+    void (async () => {
+      try {
+        const url = buildCatalogSearchUrlForMode(mode, q, {
+          setId: mode === "name" ? catalogSearchSetId.trim() || undefined : undefined,
+          limit: resultCap,
+        });
+        const r = await fetchJson<{
+          results: CatalogCardHit[];
+          unique?: boolean;
+          set_id?: string | null;
+        }>(url, { cache: "no-store" });
+        if (cancelled) return;
+        if (r.kind !== "ok") {
+          setCatalogHits([]);
+          setCatalogErr(fetchJsonErrorMessage(r));
+          return;
+        }
+        const hits = parseCatalogSearchResults(r.data, resultCap);
+        setCatalogHits(hits);
+        if (r.data.set_id?.trim()) {
+          setCatalogSearchSetId(r.data.set_id.trim());
+        }
+        const unique =
+          mode === "number" &&
+          (r.data.unique === true || hits.length === 1) &&
+          isAutoDetectNumberQuery(q);
+        if (unique && hits[0]) {
+          setAutoDetectedFromNumber(true);
+          await applyCatalogHit(hits[0]);
+        } else {
+          setAutoDetectedFromNumber(false);
+        }
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, catalogSearchSetId, fieldsLocked, applyCatalogHit]);
+
+  useEffect(() => {
+    const setId = catalogSelection?.setId?.trim() || catalogSearchSetId.trim();
+    const cardNumber = catalogSelection?.number?.trim() || number.trim();
+    const selectedId = catalogSelection?.catalogCardId ?? null;
+
+    if (!shouldLoadSuggestions({ binderId, setId, selectedId })) {
+      setSuggestionGroups([]);
+      return;
+    }
+
+    let cancelled = false;
+    setSuggestionsLoading(true);
+
+    void (async () => {
+      const recentUrl = `/api/cards/recent?binderId=${encodeURIComponent(binderId)}&limit=12`;
+      const nearbyUrl =
+        setId && cardNumber
+          ? `/api/catalog/cards/nearby?setId=${encodeURIComponent(setId)}&number=${encodeURIComponent(cardNumber)}`
+          : null;
+      const bySetUrl = setId
+        ? `/api/catalog/cards/by-set?setId=${encodeURIComponent(setId)}&limit=24`
+        : null;
+
+      const [recentRes, nearbyRes, bySetRes] = await Promise.all([
+        fetchJson<{ binderRecent: CatalogCardHit[]; globalRecent: CatalogCardHit[] }>(
+          recentUrl,
+          { cache: "no-store" }
+        ),
+        nearbyUrl
+          ? fetchJson<{ results: CatalogCardHit[] }>(nearbyUrl, { cache: "no-store" })
+          : Promise.resolve(null),
+        bySetUrl
+          ? fetchJson<{ results: CatalogCardHit[] }>(bySetUrl, { cache: "no-store" })
+          : Promise.resolve(null),
+      ]);
+
+      if (cancelled) return;
+
+      const binderRecent =
+        recentRes.kind === "ok" ? parseCatalogSearchResults({ results: recentRes.data.binderRecent }, 12) : [];
+      const globalRecent =
+        recentRes.kind === "ok" ? parseCatalogSearchResults({ results: recentRes.data.globalRecent }, 12) : [];
+      const nearby =
+        nearbyRes && nearbyRes.kind === "ok"
+          ? parseCatalogSearchResults(nearbyRes.data, 12)
+          : [];
+      const bySet =
+        bySetRes && bySetRes.kind === "ok" ? parseCatalogSearchResults(bySetRes.data, 24) : [];
+
+      setSuggestionGroups(
+        buildSuggestionGroups({
+          binderRecent,
+          globalRecent,
+          nearby,
+          bySet,
+          selectedId,
+        })
+      );
+      setSuggestionsLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [binderId, catalogSelection, catalogSearchSetId, number]);
 
   const enableManualEdit = useCallback(() => {
     setManualEdit(true);
     setCatalogHits([]);
+    setAutoDetectedFromNumber(false);
   }, []);
 
   const clearCatalogLink = useCallback(() => {
@@ -446,10 +556,16 @@ export const CardForm = memo(function CardForm({
           </p>
         ) : null}
 
+        <CatalogSuggestionsStrip
+          groups={suggestionGroups}
+          loading={suggestionsLoading}
+          onPick={(hit) => void applyCatalogHit(hit)}
+        />
+
         <Field
           id="card-name"
           label="Card name"
-          hint="Search the Pokémon TCG catalog or enter a name manually."
+          hint="Search by name, set (e.g. 151, SV2), or number (e.g. 121/088)."
         >
           <CatalogCombobox
             id="card-name"
@@ -469,10 +585,20 @@ export const CardForm = memo(function CardForm({
             showNoResults={showNoResults}
             activeIndex={activeHitIndex}
             onActiveIndexChange={setActiveHitIndex}
-            onPick={(hit) => void applyCatalogHit(hit)}
+            onPick={(hit) => {
+              setAutoDetectedFromNumber(false);
+              void applyCatalogHit(hit);
+            }}
             onManualEditRequest={enableManualEdit}
             disabled={loading || cardLimitReached}
+            searchMode={searchMode}
+            listLimit={searchMode === "set" ? CATALOG_SET_SEARCH_LIMIT : CATALOG_AUTOCOMPLETE_LIMIT}
           />
+          {autoDetectedFromNumber && catalogSelection && !manualEdit ? (
+            <p className="mt-mca-xs inline-flex items-center gap-mca-xs rounded-mca-pill border border-mca-accent-border/40 bg-mca-accent-border/10 px-mca-sm py-mca-tight text-xs font-medium text-mca-accent">
+              Auto-detected from number
+            </p>
+          ) : null}
           {catalogSelection && !manualEdit ? (
             <p className="mt-mca-xs text-xs text-mca-ink-subtle">
               Catalog match applied.{" "}

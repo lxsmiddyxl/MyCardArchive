@@ -6,6 +6,11 @@ import type { NormalizedCard } from "@/lib/ai/normalize-card";
 import { createClient } from "@/lib/supabase/server";
 import { authSignInUrl } from "@/lib/auth/safe-next-path";
 import type { AutoMatchResult } from "@/lib/types/auto-match";
+import {
+  hydrateFromCatalogDetail,
+  hydrateFromScanBestMatch,
+  toAddCardPrefillPayload,
+} from "@/mca-utils/catalog/hydrateCardMetadata";
 import type { BinderRow } from "@/lib/types/database";
 import { getCardCount, getUserTier } from "@/lib/tier/check-limits";
 import type { Metadata } from "next";
@@ -64,25 +69,7 @@ function parseScanPayload(raw: string): {
 function bestMatchToInitial(
   bm: NonNullable<AutoMatchResult["best_match"]>
 ): CardFormInitialValues {
-  return {
-    name: bm.card_name,
-    number: bm.number === "—" ? "" : bm.number,
-    rarity: bm.rarity ?? "",
-    image_url: bm.image_url,
-    catalog_card_id: bm.catalog_card_id?.trim() || undefined,
-    set_name: bm.set_name?.trim() || undefined,
-  };
-}
-
-function firstCatSetName(
-  row: {
-    catalog_sets?: { name: string } | { name: string }[] | null;
-  }
-): string | null {
-  const cs = row.catalog_sets;
-  if (!cs) return null;
-  const o = Array.isArray(cs) ? cs[0] : cs;
-  return o?.name?.trim() || null;
+  return toAddCardPrefillPayload(hydrateFromScanBestMatch(bm));
 }
 
 function catalogRowToInitial(row: {
@@ -97,17 +84,7 @@ function catalogRowToInitial(row: {
   image_large: string | null;
   catalog_sets?: { name: string } | { name: string }[] | null;
 }): CardFormInitialValues {
-  return {
-    name: row.name,
-    number: row.number,
-    rarity: row.rarity ?? "",
-    image_url: row.image_large ?? row.image_small ?? null,
-    catalog_card_id: row.id,
-    set_name: firstCatSetName(row),
-    set_id: row.set_id,
-    supertype: row.supertype,
-    subtypes: row.subtypes,
-  };
+  return toAddCardPrefillPayload(hydrateFromCatalogDetail(row));
 }
 
 export async function generateMetadata({

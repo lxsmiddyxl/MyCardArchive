@@ -8,6 +8,7 @@ export { Breadcrumb, type BreadcrumbItem } from "./breadcrumb";
 export { Button, type ButtonProps, type ButtonVariant } from "./button";
 export { CatalogCardPreview } from "./catalog-card-preview";
 export { CatalogAutocompleteRow, CatalogCombobox, type CatalogComboboxProps } from "./catalog-combobox";
+export { CatalogSuggestionsStrip } from "./catalog-suggestions-strip";
 export { Card, type CardProps } from "./card";
 export { MCAErrorBoundary, type MCAErrorBoundaryProps } from "./error-boundary";
 export { ChartContainer, type ChartContainerProps } from "./chart-container";

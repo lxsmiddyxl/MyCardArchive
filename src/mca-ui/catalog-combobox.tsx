@@ -55,6 +55,8 @@ export const CatalogAutocompleteRow = memo(function CatalogAutocompleteRow({
   );
 });
 
+export type CatalogSearchModeHint = "name" | "set" | "number";
+
 export type CatalogComboboxProps = {
   id?: string;
   label?: string;
@@ -70,6 +72,8 @@ export type CatalogComboboxProps = {
   onManualEditRequest?: () => void;
   disabled?: boolean;
   placeholder?: string;
+  searchMode?: CatalogSearchModeHint;
+  listLimit?: number;
 };
 
 export function CatalogCombobox({
@@ -86,6 +90,8 @@ export function CatalogCombobox({
   onManualEditRequest,
   disabled,
   placeholder = "Search Pokémon TCG catalog…",
+  searchMode,
+  listLimit = CATALOG_AUTOCOMPLETE_LIMIT,
 }: CatalogComboboxProps) {
   const autoId = useId();
   const inputId = idProp ?? `catalog-combobox-${autoId}`;
@@ -159,8 +165,18 @@ export function CatalogCombobox({
             </div>
           ) : null}
           {!loading && hits.length > 0 ? (
+            <div>
+              {searchMode ? (
+                <p className="border-b border-mca-border/80 px-mca-compact py-mca-tight text-[10px] font-semibold uppercase tracking-wide text-mca-ink-subtle">
+                  {searchMode === "set"
+                    ? "Set search"
+                    : searchMode === "number"
+                      ? "Number search"
+                      : "Name search"}
+                </p>
+              ) : null}
             <ul role="listbox" aria-label="Catalog matches" className="max-h-[min(320px,52px*10)] overflow-auto">
-              {hits.slice(0, CATALOG_AUTOCOMPLETE_LIMIT).map((hit, i) => (
+              {hits.slice(0, listLimit).map((hit, i) => (
                 <CatalogAutocompleteRow
                   key={hit.id}
                   hit={hit}
@@ -169,6 +185,7 @@ export function CatalogCombobox({
                 />
               ))}
             </ul>
+            </div>
           ) : null}
         </div>
       ) : null}
