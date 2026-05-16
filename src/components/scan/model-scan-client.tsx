@@ -21,6 +21,7 @@ import { PendingOfflineScansPanel } from "@/mca-ui/pending-offline-scans-panel";
 import { rankingFromAutoMatch } from "@/lib/scanning/phase3/fallback-ranking";
 import type { ScanHistoryEntryDTO } from "@/lib/dto/scan-add";
 import { enqueuePendingScan } from "@/mca-utils/offline/cache";
+import { compressImageForScan } from "@/mca-utils/scan/imageCompression";
 import { useOnlineStatus } from "@/lib/hooks/use-online-status";
 import { CardMetadataPanel } from "@/mca-ui/card-metadata-panel";
 import { CardConfidenceBadge } from "@/mca-ui/card-confidence-badge";
@@ -213,11 +214,12 @@ export function ModelScanClient() {
     let cancelled = false;
     setHistoryLoading(true);
     void (async () => {
-      const r = await fetchJson<{ entries: ScanHistoryEntryDTO[] }>("/api/scan/history?limit=8", {
-        cache: "no-store",
-      });
+      const r = await fetchJson<{ entries: ScanHistoryEntryDTO[] }>(
+        "/api/scan/history?limit=8&offset=0",
+        { cache: "no-store" }
+      );
       if (cancelled) return;
-      if (r.kind === "ok") setScanHistory(r.data.entries);
+      if (r.kind === "ok") setScanHistory(r.data.entries ?? []);
       setHistoryLoading(false);
     })();
     return () => {
@@ -278,9 +280,13 @@ export function ModelScanClient() {
     setSelectedMatchId(null);
     setLoadingDetail("Preparing images…");
 
+    setLoadingDetail("Compressing images…");
+    const scanFile = await compressImageForScan(file);
+    const scanBack = backFile ? await compressImageForScan(backFile) : null;
+
     const fd = new FormData();
-    fd.append("image", file);
-    if (backFile) fd.append("image_back", backFile);
+    fd.append("image", scanFile);
+    if (scanBack) fd.append("image_back", scanBack);
 
     const tid = window.setTimeout(() => {
       setLoadingDetail("Running vision model and OCR catalog match…");
@@ -294,18 +300,30 @@ export function ModelScanClient() {
       if (runId !== scanV2SeqRef.current) return;
       if (!navigator.onLine && file) {
         try {
-          const buf = await file.arrayBuffer();
-          const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+          const compressed = await compressImageForScan(file);
+          const buf = await compressed.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          let b64 = "";
+          for (let i = 0; i < bytes.length; i += 8192) {
+            b64 += String.fromCharCode(...bytes.subarray(i, i + 8192));
+          }
+          b64 = btoa(b64);
           let backB64: string | null = null;
           if (backFile) {
-            const bb = await backFile.arrayBuffer();
-            backB64 = btoa(String.fromCharCode(...new Uint8Array(bb)));
+            const cb = await compressImageForScan(backFile);
+            const bb = await cb.arrayBuffer();
+            const bbytes = new Uint8Array(bb);
+            let bb64 = "";
+            for (let i = 0; i < bbytes.length; i += 8192) {
+              bb64 += String.fromCharCode(...bbytes.subarray(i, i + 8192));
+            }
+            backB64 = btoa(bb64);
           }
           await enqueuePendingScan({
             binderId: binderId || null,
             imageBase64: b64,
             backImageBase64: backB64,
-            mimeType: file.type || "image/jpeg",
+            mimeType: compressed.type || "image/jpeg",
           });
           setError("You are offline — scan queued. Retry when back online.");
         } catch {
@@ -365,7 +383,7 @@ export function ModelScanClient() {
     setPhase("result");
   };
 
-  const reset = () => {
+  const reset = useCallback(() => {
     applyFile(null);
     applyBackFile(null);
     setPhase("idle");
@@ -373,7 +391,12 @@ export function ModelScanClient() {
     setResult(null);
     setSelectedMatchId(null);
     setLoadingDetail(null);
-  };
+  }, [applyFile, applyBackFile]);
+
+  const scanNextCard = useCallback(() => {
+    reset();
+    window.setTimeout(() => inputRef.current?.click(), 80);
+  }, [reset]);
 
   const best = result?.auto_match?.best_match ?? null;
   const ocrSuggestions = (result?.ocr_v1_5?.auto_match?.matches ?? []).slice(0, 5);
@@ -957,7 +980,8 @@ export function ModelScanClient() {
                 normalized={result.card}
                 scanEventId={result.scan_event_id}
                 binderId={binderId.trim()}
-                onScanNext={reset}
+                onScanNext={scanNextCard}
+                scanNextLabel="Scan next card →"
               />
             ) : null}
 

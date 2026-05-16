@@ -1,19 +1,28 @@
 "use client";
 
-import type { ScanHistoryEntryDTO } from "@/lib/dto/scan-add";
+import type { ScanHistoryEntryDTO, ScanHistoryResponseDTO } from "@/lib/dto/scan-add";
 import { confidenceBand, confidenceBandLabel } from "@/lib/scanning/v1/confidence-label";
+import type { RankedScanCandidate } from "@/lib/scanning/phase3/types";
 import type { CatalogMatchConfidenceBand } from "@/mca-utils/catalog/confidence";
 import { CardConfidenceBadge } from "@/mca-ui/card-confidence-badge";
-import { RemoteCardThumb } from "@/mca-ui/remote-card-thumb";
-import { MCA_MOTION_PANEL } from "@/lib/ui/mca-motion";
+import { ScanVariantThumb } from "@/mca-ui/scan-variant-thumb";
+import { variantBadgeFromGroup } from "@/mca-utils/scan/variant-badge";
+import { Button } from "@/mca-ui/button";
+import { fetchJson } from "@/lib/client";
+import { MCA_MOTION_LIST_ITEM, MCA_MOTION_PANEL } from "@/lib/ui/mca-motion";
 import { cn } from "@/lib/ui/cn";
 import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+
+const PAGE_SIZE = 10;
 
 export type ScanHistoryPanelProps = {
-  entries: ScanHistoryEntryDTO[];
+  entries?: ScanHistoryEntryDTO[];
   loading?: boolean;
   binderId?: string;
   className?: string;
+  /** Load history with pagination when parent does not supply entries. */
+  selfFetch?: boolean;
 };
 
 function scanBandToCatalog(conf: number): CatalogMatchConfidenceBand {
@@ -32,20 +41,69 @@ function addCardHref(entry: ScanHistoryEntryDTO, binderId: string): string {
   return `/binders/${encodeURIComponent(binderId)}/add-card?${q}`;
 }
 
+function historyRowToCandidate(e: ScanHistoryEntryDTO): RankedScanCandidate | null {
+  if (!e.best_catalog_card_id) return null;
+  return {
+    card_name: e.card_name ?? "Unknown",
+    set_name: e.set_name ?? "",
+    number: e.number ?? "—",
+    rarity: null,
+    image_url: e.image_url,
+    confidence: e.confidence,
+    catalog_card_id: e.best_catalog_card_id,
+    set_id: null,
+    variantGroup: e.variant_hint ?? "standard",
+    setSymbolScore: 0,
+    ocrNumberScore: 0,
+    fuzzyNameScore: 0,
+    imageSimilarityScore: 0,
+  };
+}
+
 export function ScanHistoryPanel({
-  entries,
-  loading,
+  entries: entriesProp,
+  loading: loadingProp,
   binderId,
   className,
+  selfFetch = false,
 }: ScanHistoryPanelProps) {
-  if (loading) {
+  const [internalEntries, setInternalEntries] = useState<ScanHistoryEntryDTO[]>([]);
+  const [internalLoading, setInternalLoading] = useState(selfFetch);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+
+  const loadPage = useCallback(async (nextOffset: number, append: boolean) => {
+    if (append) setLoadingMore(true);
+    else setInternalLoading(true);
+    const r = await fetchJson<ScanHistoryResponseDTO>(
+      `/api/scan/history?limit=${PAGE_SIZE}&offset=${nextOffset}`,
+      { cache: "no-store" }
+    );
+    if (append) setLoadingMore(false);
+    else setInternalLoading(false);
+    if (r.kind !== "ok") return;
+    setInternalEntries((prev) => (append ? [...prev, ...r.data.entries] : r.data.entries));
+    setHasMore(r.data.has_more);
+    setOffset(r.data.next_offset);
+  }, []);
+
+  useEffect(() => {
+    if (!selfFetch) return;
+    void loadPage(0, false);
+  }, [selfFetch, loadPage]);
+
+  const displayEntries = selfFetch ? internalEntries : (entriesProp ?? []);
+  const displayLoading = selfFetch ? internalLoading : (loadingProp ?? false);
+
+  if (displayLoading && displayEntries.length === 0) {
     return (
       <p className="text-sm text-mca-ink-muted" role="status" aria-busy="true">
         Loading recent scans…
       </p>
     );
   }
-  if (entries.length === 0) return null;
+  if (displayEntries.length === 0) return null;
 
   return (
     <section
@@ -56,47 +114,85 @@ export function ScanHistoryPanel({
         Recent scans
       </h3>
       <ul className="space-y-mca-xs" aria-label="Recent scan history">
-        {entries.map((e) => {
+        {displayEntries.map((e) => {
           const scanBand = confidenceBand(e.confidence);
           const catalogBand = scanBandToCatalog(e.confidence);
+          const variantBadge = variantBadgeFromGroup(e.variant_hint);
+          const candidate = historyRowToCandidate(e);
+          const ariaLabel = [
+            e.card_name ?? "Unknown card",
+            e.set_name,
+            e.number ? `number ${e.number}` : null,
+            confidenceBandLabel(scanBand),
+          ]
+            .filter(Boolean)
+            .join(", ");
+
           return (
             <li
               key={e.id}
-              className="flex items-center gap-mca-sm rounded-mca-control border border-mca-border bg-mca-surface/40 px-mca-sm py-mca-tight"
+              className={cn(
+                "flex items-center gap-mca-sm rounded-mca-control border border-mca-border bg-mca-surface/40 px-mca-sm py-mca-tight",
+                MCA_MOTION_LIST_ITEM
+              )}
+              aria-label={ariaLabel}
             >
-              <div className="h-12 w-9 shrink-0 overflow-hidden rounded-mca-control border border-mca-border">
-                {e.image_url ? (
-                  <RemoteCardThumb src={e.image_url} alt="" sizes="36px" className="object-cover" />
-                ) : (
-                  <span className="flex h-full items-center justify-center text-[10px] text-mca-hint">—</span>
-                )}
-              </div>
+              {candidate ? (
+                <ScanVariantThumb candidate={candidate} variantGroup={e.variant_hint} size="sm" />
+              ) : (
+                <div
+                  className="h-8 w-[23px] shrink-0 rounded-mca-control border border-dashed border-mca-border"
+                  aria-hidden
+                />
+              )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-mca-ink-strong">
                   {e.card_name ?? "Unknown card"}
+                  {variantBadge ? (
+                    <span className="ml-mca-xs rounded-mca-pill border border-mca-border/70 px-mca-xs text-[9px] font-semibold uppercase text-mca-ink-muted">
+                      {variantBadge}
+                    </span>
+                  ) : null}
                 </p>
                 <p className="truncate text-mca-caption text-mca-ink-muted">
                   {e.set_name ?? "Set"} · #{e.number ?? "—"}
                 </p>
-                <p className="text-mca-caption text-mca-ink-subtle">
+                <time className="text-mca-caption text-mca-ink-subtle" dateTime={e.created_at}>
                   {new Date(e.created_at).toLocaleString()}
-                </p>
+                </time>
               </div>
-              <span title={confidenceBandLabel(scanBand)}>
-                <CardConfidenceBadge band={catalogBand} />
-              </span>
-              {binderId && e.best_catalog_card_id ? (
+              <CardConfidenceBadge band={catalogBand} />
+              <div className="flex shrink-0 flex-col gap-mca-trace">
+                {binderId && e.best_catalog_card_id ? (
+                  <Link
+                    href={addCardHref(e, binderId)}
+                    className="inline-flex items-center justify-center rounded-mca-control border border-mca-field-border bg-mca-chrome px-mca-sm py-mca-trace text-xs font-semibold text-mca-ink-strong transition duration-200 ease-mca-standard hover:bg-mca-border-subtle"
+                  >
+                    Add
+                  </Link>
+                ) : null}
                 <Link
-                  href={addCardHref(e, binderId)}
-                  className="inline-flex shrink-0 items-center justify-center rounded-mca-control border border-mca-field-border bg-mca-chrome px-mca-sm py-mca-trace text-xs font-semibold text-mca-ink-strong transition duration-200 ease-mca-standard hover:bg-mca-border-subtle"
+                  href="/scan/v2"
+                  className="inline-flex items-center justify-center px-mca-sm py-mca-trace text-xs font-medium text-mca-accent-strong transition duration-200 ease-mca-standard hover:underline"
                 >
-                  Add
+                  Re-scan
                 </Link>
-              ) : null}
+              </div>
             </li>
           );
         })}
       </ul>
+      {selfFetch && hasMore ? (
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={loadingMore}
+          className="text-sm"
+          onClick={() => void loadPage(offset, true)}
+        >
+          {loadingMore ? "Loading…" : "Load more scans"}
+        </Button>
+      ) : null}
     </section>
   );
 }

@@ -12,15 +12,21 @@ import { CardMetadataPanel } from "@/mca-ui/card-metadata-panel";
 import { CardConfidenceBadge } from "@/mca-ui/card-confidence-badge";
 import { CardVariantSelector } from "@/mca-ui/card-variant-selector";
 import { CardScanCandidates } from "@/mca-ui/card-scan-candidates";
+import { BinderSetInsights } from "@/mca-ui/binder-set-insights";
 import { findMultiVariantGroups } from "@/lib/catalog/variants";
 import type { CatalogCardHit } from "@/lib/dto/catalog";
+import type { BinderRarityDistribution } from "@/lib/catalog/binder-rarity-hints";
+import type { SetCompletionProgress } from "@/lib/catalog/set-progress";
+import { resolveBinderAccent } from "@/lib/binders/binder-accent";
+import { fetchJson, fetchJsonUserFacingMessage } from "@/lib/client";
+import { useOnlineStatus } from "@/lib/hooks/use-online-status";
 import { Button } from "@/mca-ui/button";
 import { LoadingButton } from "@/mca-ui/loading-button";
 import { InlineError } from "@/mca-ui/inline-error";
-import { fetchJson, fetchJsonUserFacingMessage } from "@/lib/client";
+import { MCA_MOTION_ENTER } from "@/lib/ui/mca-motion";
 import { cn } from "@/lib/ui/cn";
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 function rankedToHit(c: RankedScanCandidate): CatalogCardHit {
   return {
@@ -39,7 +45,9 @@ export type ScanConfirmationPanelProps = {
   normalized: NormalizedCard;
   scanEventId: string;
   binderId: string;
+  binderAccentColor?: string | null;
   onScanNext?: () => void;
+  scanNextLabel?: string;
   className?: string;
 };
 
@@ -48,13 +56,30 @@ export function ScanConfirmationPanel({
   normalized,
   scanEventId,
   binderId,
+  binderAccentColor = null,
   onScanNext,
+  scanNextLabel = "Scan next card →",
   className,
 }: ScanConfirmationPanelProps) {
+  const online = useOnlineStatus();
+  const binderAccent = resolveBinderAccent(binderId, binderAccentColor);
   const initial = ranking.topCandidate;
   const [selected, setSelected] = useState<RankedScanCandidate | null>(initial);
   const [adding, setAdding] = useState(false);
   const [addErr, setAddErr] = useState<string | null>(null);
+  const [added, setAdded] = useState(false);
+  const [setProgress, setSetProgress] = useState<SetCompletionProgress | null>(null);
+  const [rarityDistribution, setRarityDistribution] = useState<BinderRarityDistribution | null>(
+    null
+  );
+  const [rareForBinder, setRareForBinder] = useState(false);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+
+  const topId = ranking.topCandidate?.catalog_card_id ?? null;
+  useEffect(() => {
+    setSelected(ranking.topCandidate);
+    setAdded(false);
+  }, [topId, scanEventId, ranking.topCandidate]);
 
   const variantHits = useMemo(() => {
     const all = ranking.allCandidates.map(rankedToHit);
@@ -74,6 +99,37 @@ export function ScanConfirmationPanel({
       })
     : null;
 
+  useEffect(() => {
+    const setId = meta?.setId?.trim() || selected?.set_id?.trim() || "";
+    const cid = meta?.catalog_card_id?.trim() || "";
+    if (!binderId || !setId || !online) {
+      setSetProgress(null);
+      setRarityDistribution(null);
+      setRareForBinder(false);
+      return;
+    }
+    let cancelled = false;
+    setInsightsLoading(true);
+    const url = `/api/binders/${encodeURIComponent(binderId)}/set-context?setId=${encodeURIComponent(setId)}${cid ? `&catalog_card_id=${encodeURIComponent(cid)}` : ""}`;
+    void (async () => {
+      const r = await fetchJson<{
+        set_progress: SetCompletionProgress;
+        rarity_distribution: BinderRarityDistribution;
+        rare_for_binder: boolean;
+      }>(url, { cache: "no-store" });
+      if (cancelled) return;
+      if (r.kind === "ok") {
+        setSetProgress(r.data.set_progress);
+        setRarityDistribution(r.data.rarity_distribution);
+        setRareForBinder(r.data.rare_for_binder);
+      }
+      setInsightsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [binderId, meta?.setId, meta?.catalog_card_id, selected?.set_id, online]);
+
   const addToBinder = useCallback(async () => {
     if (!selected || !meta) return;
     setAdding(true);
@@ -89,8 +145,8 @@ export function ScanConfirmationPanel({
       setAddErr(fetchJsonUserFacingMessage(r));
       return;
     }
-    onScanNext?.();
-  }, [selected, meta, binderId, scanEventId, onScanNext]);
+    setAdded(true);
+  }, [selected, meta, binderId, scanEventId]);
 
   const prefill = meta ? toAddCardPrefillPayload(meta) : null;
   const editHref =
@@ -104,10 +160,11 @@ export function ScanConfirmationPanel({
       : null;
 
   return (
-    <div className={cn("space-y-mca-md", className)}>
+    <div className={cn("space-y-mca-md", MCA_MOTION_ENTER, className)} aria-live="polite">
       {meta ? (
         <CardMetadataPanel
           title="Scan result"
+          accent={binderAccent}
           data={{
             name: meta.name,
             setName: meta.setName,
@@ -121,6 +178,16 @@ export function ScanConfirmationPanel({
       ) : null}
 
       {confidence ? <CardConfidenceBadge band={confidence.band} /> : null}
+
+      <BinderSetInsights
+        setName={meta?.setName}
+        progress={setProgress}
+        distribution={rarityDistribution}
+        rareForBinder={rareForBinder}
+        selectedRarity={meta?.rarity}
+        accent={binderAccent}
+        loading={insightsLoading}
+      />
 
       {variantHits.length >= 2 && selected ? (
         <CardVariantSelector
@@ -142,19 +209,32 @@ export function ScanConfirmationPanel({
 
       {addErr ? <InlineError>{addErr}</InlineError> : null}
 
+      {added ? (
+        <p className="text-sm font-medium text-mca-success-tint" role="status">
+          Card added to your binder.
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap gap-mca-sm">
-        <LoadingButton
-          type="button"
-          isLoading={adding}
-          disabled={!selected}
-          onClick={() => void addToBinder()}
-          className="inline-flex items-center justify-center rounded-mca-control border border-mca-accent-border/50 bg-mca-accent-strong/90 px-mca-comfortable py-mca-tight text-sm font-semibold text-mca-on-accent"
-        >
-          Add to binder
-        </LoadingButton>
-        {onScanNext ? (
+        {!added ? (
+          <LoadingButton
+            type="button"
+            isLoading={adding}
+            disabled={!selected}
+            onClick={() => void addToBinder()}
+            className="inline-flex items-center justify-center rounded-mca-control border border-mca-accent-border/50 bg-mca-accent-strong/90 px-mca-comfortable py-mca-tight text-sm font-semibold text-mca-on-accent"
+          >
+            Add to binder
+          </LoadingButton>
+        ) : null}
+        {added && onScanNext ? (
+          <Button type="button" variant="primary" onClick={onScanNext}>
+            {scanNextLabel}
+          </Button>
+        ) : null}
+        {!added && onScanNext ? (
           <Button type="button" variant="secondary" onClick={onScanNext}>
-            Scan next card
+            {scanNextLabel}
           </Button>
         ) : null}
         {editHref ? (

@@ -15,6 +15,7 @@ export { PendingOfflinePanel } from "./pending-offline-panel";
 export { PendingOfflineScansPanel } from "./pending-offline-scans-panel";
 export { CardScanCandidates } from "./card-scan-candidates";
 export { ScanHistoryPanel } from "./scan-history-panel";
+export { ScanVariantThumb } from "./scan-variant-thumb";
 export { CardVariantSelector } from "./card-variant-selector";
 export { CatalogAutocompleteRow, CatalogCombobox, type CatalogComboboxProps } from "./catalog-combobox";
 export { CatalogSuggestionsStrip } from "./catalog-suggestions-strip";

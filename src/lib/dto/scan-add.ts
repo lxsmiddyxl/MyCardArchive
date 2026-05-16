@@ -56,6 +56,13 @@ export type ScanHistoryEntryDTO = {
   card_name?: string | null;
   set_name?: string | null;
   number?: string | null;
+  variant_hint?: string | null;
+};
+
+export type ScanHistoryResponseDTO = {
+  entries: ScanHistoryEntryDTO[];
+  has_more: boolean;
+  next_offset: number;
 };
 
 export type ScanBatchResultItemDTO = {

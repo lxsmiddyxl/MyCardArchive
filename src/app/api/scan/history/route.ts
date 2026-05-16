@@ -25,13 +25,15 @@ async function GET_handler(request: Request) {
   const limit = Number.isFinite(limitRaw)
     ? Math.min(MAX_LIMIT, Math.max(1, Math.floor(limitRaw)))
     : DEFAULT_LIMIT;
+  const offsetRaw = Number(searchParams.get("offset") ?? 0);
+  const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw)) : 0;
 
   const { data, error } = await supabase
     .from("scan_history")
     .select("id, image_url, best_catalog_card_id, confidence, scan_event_id, created_at")
     .eq("user_id", session.userId)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(offset, offset + limit);
 
   if (error) {
     return errorJson(ctx, safePublicDbMessage(error.message), 500, {
@@ -48,24 +50,38 @@ async function GET_handler(request: Request) {
     ),
   ];
 
-  const catalogMeta = new Map<string, { name: string; set: string; number: string }>();
+  const catalogMeta = new Map<
+    string,
+    { name: string; set: string; number: string; variant_hint: string | null }
+  >();
   if (catalogIds.length > 0) {
     const { data: cards } = await supabase
       .from("catalog_cards")
-      .select("id, name, number, catalog_sets(name)")
+      .select("id, name, number, rarity, subtypes, catalog_sets(name)")
       .in("id", catalogIds);
     for (const row of cards ?? []) {
       const cs = row.catalog_sets as { name: string } | { name: string }[] | null;
       const setName = Array.isArray(cs) ? (cs[0]?.name ?? "") : (cs?.name ?? "");
+      const sub = Array.isArray(row.subtypes) ? row.subtypes : [];
+      let variant_hint: string | null = null;
+      const subL = sub.map((s) => String(s).toLowerCase());
+      if (subL.some((s) => s.includes("reverse"))) variant_hint = "reverse_holo";
+      else if (subL.some((s) => s.includes("promo"))) variant_hint = "promo";
+      else if (row.rarity?.toLowerCase().includes("holo")) variant_hint = "holo";
       catalogMeta.set(row.id, {
         name: row.name,
         set: setName,
         number: row.number ?? "",
+        variant_hint,
       });
     }
   }
 
-  const entries: ScanHistoryEntryDTO[] = (data ?? []).map((row) => {
+  const rows = data ?? [];
+  const has_more = rows.length > limit;
+  const page = has_more ? rows.slice(0, limit) : rows;
+
+  const entries: ScanHistoryEntryDTO[] = page.map((row) => {
     const meta = row.best_catalog_card_id
       ? catalogMeta.get(row.best_catalog_card_id)
       : undefined;
@@ -79,10 +95,15 @@ async function GET_handler(request: Request) {
       card_name: meta?.name ?? null,
       set_name: meta?.set ?? null,
       number: meta?.number ?? null,
+      variant_hint: meta?.variant_hint ?? null,
     };
   });
 
-  return successJson(ctx, { entries });
+  return successJson(ctx, {
+    entries,
+    has_more,
+    next_offset: offset + entries.length,
+  });
 }
 
 export const GET = defineRouteSimple("GET /api/scan/history", GET_handler);
